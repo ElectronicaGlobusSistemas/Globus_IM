@@ -8,8 +8,8 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM/include",
-                "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM/src",
+                "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_V1/include",
+                "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_V1/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
@@ -217,8 +217,8 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM/include",
-                    "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM/src",
+                    "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_V1/include",
+                    "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_V1/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",

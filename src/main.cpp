@@ -8,11 +8,10 @@
 
 void setup() {
   Init_Config();
-  Serial.begin(115200);
 }
 
 void loop() {
-  delay(1000);
+  Rum_Bootloader();
 }
 
 
