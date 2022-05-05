@@ -7,15 +7,11 @@
 #include "Config_Perifericos.h"
 
 void setup() {
- 
   Init_Config();
-
+  Serial.begin(115200);
 }
 
-
-
 void loop() {
-  Transmite_Sincronizacion();
   delay(1000);
 }
 

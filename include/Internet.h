@@ -3,19 +3,17 @@
 
 #define WIFI_MODE  WIFI_STA 
 
-const char* ssid = "GLSIS-INTERNA-DESA";
-const char* password = "GlonexionInterna#2020*";
+const char* ssid = "GLOBUS-DESARROLLO";
+const char* password = "Globus2020*";
 
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
 
 
-
-
 void CONNECT_WIFI(void){
 
     WiFi.mode(WIFI_MODE); // MODO STA.
-    IPAddress  Local_IP(192,168,1,37);
+    IPAddress  Local_IP(192,168,5,137);
     IPAddress primaryDNS(8, 8, 8, 8); //optional
     IPAddress secondaryDNS(8, 8, 4, 4); //optional
 
