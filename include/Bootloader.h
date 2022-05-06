@@ -33,7 +33,7 @@ void Bootloader(void)
   ArduinoOTA.begin();
 }
 
-void Rum_Bootloader()
+void Run_Bootloader()
 {
   ArduinoOTA.handle();
 }
