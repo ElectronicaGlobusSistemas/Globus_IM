@@ -12,6 +12,7 @@ void setup() {
 
 void loop() {
   Rum_Bootloader();
+  delay(1);
 }
 
 
