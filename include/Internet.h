@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include "CRC_Kermit.h"
+#include "AES.h"
 
 const char *ssid = "GLOBUS-DESARROLLO";
 const char *password = "Globus2020*";
@@ -15,7 +16,7 @@ WiFiClient client; // Declara un objeto cliente para conectarse al servidor
 
 extern String buffer;
 
-//bool Verifica_CRC(String str_CRC);
+// bool Verifica_CRC(String str_CRC);
 
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
@@ -186,10 +187,12 @@ void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
     if (client.available())
     {
       buffer = client.readStringUntil('\n'); // Leer datos a nueva línea
-      Serial.print("Leer datos: ");
-      Serial.println(buffer);
-      if (Verifica_CRC(buffer)){
-        
+      Serial.print("Dato entrante...");
+      //      Serial.println(buffer);
+
+      if (Verifica_CRC(buffer))
+      {
+        Desencripta_Mensaje_Servidor(buffer);
       }
       //     client.write(line.c_str()); // Devuelve los datos recibidos
       vTaskDelay(50 / portTICK_PERIOD_MS);
