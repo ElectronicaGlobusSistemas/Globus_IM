@@ -1,138 +1,191 @@
-#include <stdio.h>
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+#include "Arduino.h"
+
 #include "driver/uart.h"
-#include "esp_log.h"
 
-#if CONFIG_IDF_TARGET_ESP32
-    #include "esp32/rom/uart.h"
-#elif CONFIG_IDF_TARGET_ESP32S2
-    #include "esp32s2/rom/uart.h"
-#endif
-
-static const char *TAG = "uart_events";
-
-//PINES ---------> UART2 <----------------------
-
-#define TXD_PIN (GPIO_NUM_17)  
-#define RXD_PIN (GPIO_NUM_16)
-#define ECHO_TEST_RTS  (UART_PIN_NO_CHANGE)
-#define ECHO_TEST_CTS  (UART_PIN_NO_CHANGE)
-#define EX_UART_NUM UART_NUM_2 
-
-#define PATTERN_CHR_NUM    (3)         
-#define BUF_SIZE (1024)
-#define RD_BUF_SIZE (BUF_SIZE)
-//-----------------------------------------------
-
-#define                 SYNC                  0x0180
-#define                 POLL                  0x0181
-#define                 DIR                   0x0101
-
+#define NUMERO_PORTA_SERIALE UART_NUM_2
+#define BUF_SIZE (1024 * 2)
+#define RD_BUF_SIZE (1024)
 static QueueHandle_t uart2_queue;
-uart_event_t event;
-size_t buffered_size;
-uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
 
-//-----------------------------------> Interrupción UART2 Data<-----------------------------------------------
+#define     SYNC                  0x080
+#define     POLL                  0x081
+#define     DIR                   0x001
 
-static void uart_event_task(void *pvParameters)
-{
-    for(;;) {
-        //Waiting for UART event.
-        if(xQueueReceive(uart2_queue, (void * )&event, (portTickType)portMAX_DELAY)) {
-            bzero(dtmp, RD_BUF_SIZE);
-            ESP_LOGI(TAG, "uart[%d] event:", EX_UART_NUM);
-            switch(event.type) {
-                case UART_DATA:
-                    ESP_LOGI(TAG, "[UART DATA]: %d", event.size);
-                    uart_read_bytes(EX_UART_NUM, dtmp, event.size, portMAX_DELAY);
-                    ESP_LOGI(TAG, "[DATA EVT]:");
-                   // uart_write_bytes(EX_UART_NUM, (const char*) dtmp, event.size);
-                    break;
-                default:
-                    ESP_LOGI(TAG, "uart event type: %d", event.type);
-                    break;
-            }
-        }
-    }
-    free(dtmp);
-    dtmp = NULL;
-    vTaskDelete(NULL);
-}
+static const char * TAG = "";
+TaskHandle_t Task1;
+TaskHandle_t Task2;
+#define U2RXD 17
+#define U2TXD 16
 
-//----------------------------------> Envia Datos HEXA <-----------------------------------------
-void Write2USART(uint8_t datos) 
-{
-
-  char buf[1] = {datos};
-  const int txBytes = uart_write_bytes(UART_NUM_2, buf, sizeof(buf));
-  ESP_ERROR_CHECK(uart_wait_tx_done(EX_UART_NUM,100)); // wait timeout is 100 RTOS ticks (TickType_t)
-  ESP_LOGI("TX_TASK", "Wrote %d bytes", txBytes);
-  //return txBytes;
-}
-
-void Delete_Buffer_RX(){
-  uart_flush(EX_UART_NUM);
-}
+uint8_t rxbuf[256];     //Buffer di ricezione
+uint16_t rx_fifo_len;        //Lunghezza dati
 
 
-void Transmite_Sincronizacion(void)
-{
-  Write2USART(SYNC);
-}
+unsigned  long tiempo_actual = 0;
+unsigned long tiempo_previo = 0;
+unsigned  long tiempo_actual2 = 0;
+unsigned long tiempo_previo2 = 0;
+int bandera = 0;
+char dat[1] = {SYNC};
+char dat2[1] = {0x081};
 
-void Transmite_Poll( unsigned char Com_SAS ){
+static void UART_ISR_ROUTINE(void *pvParameters);
 
-  if ( Com_SAS != 0 )
-    {
-        Write2USART(DIR);
-    }
-  else{
-        Write2USART(POLL);
-  }
-
-  //Transmito Byte de comando
-  if ( Com_SAS != 0 )
-    {
-        Write2USART( Com_SAS );
-        delay(100);	
-    }
-  else
-    {
-        delay(100);
-    }
-}
-
-//-------------------------------------------> CONFIGURACIÓN DE UART2 <---------------------------------------------
 void Init_UART2(){
 
+  Serial.begin(19200);
+  pinMode(2, OUTPUT);
+  pinMode(4,INPUT);
+
+  //Configuro la porta Serial2 (tutti i parametri hanno anche un get per effettuare controlli)
+  uart_config_t Configurazione_UART2 = {
+    .baud_rate = 19200,
+    .data_bits = UART_DATA_8_BITS,
+    .parity = UART_PARITY_DISABLE,
+    .stop_bits = UART_STOP_BITS_1,
+    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+  };
+  uart_param_config(NUMERO_PORTA_SERIALE, &Configurazione_UART2);
+
+
+
+  //Firma: void esp_log_level_set(const char *tag, esp_log_level_tlevel)
   esp_log_level_set(TAG, ESP_LOG_INFO);
-    /* Configure parameters of an UART driver,
-     * communication pins and install the driver */
-    uart_config_t uart_config = {
-        .baud_rate = 115200, 
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
-    uart_param_config(EX_UART_NUM, &uart_config);
-    //Set UART log level
-    esp_log_level_set(TAG, ESP_LOG_INFO);
-    //Set UART pins (using UART2 default pins ie no changes.)
-    uart_set_pin(EX_UART_NUM,  TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    //Install UART driver, and get the queue.
-    uart_driver_install(EX_UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart2_queue, 0);
-    //Set uart pattern detect function.
-    uart_enable_pattern_det_intr(EX_UART_NUM, '+', PATTERN_CHR_NUM, 10000, 10, 10);
-    //Reset the pattern queue length to record at most 20 pattern positions.
-    uart_pattern_queue_reset(EX_UART_NUM, 20);
-    //Create a task to handler UART event from ISR
-    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
+
+
+
+  //Firma: esp_err_tuart_set_pin(uart_port_tuart_num, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num)
+  uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+
+  //Firma: uart_driver_install(UART_NUM_2, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0));
+  //       uart_driver_install(Numero_porta, RXD_BUFFER, TXD_Buffer, event queue handle and size, flags to allocate an interrupt)
+  uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0);
+
+
+  //Create a task to handler UART event from ISR
+  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 10000, NULL, 12, NULL,1);
+  
 }
 
 
 
+
+
+int sendDataa(const char* datos, unsigned int tamano)
+{
+
+
+  // ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 1));
+  const int txBytes = uart_write_bytes(UART_NUM_2, datos, tamano);
+  // ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 11));
+  return txBytes;
+}
+
+
+void Transmite_Poll( unsigned char Com_SAS )
+{
+  char dat3[1] = {POLL};
+  char dat4[1] = {DIR};
+  char dat5[1] = {Com_SAS};
+
+  /**********************************************************************************/
+  //Transmite direccion con bit 9 en 1
+  if ( Com_SAS != 0 )
+  {
+    sendDataa( dat4, sizeof(dat4) ); //Transmito Byte con 9bit = 1
+  }
+  else
+  {
+    sendDataa( dat3, sizeof(dat3)); //Transmito Byte con 9bit = 1
+  }
+  /***********************************************************************************/
+  //Retardo de 3ms para inter_byte_delay
+  delay(3);
+  /***********************************************************************************/
+  //Transmito Byte de comando
+  if ( Com_SAS != 0 )
+  {
+    sendDataa(dat5, sizeof(dat5));
+      delay( 100 );  //100
+  }
+  else
+  {
+     delay( 100 ); // 100
+  }
+}
+
+static void UART_ISR_ROUTINE(void *pvParameters)
+{
+  uart_event_t event;
+  size_t buffered_size;
+  bool exit_condition = false;
+
+  //Infinite loop to run main bulk of task
+  while (1) {
+
+    
+
+    //Loop will continually block (i.e. wait) on event messages from the event queue
+    if (xQueueReceive(uart2_queue, (void * )&event, (portTickType)portMAX_DELAY)) {
+
+      //Handle received event
+      if (event.type == UART_DATA) {
+        
+
+        //  uart_get_wakeup_threshold()
+        uint8_t UART2_data[255];
+        int UART2_data_length = 0;
+        ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_2, (size_t*)&UART2_data_length));
+        UART2_data_length = uart_read_bytes(UART_NUM_2, UART2_data, UART2_data_length, 10);
+
+        // Serial.println("LEN= ");Serial.println(UART2_data_length);
+
+        //  Serial.print("DATA= ");
+        for (byte i = 0; i < UART2_data_length; i++) {
+
+
+          if(UART2_data[i]!=0x00 && UART2_data[i]!=0x1F){
+            Serial.println(UART2_data[i], HEX);
+          }
+          
+        }
+       
+        /*
+          if (UART2_data[0]==0x1F){
+          digitalWrite(2,HIGH);
+          }
+          else if(UART2_data[0]==0x2F){
+          digitalWrite(2,LOW);
+          }
+        */
+      }
+
+      //Handle frame error event
+      else if (event.type == UART_FRAME_ERR) {
+        //TODO...
+      }
+
+      //Keep adding else if statements for each UART event you want to support
+      //else if (event.type == OTHER EVENT) {
+      //TODO...
+      //}
+
+
+      //Final else statement to act as a default case
+      else {
+        //TODO...
+      }
+    }
+
+    //If you want to break out of the loop due to certain conditions, set exit condition to true
+    if (exit_condition) {
+      break;
+    }
+  }
+  uart_flush(UART_NUM_2);
+  // uart_set_wakeup_threshold(UART_NUM_2,  1);
+
+  //Out side of loop now. Task needs to clean up and self terminate before returning
+  vTaskDelete(NULL);
+}
