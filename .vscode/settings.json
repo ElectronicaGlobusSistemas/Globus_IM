@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "string_view": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "bitset": "cpp"
     }
 }
