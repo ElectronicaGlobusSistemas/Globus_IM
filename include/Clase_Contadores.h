@@ -5,31 +5,30 @@
                     ->Metodo Set_Contadores
 */
 
-#include<iostream>
+#include <iostream>
 using namespace std;
 
-#define Total_Cancel_Credit         1
-#define Coin_In                     2                
-#define Coin_Out                    3  
-#define Jackpot                     4
-#define Total_Drop                  5
-#define Cancel_Credit_Hand_Pay      6
-#define Bill_Amount                 7
-#define Casheable_In                8
-#define Casheable_Restricted_In     9
-#define Casheable_NONrestricted_In  10
-#define Casheable_Out               11             
-#define Casheable_Restricted_Out    12            
-#define Casheable_NONrestricted_Out 13
-#define Games_Played                14
-
-
+#define Total_Cancel_Credit           1
+#define Coin_In                       2
+#define Coin_Out                      3
+#define Jackpot                       4
+#define Total_Drop                    5
+#define Cancel_Credit_Hand_Pay        6
+#define Bill_Amount                   7
+#define Casheable_In                  8
+#define Casheable_Restricted_In       9
+#define Casheable_NONrestricted_In    10
+#define Casheable_Out                 11
+#define Casheable_Restricted_Out      12
+#define Casheable_NONrestricted_Out   13
+#define Games_Played                  14
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
-class Contadores_SAS{
+class Contadores_SAS
+{
 
 private: // Variables Privadas Para contadores
-  uint8_t Total_Cancel_Credit_;
+  int Total_Cancel_Credit_;
   uint8_t Coin_In_;
   uint8_t Coin_Out_;
   uint8_t Jackpot_;
@@ -46,11 +45,11 @@ private: // Variables Privadas Para contadores
   uint8_t Vacio;
 
 public:                                                               // Metodos Publicos
-  uint8_t Get_Contadores(int Filtro_Contador);                        // Metodo Get Contadores
-  uint8_t Set_Contadores(int Filtro_Contador, uint8_t Data_Contador); // Metodo Set Contadores
+  int Get_Contadores(int Filtro_Contador);                        // Metodo Get Contadores
+  bool Set_Contadores(int Filtro_Contador, int Data_Contador); // Metodo Set Contadores
 };
-//---------------------------------------->Metodo Para Obtener Contadores<--------------------------------------------- 
-uint8_t Contadores_SAS::Get_Contadores(int Filtro_Contador)
+//---------------------------------------->Metodo Para Obtener Contadores<---------------------------------------------
+int Contadores_SAS::Get_Contadores(int Filtro_Contador)
 {
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
@@ -101,55 +100,55 @@ uint8_t Contadores_SAS::Get_Contadores(int Filtro_Contador)
 }
 //---------------------------------------------------------------------------------------------------------------------
 //---------------------------------------->Metodo Para Guardar Contadores<---------------------------------------------
-uint8_t Contadores_SAS::Set_Contadores(int Filtro_Contador,uint8_t Data_Contador)
+bool Contadores_SAS::Set_Contadores(int Filtro_Contador, int Data_Contador)
 {
-  switch(Filtro_Contador) //Selecciona Contador Especifico.
+  switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
-      case 1: //Bloque de instrucciones 1;
-        Total_Cancel_Credit_=Data_Contador;
-      break;
-      case 2: //Bloque de instrucciones 2;
-        Coin_In_=Data_Contador;
-      break;
-      case 3: //Bloque de instrucciones 3;
-        Coin_Out_=Data_Contador;
-        break;
-      case 4: //Bloque de instrucciones 4;
-        Jackpot_=Data_Contador;
-        break;
-      case 5: //Bloque de instrucciones 5;
-        Total_Drop_=Data_Contador;
-      break;
-      case 6: //Bloque de instrucciones 6;
-        Cancel_Credit_Hand_Pay_=Data_Contador;
-      break;
-      case 7: //Bloque de instrucciones 7;
-        Bill_Amount_=Data_Contador;
-      break;
-      case 8: //Bloque de instrucciones 8;
-        Casheable_In_=Data_Contador;
-      break;
-      case 9: //Bloque de instrucciones 9;
-        Casheable_Restricted_In_=Data_Contador;
-      break;
-      case 10: //Bloque de instrucciones 10;
-        Casheable_NONrestricted_In_=Data_Contador;
-      break;
-      case 11: //Bloque de instrucciones 11;
-        Casheable_Out_=Data_Contador;
-      break;
+  case 1: // Bloque de instrucciones 1;
+    Total_Cancel_Credit_ = Data_Contador;
+    return true;
+    break;
+  case 2: // Bloque de instrucciones 2;
+    Coin_In_ = Data_Contador;
+    break;
+  case 3: // Bloque de instrucciones 3;
+    Coin_Out_ = Data_Contador;
+    break;
+  case 4: // Bloque de instrucciones 4;
+    Jackpot_ = Data_Contador;
+    break;
+  case 5: // Bloque de instrucciones 5;
+    Total_Drop_ = Data_Contador;
+    break;
+  case 6: // Bloque de instrucciones 6;
+    Cancel_Credit_Hand_Pay_ = Data_Contador;
+    break;
+  case 7: // Bloque de instrucciones 7;
+    Bill_Amount_ = Data_Contador;
+    break;
+  case 8: // Bloque de instrucciones 8;
+    Casheable_In_ = Data_Contador;
+    break;
+  case 9: // Bloque de instrucciones 9;
+    Casheable_Restricted_In_ = Data_Contador;
+    break;
+  case 10: // Bloque de instrucciones 10;
+    Casheable_NONrestricted_In_ = Data_Contador;
+    break;
+  case 11: // Bloque de instrucciones 11;
+    Casheable_Out_ = Data_Contador;
+    break;
 
-      case 12: //Bloque de instrucciones 12;
-        Casheable_Restricted_Out_=Data_Contador;
-      break;
-      case 13: //Bloque de instrucciones 13;
-        Casheable_NONrestricted_Out_=Data_Contador;
-      break;
-      case 14: //Bloque de instrucciones 13;
-        Games_Played_=Data_Contador;
-      break;
-    
-      
+  case 12: // Bloque de instrucciones 12;
+    Casheable_Restricted_Out_ = Data_Contador;
+    break;
+  case 13: // Bloque de instrucciones 13;
+    Casheable_NONrestricted_Out_ = Data_Contador;
+    break;
+  case 14: // Bloque de instrucciones 13;
+    Games_Played_ = Data_Contador;
+    break;
   }
+  return false;
 }
 //---------------------------------------------------------------------------------------------------------------------

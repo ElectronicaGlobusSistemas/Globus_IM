@@ -28,7 +28,6 @@ void writeFile(fs::FS &fs, const char path, const char message)
   file.close();
 }
 
-
 void appendFile(fs::FS &fs, const char path, const char message)
 {
   Serial.printf("Appending to file: %s\n", path);
