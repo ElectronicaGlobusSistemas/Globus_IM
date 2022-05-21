@@ -1,6 +1,3 @@
-#include <Arduino.h>
-#include "time.h"
-#include <ESP32Time.h>
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
@@ -225,9 +222,10 @@ void Task_Verifica_Conexion_SD(void *parameter)
 {
   for (;;)
   {
-    if (!SD.begin())
+    if (!SD.begin(HSPI_CS))
     {
       Serial.println("Inicio de SD Error");
+      Inicializa_SPI();
       vTaskDelay(10000 / portTICK_PERIOD_MS);
       continue;
     }

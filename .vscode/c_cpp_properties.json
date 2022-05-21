@@ -10,6 +10,7 @@
             "includePath": [
                 "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/include",
                 "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/src",
+                "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/lib/CRC",
                 "C:/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                 "C:/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
@@ -220,6 +221,7 @@
                 "path": [
                     "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/include",
                     "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/src",
+                    "d:/Empresa/Fabian/Pruebas/PROYECTO_ESP32/Globus_IM_ESP32_RS232_V1/Globus_IM/lib/CRC",
                     "C:/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                     "C:/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
