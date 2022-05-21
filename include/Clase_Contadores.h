@@ -29,20 +29,20 @@ class Contadores_SAS
 
 private: // Variables Privadas Para contadores
   int Total_Cancel_Credit_;
-  int Coin_In_;
-  int Coin_Out_;
-  int Jackpot_;
-  int Total_Drop_;
-  int Cancel_Credit_Hand_Pay_;
-  int Bill_Amount_;
-  int Casheable_In_;
-  int Casheable_Restricted_In_;
-  int Casheable_NONrestricted_In_;
-  int Casheable_Out_;
-  int Casheable_Restricted_Out_;
-  int Casheable_NONrestricted_Out_;
-  int Games_Played_;
-  int Vacio;
+  uint8_t Coin_In_;
+  uint8_t Coin_Out_;
+  uint8_t Jackpot_;
+  uint8_t Total_Drop_;
+  uint8_t Cancel_Credit_Hand_Pay_;
+  uint8_t Bill_Amount_;
+  uint8_t Casheable_In_;
+  uint8_t Casheable_Restricted_In_;
+  uint8_t Casheable_NONrestricted_In_;
+  uint8_t Casheable_Out_;
+  uint8_t Casheable_Restricted_Out_;
+  uint8_t Casheable_NONrestricted_Out_;
+  uint8_t Games_Played_;
+  uint8_t Vacio;
 
 public:                                                               // Metodos Publicos
   int Get_Contadores(int Filtro_Contador);                        // Metodo Get Contadores
@@ -110,56 +110,43 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, int Data_Contador)
     break;
   case 2: // Bloque de instrucciones 2;
     Coin_In_ = Data_Contador;
-    return true;
     break;
   case 3: // Bloque de instrucciones 3;
     Coin_Out_ = Data_Contador;
-    return true;
     break;
   case 4: // Bloque de instrucciones 4;
     Jackpot_ = Data_Contador;
-    return true;
     break;
   case 5: // Bloque de instrucciones 5;
     Total_Drop_ = Data_Contador;
-    return true;
     break;
   case 6: // Bloque de instrucciones 6;
     Cancel_Credit_Hand_Pay_ = Data_Contador;
-    return true;
     break;
   case 7: // Bloque de instrucciones 7;
     Bill_Amount_ = Data_Contador;
-    return true;
     break;
   case 8: // Bloque de instrucciones 8;
     Casheable_In_ = Data_Contador;
-    return true;
     break;
   case 9: // Bloque de instrucciones 9;
     Casheable_Restricted_In_ = Data_Contador;
-    return true;
     break;
   case 10: // Bloque de instrucciones 10;
     Casheable_NONrestricted_In_ = Data_Contador;
-    return true;
     break;
   case 11: // Bloque de instrucciones 11;
     Casheable_Out_ = Data_Contador;
-    return true;
     break;
 
   case 12: // Bloque de instrucciones 12;
     Casheable_Restricted_Out_ = Data_Contador;
-    return true;
     break;
   case 13: // Bloque de instrucciones 13;
     Casheable_NONrestricted_Out_ = Data_Contador;
-    return true;
     break;
   case 14: // Bloque de instrucciones 13;
     Games_Played_ = Data_Contador;
-    return true;
     break;
   }
   return false;
