@@ -231,7 +231,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           descenas = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
         //  Serial.println(descenas);
           unidades = buffer_contadores[5] % 10;
-        //  Serial.println(unidades);
+          Serial.println(unidades);
 
           resultado = (desc_millon * 10000000) + (uni_millon * 1000000) +
                       (cent_mil * 100000) + (desc_mil * 10000) +
