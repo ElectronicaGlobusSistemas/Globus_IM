@@ -53,7 +53,6 @@ int Contadores_SAS::Get_Contadores(int Filtro_Contador)
 {
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
-
   case 1: // Bloque de instrucciones 1;
     return Total_Cancel_Credit_;
     break;
@@ -97,6 +96,7 @@ int Contadores_SAS::Get_Contadores(int Filtro_Contador)
     return Games_Played_;
     break;
   }
+  return 0;
 }
 //---------------------------------------------------------------------------------------------------------------------
 //---------------------------------------->Metodo Para Guardar Contadores<---------------------------------------------
@@ -148,7 +148,6 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, int Data_Contador)
     Casheable_Out_ = Data_Contador;
     return true;
     break;
-
   case 12: // Bloque de instrucciones 12;
     Casheable_Restricted_Out_ = Data_Contador;
     return true;
