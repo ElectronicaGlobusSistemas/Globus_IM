@@ -7,6 +7,7 @@
 void Init_Config(void)
 {
   Init_UART2();
+
   Serial.begin(19200);                 // Inicializa Monitor Serial
   setCpuFrequencyMhz(Clock_frequency); // Frecuencia de Nucleos 1 y 0.
                                        // CONNECT_WIFI(); // Conecta  a red Wifi con ssdi y password

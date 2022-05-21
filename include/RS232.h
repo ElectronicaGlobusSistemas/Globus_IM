@@ -208,7 +208,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           buffer_contadores[index] = buffer_contadores_string.toInt();
         }
 
-        if (buffer_contadores[1] > 0x09 && buffer_contadores[1] < 0x15)
+        if (buffer_contadores[1] > 0x09 && buffer_contadores[1] < 0x16)
         {
           int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, resultado = 0;
 
