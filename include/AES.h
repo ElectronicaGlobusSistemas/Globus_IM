@@ -1,12 +1,65 @@
 #include <Arduino.h>
 #include "mbedtls/aes.h"
 #include <iostream>
-
 #include "Stream.h"
 
 char *key = "Charles Dickens.";
+unsigned char bufferEncriptado[256];
+unsigned char bufferDesencriptado[256];
+
+void Encripta_Bloque(int val);
+void Desencripta_Bloque(int val);
 
 using namespace std;
+
+/*****************************************************************************************************************************/
+/*****************************************************************************************************************************/
+
+void Desencripta_Mensaje_Servidor(String buffer)
+{
+
+    int len = buffer.length();
+
+    std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
+
+    //    decrypt(bufferEncriptado, key, bufferDesencriptado);
+    Desencripta_Bloque(8);
+
+    Serial.println("\nDeciphered text:");
+    for (int i = 0; i < len; i++)
+    {
+        char str[3];
+        sprintf(str, "%02x", (int)bufferDesencriptado[i]);
+        Serial.print(str);
+    }
+    Serial.println(" ");
+}
+
+/*****************************************************************************************************************************/
+/*****************************************************************************************************************************/
+
+void Encripta_Mensaje_Servidor(String buffer)
+{
+
+    int len = buffer.length();
+
+    std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
+
+    //    decrypt(bufferEncriptado, key, bufferDesencriptado);
+    Encripta_Bloque(8);
+
+    Serial.println("\nDeciphered text:");
+    for (int i = 0; i < len; i++)
+    {
+        char str[3];
+        sprintf(str, "%02x", (int)bufferDesencriptado[i]);
+        Serial.print(str);
+    }
+    Serial.println(" ");
+}
+
+/*****************************************************************************************************************************/
+/*****************************************************************************************************************************/
 
 void encrypt(char *plainText, char *key, unsigned char *outputBuffer)
 {
@@ -28,24 +81,58 @@ void decrypt(unsigned char *chipherText, char *key, unsigned char *outputBuffer)
     mbedtls_aes_free(&aes);
 }
 
-void Desencripta_Mensaje_Servidor(String buffer)
+/*****************************************************************************************************************************/
+/*****************************************************************************************************************************/
+
+void Encripta_Bloque(int val)
 {
-    unsigned char bufferEncriptado[256];
-    unsigned char bufferDesencriptado[256];
+    char buffer_encripcion[16];
+    unsigned char buffer_encriptado[16];
+    int j = 0;
 
-    int len = buffer.length();
-    //    int len = sizeof(buffer);
-
-    std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
-
-    decrypt(bufferEncriptado, key, bufferDesencriptado);
-
-    Serial.println("\nDeciphered text:");
-    for (int i = 0; i < len; i++)
+    for (int k = 0; k < val; k++)
     {
-        char str[3];
-        sprintf(str, "%02x", (int)bufferDesencriptado[i]);
-        Serial.print(str);
+        for (int i = 0; i < 16; i++)
+        {
+            buffer_encripcion[i] = bufferDesencriptado[j];
+            j++;
+        }
+
+        encrypt(buffer_encripcion, key, buffer_encriptado);
+
+        j = j - 16;
+        for (int i = 0; i < 16; i++)
+        {
+            bufferEncriptado[j] = buffer_encriptado[i];
+            j++;
+        }
     }
-    Serial.println(" ");
+}
+
+/*****************************************************************************************************************************/
+/*****************************************************************************************************************************/
+
+void Desencripta_Bloque(int val)
+{
+    unsigned char buffer_desencripcion[16];
+    unsigned char buffer_desencriptado[16];
+    int j = 0;
+
+    for (int k = 0; k < val; k++)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            buffer_desencripcion[i] = bufferEncriptado[j];
+            j++;
+        }
+
+        decrypt(buffer_desencripcion, key, buffer_desencriptado);
+
+        j = j - 16;
+        for (int i = 0; i < 16; i++)
+        {
+            bufferDesencriptado[j] = buffer_desencriptado[i];
+            j++;
+        }
+    }
 }

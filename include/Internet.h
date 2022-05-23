@@ -190,7 +190,7 @@ void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
       Serial.print("Dato entrante...");
       //      Serial.println(buffer);
 
-      if (Verifica_CRC(buffer))
+      if (Verifica_CRC_Wifi(buffer))
       {
         Desencripta_Mensaje_Servidor(buffer);
       }

@@ -3,7 +3,9 @@
 #include "Internet.h"
 #include <stdio.h>
 #include <string.h>
+#include "RS232.h"
 #include "Config_Perifericos.h"
+
 
 String buffer;
 
