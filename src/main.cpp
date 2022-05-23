@@ -27,13 +27,13 @@ void setup()
 
 void loop()
 {
-  tiempo_inicial = millis();
+  // tiempo_inicial = millis();
 
-  if ((tiempo_inicial - tiempo_final) >= 5000)
-  {
-    tiempo_final = tiempo_inicial;
-    int res = contadores.Get_Contadores(Total_Cancel_Credit);
-    Serial.print("Contador Total cancel credit -> ");
-    Serial.println(res);
-  }
+  // if ((tiempo_inicial - tiempo_final) >= 5000)
+  // {
+  //   tiempo_final = tiempo_inicial;
+  //   int res = contadores.Get_Contadores(Total_Cancel_Credit);
+  //   Serial.print("Contador Total cancel credit -> ");
+  //   Serial.println(res);
+  // }
 }

@@ -4,11 +4,10 @@
 #include <iostream>
 #include <stdio.h>
 #include "Contadores.h"
+#include "Eventos.h"
 #include "CRC_Kermit.h"
 
-
 using namespace std;
-
 
 #define NUMERO_PORTA_SERIALE UART_NUM_2
 #define BUF_SIZE (1024 * 2)
@@ -39,6 +38,7 @@ void Encuestas_Maquina(void *pvParameters);
 void Store_Contador(int Contador, int Set_Value);
 
 Contadores_SAS contadores;
+Eventos_SAS eventos;
 
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
@@ -337,7 +337,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Store_Contador(Cancel_Credit_Hand_Pay, resultado);
           }
 
-          buffer[0] = 0x00;
+          // bzero(buffer, 128);
           conta_bytes = 0;
 
           Serial.print("Contador de encuestas con CRC valido --> ");
@@ -345,15 +345,24 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         }
         else
         {
+          // bzero(buffer, 128);
           Serial.println("Error de CRC en contadores...");
           numero_contador = 0;
         }
       }
       else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
       {
-        Serial.println("Es un evento");
+        if (eventos.set_evento(buffer[0]))
+        {
+          Serial.println("Es un evento");
+          Serial.println("--------------------------------------------------");
+          Serial.println();
+          // bzero(buffer, 128);
+        }
       }
+      bzero(buffer, 128); // Pone el buffer en 0
     }
+
     else
     {
     }
