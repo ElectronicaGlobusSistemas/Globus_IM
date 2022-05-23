@@ -222,11 +222,10 @@ void Task_Verifica_Conexion_SD(void *parameter)
 {
   for (;;)
   {
-    if (!SD.begin(HSPI_CS))
+    if (!SD.begin(5))
     {
       Serial.println("Inicio de SD Error");
-      Inicializa_SPI();
-      vTaskDelay(10000 / portTICK_PERIOD_MS);
+      vTaskDelay(5000 / portTICK_PERIOD_MS);
       continue;
     }
     else

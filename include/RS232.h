@@ -411,28 +411,28 @@ void Encuestas_Maquina(void *pvParameters)
       switch (Conta_Encuestas)
       {
       case 1:
-        Serial.println("1");
+        Serial.println("1"); // total cancel credit
         Transmite_Poll(0x10);
         break;
       case 2:
-        Serial.println("2");
+        Serial.println("2"); // Coin in
         Transmite_Poll(0x11);
         break;
       case 3:
-        Serial.println("3");
+        Serial.println("3"); // Coin out
         Transmite_Poll(0x12);
         break;
       case 4:
-        Serial.println("4");
+        Serial.println("4"); // Jackpot
         Transmite_Poll(0x14);
         break;
       case 5:
-        Serial.println("5");
+        Serial.println("5"); // total drop
         Transmite_Poll(0x13);
         break;
       case 6:
+        Serial.println("6");           // Cancel credit hand paid
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("6");
         Transmite_Poll_Long(0x2D);
         Transmite_Poll_Long(0x00);
         Transmite_Poll_Long(0x00);
@@ -441,11 +441,11 @@ void Encuestas_Maquina(void *pvParameters)
         break;
       case 7:
         Serial.println("7");
-        Transmite_Poll(0x46);
+        Transmite_Poll(0x46); // Bill amount
         break;
       case 8:
+        Serial.println("8");           // Casheable in
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("8");
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -455,7 +455,7 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0xE3);
         break;
       case 9:
-        Serial.println("9");
+        Serial.println("9");           // Casheable restricted in
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
@@ -466,8 +466,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0xF2);
         break;
       case 10:
+        Serial.println("10");          // Casheable Nonrestricted in
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("10");
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -477,8 +477,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x1A);
         break;
       case 11:
+        Serial.println("11");          // Casheable out
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("11");
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -488,8 +488,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x39);
         break;
       case 12:
+        Serial.println("12");          // Casheable restricted out
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("12");
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -499,8 +499,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x28);
         break;
       case 13:
+        Serial.println("13");          // Casheable nonrestricted out
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Serial.println("13");
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -510,7 +510,7 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x5C);
         break;
       case 14:
-        Serial.println("14");
+        Serial.println("14"); // Games played
         Transmite_Poll(0x15);
         Conta_Encuestas = 0;
         break;
