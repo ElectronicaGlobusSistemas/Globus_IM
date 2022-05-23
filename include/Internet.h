@@ -4,7 +4,7 @@
 
 const char *ssid = "GLOBUS-DESARROLLO";
 const char *password = "Globus2020*";
-const int wifi_timeout = 20000;
+const int wifi_timeout = 10000;
 
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
@@ -14,7 +14,7 @@ uint16_t serverPort = 1001;                 // Puerto del servidor
 
 WiFiClient client; // Declara un objeto cliente para conectarse al servidor
 
-extern String buffer;
+String buffer;
 
 // bool Verifica_CRC(String str_CRC);
 
@@ -69,42 +69,44 @@ void CONNECT_WIFI(void)
 
 void Task_Verifica_Conexion_Wifi(void *parameter)
 {
+  unsigned long tiempo_inicial, tiempo_final = 0;
+
   for (;;)
   {
     if (WiFi.status() == WL_CONNECTED)
     {
       Serial.println("Wifi conectado");
-      vTaskDelay(10000 / portTICK_PERIOD_MS);
-      continue;
-    }
-
-    Serial.print("Conectando a... ");
-    Serial.println(ssid);
-
-    WiFi.begin(ssid, password);
-
-    unsigned long startAttemptTime = millis();
-
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < wifi_timeout)
-    {
-    }
-
-    if (WiFi.status() != WL_CONNECTED)
-    {
-      Serial.print("\nNo se puede conectar a... ");
-      Serial.println(ssid);
-      vTaskDelay(20000 / portTICK_PERIOD_MS);
+      vTaskDelay(60000 / portTICK_PERIOD_MS);
       continue;
     }
     else
     {
-      Serial.println("\nWiFi connected!");
-      Serial.print("Conectado a: ");
+      Serial.print("Conectando a... ");
       Serial.println(ssid);
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      Serial.print("ESP Mac Address: ");
-      Serial.println(WiFi.macAddress());
+
+      WiFi.begin(ssid, password);
+      tiempo_inicial = millis();
+      while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
+      {
+      }
+      tiempo_final = tiempo_inicial;
+      if (WiFi.status() != WL_CONNECTED)
+      {
+        Serial.print("\nNo se puede conectar a... ");
+        Serial.println(ssid);
+        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        continue;
+      }
+      else
+      {
+        Serial.println("\nWiFi connected!");
+        Serial.print("Conectado a: ");
+        Serial.println(ssid);
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        Serial.print("ESP Mac Address: ");
+        Serial.println(WiFi.macAddress());
+      }
     }
   }
 }
@@ -140,30 +142,38 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
 {
   for (;;)
   {
-    if (client.connected())
+    if (WiFi.isConnected())
     {
-      Serial.println("Servidor conectado");
-      vTaskDelay(10000 / portTICK_PERIOD_MS);
-      continue;
-    }
+      if (client.connected())
+      {
+        Serial.println("Servidor conectado");
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        continue;
+      }
 
-    Serial.println("Conectando al servidor TCP...");
-    client.connect(serverIP, serverPort);
+      Serial.println("Conectando al servidor TCP...");
+      client.connect(serverIP, serverPort);
 
-    if (!client.connected())
-    {
-      Serial.println("Acceso denegado");
-      client.stop(); // Cerrar el cliente
-      vTaskDelay(20000 / portTICK_PERIOD_MS);
-      continue;
+      if (!client.connected())
+      {
+        Serial.println("Acceso denegado");
+        client.stop(); // Cerrar el cliente
+        vTaskDelay(20000 / portTICK_PERIOD_MS);
+        continue;
+      }
+      else
+      {
+        Serial.println("Conexion exitosa");
+        Serial.print("Conectado a Server IP: ");
+        Serial.println(serverIP);
+        Serial.print("Conectado a Server PORT: ");
+        Serial.println(serverPort);
+      }
     }
     else
     {
-      Serial.println("Conexion exitosa");
-      Serial.print("Conectado a Server IP: ");
-      Serial.println(serverIP);
-      Serial.print("Conectado a Server PORT: ");
-      Serial.println(serverPort);
+      vTaskDelay(20000 / portTICK_PERIOD_MS);
+      continue;
     }
   }
 }

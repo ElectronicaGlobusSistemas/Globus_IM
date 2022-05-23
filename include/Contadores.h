@@ -45,7 +45,8 @@ private: // Variables Privadas Para contadores
   int Vacio;
 
 public:                                                        // Metodos Publicos
-  int Get_Contadores(int Filtro_Contador);                     // Metodo Get Contadores
+  int Get_Contadores_Int(int Filtro_Contador);                     // Metodo Get Contadores
+  string Get_Contadores_String(int Filtro_Contador);                     // Metodo Get Contadores
   bool Set_Contadores(int Filtro_Contador, int Data_Contador); // Metodo Set Contadores
 };
 

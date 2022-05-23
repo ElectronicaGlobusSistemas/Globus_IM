@@ -1,6 +1,9 @@
+#include <iostream>
 #include "Contadores.h"
 
-int Contadores_SAS::Get_Contadores(int Filtro_Contador)
+using namespace std;
+
+int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
 {
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
@@ -50,6 +53,57 @@ int Contadores_SAS::Get_Contadores(int Filtro_Contador)
   return 0;
 }
 
+string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
+{
+  switch (Filtro_Contador) // Selecciona Contador Especifico.
+  {
+  case 1: // Bloque de instrucciones 1;
+    return std::to_string(Total_Cancel_Credit_);
+    break;
+  case 2: // Bloque de instrucciones 2;
+    return std::to_string(Coin_In_);
+    break;
+  case 3: // Bloque de instrucciones 3;
+    return std::to_string(Coin_Out_);
+    break;
+  case 4: // Bloque de instrucciones 4;
+    return std::to_string(Jackpot_);
+    break;
+  case 5: // Bloque de instrucciones 5;
+    return std::to_string(Total_Drop_);
+    break;
+  case 6: // Bloque de instrucciones 6;
+    return std::to_string(Cancel_Credit_Hand_Pay_);
+    break;
+  case 7: // Bloque de instrucciones 7;
+    return std::to_string(Bill_Amount_);
+    break;
+  case 8: // Bloque de instrucciones 8;
+    return std::to_string(Casheable_In_);
+    break;
+  case 9: // Bloque de instrucciones 9;
+    return std::to_string(Casheable_Restricted_In_);
+    break;
+  case 10: // Bloque de instrucciones 10;
+    return std::to_string(Casheable_NONrestricted_In_);
+    break;
+  case 11: // Bloque de instrucciones 11;
+    return std::to_string(Casheable_Out_);
+    break;
+  case 12: // Bloque de instrucciones 12;
+    return std::to_string(Casheable_Restricted_Out_);
+    break;
+  case 13: // Bloque de instrucciones 13;
+    return std::to_string(Casheable_NONrestricted_Out_);
+    break;
+  case 14: // Bloque de instrucciones 14;
+    return std::to_string(Games_Played_);
+    break;
+  default:
+    return std::to_string(0);
+    break;
+  }
+}
 
 //---------------------------------------------------------------------------------------------------------------------
 //---------------------------------------->Metodo Para Guardar Contadores<---------------------------------------------

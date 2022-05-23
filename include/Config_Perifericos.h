@@ -6,18 +6,20 @@
 
 TaskHandle_t Task1;
 void loop2(void *parameter);
+void Init_Tasks();
 
 void Init_Config(void)
 {
-    Init_UART2();
-    Serial.begin(115200);
     setCpuFrequencyMhz(Clock_frequency); // Maxima Frecuencia.
+    Serial.begin(115200);
+    Init_UART2();
     CONNECT_WIFI();
     CONNECT_SERVER_TCP();
+    Init_Tasks();
     Bootloader();
 }
 
-void Init_Tasks(void)
+void Init_Tasks()
 {
     xTaskCreatePinnedToCore(
         loop2,    // Funcion a implementar la tarea
@@ -48,16 +50,16 @@ void Init_Tasks(void)
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Conexion_Wifi,
-        "Tarea para verificar conexion WIFI",
-        5000,
+        "WIFI-Connect",
+        10000,
         NULL,
-        configMAX_PRIORITIES - 20,
+        configMAX_PRIORITIES - 10,
         NULL,
         0); // Core donde se ejecutara la tarea
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Conexion_Servidor_TCP,
-        "Tarea para verificar conexion SERVER",
+        "Server-Connect",
         5000,
         NULL,
         configMAX_PRIORITIES - 20,
@@ -66,7 +68,7 @@ void Init_Tasks(void)
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Mensajes_Servidor_TCP,
-        "Tarea para verificar mensajes SERVER",
+        "Server-messages",
         5000,
         NULL,
         configMAX_PRIORITIES - 5,
