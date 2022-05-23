@@ -2,10 +2,13 @@
 #include "driver/uart.h"
 #include <string.h>
 #include <iostream>
-using namespace std;
 #include <stdio.h>
-#include "Clase_Contadores.h"
+#include "Contadores.h"
 #include "CRC_Kermit.h"
+
+
+using namespace std;
+
 
 #define NUMERO_PORTA_SERIALE UART_NUM_2
 #define BUF_SIZE (1024 * 2)
@@ -28,6 +31,7 @@ char dat4[1] = {DIR};
 
 int bandera = 0;
 int contador = 0;
+long numero_contador = 0;
 
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
@@ -206,6 +210,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         if (Verifica_CRC(buffer, conta_bytes))
         {
 
+          numero_contador++;
+
           for (int index = 0; index < conta_bytes; index++)
           {
             String buffer_contadores_string = String(buffer[index], HEX);
@@ -240,7 +246,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Store_Contador(Total_Cancel_Credit, resultado);
               break;
             case 11:
-              Store_Contador(Total_Cancel_Credit, resultado);
+              Store_Contador(Coin_In, resultado);
               break;
             case 12:
               Store_Contador(Coin_Out, resultado);
@@ -333,26 +339,23 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           buffer[0] = 0x00;
           conta_bytes = 0;
-        }
-        else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
-        {
-          Serial.println("Es un evento");
-        }
 
-        // Handle frame error event
-        else if (event.type == UART_FRAME_ERR)
-        {
-          // TODO...
+          Serial.print("Contador de encuestas con CRC valido --> ");
+          Serial.println(numero_contador);
         }
         else
         {
-          // TODO...
+          Serial.println("Error de CRC en contadores...");
+          numero_contador = 0;
         }
+      }
+      else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
+      {
+        Serial.println("Es un evento");
       }
     }
     else
     {
-      //-
     }
 
     // If you want to break out of the loop due to certain conditions, set exit condition to true
@@ -380,19 +383,19 @@ void Encuestas_Maquina(void *pvParameters)
     // Get the actual execution tick
     xLastWakeTime = xTaskGetTickCount();
     // Switch the led
-    if (bandera == 0 && Conta_Poll < 10)
+    if (bandera == 0 && Conta_Poll < 5)
     {
       sendDataa(dat, sizeof(dat)); // transmite sincronización
       bandera = 1;
       Conta_Poll++;
     }
-    else if (bandera == 1 && Conta_Poll < 10)
+    else if (bandera == 1 && Conta_Poll < 5)
     {
       Transmite_Poll(0x00); // Transmite Poll
       bandera = 0;
       Conta_Poll++;
     }
-    else if (Conta_Poll == 10)
+    else if (Conta_Poll == 5)
     {
       Conta_Poll = 0;
       Conta_Encuestas++;
