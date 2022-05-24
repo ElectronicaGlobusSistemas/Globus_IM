@@ -6,6 +6,8 @@
 #include "RS232.h"
 #include "Config_Perifericos.h"
 
+char buffer_envio[258] = {};
+
 unsigned long tiempo_inicial, tiempo_final = 0;
 
 void setup()
@@ -13,6 +15,7 @@ void setup()
   Init_Config();
   //  Init_Tasks();
   pinMode(2, OUTPUT);
+  bzero(buffer_envio, 258); // Pone el buffer en 0
 }
 
 void loop()
@@ -21,18 +24,52 @@ void loop()
 
   tiempo_inicial = millis();
 
-  char buffer_envio[256] = {'H', 'o', 'l', 'a'};
   unsigned char val1, val2;
 
   if ((tiempo_inicial - tiempo_final) >= 5000)
   {
     tiempo_final = tiempo_inicial;
     string res = contadores.Get_Contadores_String(Total_Cancel_Credit);
-    Serial.print("Contador Total cancel credit -> ");
-//    Serial.println(res);
-    
+    Serial.println("--------------------------------------------------------------------");
+    //    Serial.println(res);
+    int32_t Aux1;
+    int Com = 5;
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    buffer_envio[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    buffer_envio[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    buffer_envio[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    buffer_envio[3] = Aux1;
 
-    client.write(res.c_str());
+    // buffer_envio[0] = ({5});
+    // buffer_envio[1] = {0};
+    // buffer_envio[2] = {0};
+    // buffer_envio[3] = {0};
+    buffer_envio[4] = {'B'};
+    buffer_envio[5] = {'C'};
+    buffer_envio[6] = {'|'};
+
+    Encripta_Mensaje_Servidor();
+    Calcula_CRC_Wifi();
+    int len = sizeof(buffer_envio);
+    Serial.println(len);
+    Serial.println(buffer_envio);
+    int length_ = client.write(buffer_envio, len);
+    Serial.println(length_);
+    Serial.println("--------------------------------------------------------------------");
+    bzero(buffer_envio, 258); // Pone el buffer en 0
   }
 }
 

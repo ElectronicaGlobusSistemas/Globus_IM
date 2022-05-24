@@ -6,9 +6,11 @@
 char *key = "Charles Dickens.";
 unsigned char bufferEncriptado[256];
 unsigned char bufferDesencriptado[256];
+extern char buffer_envio[258];
 
 void Encripta_Bloque(int val);
 void Desencripta_Bloque(int val);
+void Encripta_Mensaje_Servidor();
 
 using namespace std;
 
@@ -38,22 +40,31 @@ void Desencripta_Mensaje_Servidor(String buffer)
 /*****************************************************************************************************************************/
 /*****************************************************************************************************************************/
 
-void Encripta_Mensaje_Servidor(String buffer)
+void Encripta_Mensaje_Servidor()
 {
 
-    int len = buffer.length();
+    //    int len = buffer.length();
 
-    std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
+    //    std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
+    memcpy(bufferDesencriptado, buffer_envio, 256);
+    Serial.println("\n\nDeciphered text:");
+    // for (int i = 0; i < 256; i++)
+    // {
+    //     Serial.print((char)bufferDesencriptado[i]);
+    // }
 
     //    decrypt(bufferEncriptado, key, bufferDesencriptado);
     Encripta_Bloque(8);
 
+    Serial.println("\nCiphered text:");
+    memcpy(buffer_envio, bufferEncriptado, 256);
+    Serial.println(" ");
+
+    Desencripta_Bloque(8);
     Serial.println("\nDeciphered text:");
-    for (int i = 0; i < len; i++)
+    for (int i = 0; i < 256; i++)
     {
-        char str[3];
-        sprintf(str, "%02x", (int)bufferDesencriptado[i]);
-        Serial.print(str);
+        Serial.print(bufferDesencriptado[i], HEX);
     }
     Serial.println(" ");
 }

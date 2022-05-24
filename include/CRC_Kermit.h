@@ -1,6 +1,8 @@
 #include "CRC.h"
 #include <iostream>
 
+extern char buffer_envio[258];
+
 bool Verifica_CRC_Wifi(String str_CRC)
 {
   int len, len_CRC;
@@ -90,4 +92,20 @@ bool Verifica_CRC_Maq(char str_CRC[], int len_CRC)
     //    Serial.println("\nCRC Failed...");
     return false;
   }
+}
+
+bool Calcula_CRC_Wifi()
+{
+  uint16_t crcval, CRC_Temp, CRC_RES;
+  uint8_t *data = (uint8_t *)&buffer_envio[0];
+  crcval = crc16(data, 256, 0x1021, 0x0000, 0x0000, true, true);
+  Serial.println(crcval, HEX);
+  CRC_Temp = ( crcval & 0b1111111100000000 );
+  CRC_RES = ( CRC_Temp >> 8 );
+  Serial.println(CRC_RES, HEX);
+  buffer_envio[ 257 ] = CRC_RES;
+  CRC_RES = ( crcval & 0b0000000011111111 );
+  Serial.println(CRC_RES, HEX);
+  buffer_envio[ 256 ] = CRC_RES;
+  return true;
 }
