@@ -1,6 +1,4 @@
 #include <WiFi.h>
-#include "CRC_Kermit.h"
-#include "AES.h"
 
 const char *ssid = "GLOBUS-DESARROLLO";
 const char *password = "Globus2020*";
@@ -200,10 +198,10 @@ void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
       Serial.print("Dato entrante...");
       //      Serial.println(buffer);
 
-      if (Verifica_CRC_Wifi(buffer))
+/*      if (Verifica_CRC_Wifi(buffer))
       {
         Desencripta_Mensaje_Servidor(buffer);
-      }
+      }*/
       //     client.write(line.c_str()); // Devuelve los datos recibidos
       vTaskDelay(50 / portTICK_PERIOD_MS);
       continue;

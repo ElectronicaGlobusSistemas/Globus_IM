@@ -11,7 +11,7 @@ using namespace std;
 #define Total_Cancel_Credit             1
 #define Coin_In                         2
 #define Coin_Out                        3
-#define Jackpot                        4
+#define Jackpot                         4
 #define Total_Drop                      5
 #define Cancel_Credit_Hand_Pay          6
 #define Bill_Amount                     7

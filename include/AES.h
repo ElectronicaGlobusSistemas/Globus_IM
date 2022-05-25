@@ -10,7 +10,7 @@ extern char buffer_envio[258];
 
 void Encripta_Bloque(int val);
 void Desencripta_Bloque(int val);
-void Encripta_Mensaje_Servidor();
+void Encripta_Mensaje_Servidor(char buffer[]);
 
 using namespace std;
 
@@ -40,7 +40,7 @@ void Desencripta_Mensaje_Servidor(String buffer)
 /*****************************************************************************************************************************/
 /*****************************************************************************************************************************/
 
-void Encripta_Mensaje_Servidor()
+void Encripta_Mensaje_Servidor(char buffer[])
 {
 
     //    int len = buffer.length();

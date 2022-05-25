@@ -1,10 +1,7 @@
-
 #include "driver/uart.h"
 #include <string.h>
 #include <iostream>
 #include <stdio.h>
-#include "Contadores.h"
-#include "Eventos.h"
 
 using namespace std;
 
@@ -36,6 +33,7 @@ static void UART_ISR_ROUTINE(void *pvParameters);
 void Encuestas_Maquina(void *pvParameters);
 void Store_Contador(int Contador, int Set_Value);
 
+MetodoCRC CRC_Maq;
 Contadores_SAS contadores;
 Eventos_SAS eventos;
 
@@ -57,8 +55,8 @@ void Init_UART2()
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
 
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
-//  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 2048, NULL, 12, NULL, 1); // Máx Priority principal
-//  xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 5, NULL, 1);
+  //  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 2048, NULL, 12, NULL, 1); // Máx Priority principal
+  //  xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 5, NULL, 1);
   //----------------------------------------------------------------------------------------------------------------------
 }
 
@@ -206,7 +204,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
       {
         Serial.println("Es un contador");
 
-        if (Verifica_CRC_Maq(buffer, conta_bytes))
+        if (CRC_Maq.Verifica_CRC_Maq(buffer, conta_bytes))
         {
 
           numero_contador++;
