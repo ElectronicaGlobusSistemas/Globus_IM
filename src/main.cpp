@@ -1,16 +1,12 @@
 #include <Arduino.h>
 #include "time.h"
 #include <ESP32Time.h>
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
 //#include "Bootloader.h"
 //#include "Internet.h"
 #include "RS232.h"
 #include <stdio.h>
 //#include <string.h>
 #include "Config_Perifericos.h"
-#include "Memoria_SD.h"
 #include <iostream>
 #include <bitset>
 
@@ -22,7 +18,6 @@ void setup()
 {
   Init_Config();
   pinMode(2, OUTPUT);
-//  Init_SD();
 }
 
 void loop()

@@ -4,8 +4,6 @@
 #define TXD1 32
 #define Clock_frequency 240
 
-void Inicializa_SPI();
-
 void Init_Config(void)
 {
   Init_UART2();
