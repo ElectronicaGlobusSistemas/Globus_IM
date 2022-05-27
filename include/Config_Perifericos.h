@@ -19,7 +19,7 @@ void Init_Config(void)
     Bootloader();
 }
 
-void Init_Tasks()
+void Init_Tasks(void)
 {
     xTaskCreatePinnedToCore(
         loop2,    // Funcion a implementar la tarea
@@ -50,7 +50,7 @@ void Init_Tasks()
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Conexion_Wifi,
-        "WIFI-Connect",
+        "Verifica conewxion wifi",
         10000,
         NULL,
         configMAX_PRIORITIES - 10,
@@ -59,7 +59,7 @@ void Init_Tasks()
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Conexion_Servidor_TCP,
-        "Server-Connect",
+        "Verifica conexion server",
         5000,
         NULL,
         configMAX_PRIORITIES - 20,
@@ -68,7 +68,15 @@ void Init_Tasks()
 
     xTaskCreatePinnedToCore(
         Task_Verifica_Mensajes_Servidor_TCP,
-        "Server-messages",
+        "Verifica mensajes server",
+        5000,
+        NULL,
+        configMAX_PRIORITIES - 5,
+        NULL,
+        0); // Core donde se ejecutara la tarea
+    xTaskCreatePinnedToCore(
+        Task_Procesa_Comandos,
+        "Procesa comandos server",
         5000,
         NULL,
         configMAX_PRIORITIES - 5,

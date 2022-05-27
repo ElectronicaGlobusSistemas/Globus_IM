@@ -14,7 +14,8 @@ WiFiClient client; // Declara un objeto cliente para conectarse al servidor
 
 String buffer;
 
-// bool Verifica_CRC(String str_CRC);
+extern bool flag_dato_valido_recibido;
+extern bool flag_dato_no_valido_recibido;
 
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
@@ -196,13 +197,17 @@ void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
     {
       buffer = client.readStringUntil('\n'); // Leer datos a nueva línea
       Serial.print("Dato entrante...");
-      //      Serial.println(buffer);
 
-/*      if (Verifica_CRC_Wifi(buffer))
+      if (Buffer.Set_buffer_recepcion(buffer))
       {
-        Desencripta_Mensaje_Servidor(buffer);
-      }*/
-      //     client.write(line.c_str()); // Devuelve los datos recibidos
+        Serial.println("CRC de datos entrante OK");
+        flag_dato_valido_recibido = true;
+      }
+      else
+      {
+        Serial.println("CRC de datos entrante ERROR");
+        flag_dato_no_valido_recibido = true;
+      }
       vTaskDelay(50 / portTICK_PERIOD_MS);
       continue;
     }

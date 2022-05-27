@@ -31,11 +31,10 @@ long numero_contador = 0;
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
 void Encuestas_Maquina(void *pvParameters);
-void Store_Contador(int Contador, int Set_Value);
 
-MetodoCRC CRC_Maq;
-Contadores_SAS contadores;
-Eventos_SAS eventos;
+// MetodoCRC CRC_Maq;
+// Contadores_SAS contadores;
+// Eventos_SAS eventos;
 
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
@@ -204,7 +203,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
       {
         Serial.println("Es un contador");
 
-        if (CRC_Maq.Verifica_CRC_Maq(buffer, conta_bytes))
+        if (Buffer.Verifica_buffer_Maq(buffer, conta_bytes))
         {
 
           numero_contador++;
@@ -217,92 +216,103 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, resultado = 0;
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
+            char contador[8] = {};
 
             desc_millon = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
+            contador[0] = desc_millon + '0';
             uni_millon = buffer_contadores[2] % 10;
+            contador[1] = uni_millon + '0';
 
             cent_mil = (buffer_contadores[3] - (buffer_contadores[3] % 10)) / 10;
+            contador[2] = cent_mil + '0';
             desc_mil = buffer_contadores[3] % 10;
+            contador[3] = desc_mil + '0';
 
             uni_mil = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
+            contador[4] = uni_mil + '0';
             centenas = buffer_contadores[4] % 10;
+            contador[5] = centenas + '0';
 
             descenas = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
+            contador[6] = descenas + '0';
             unidades = buffer_contadores[5] % 10;
+            contador[7] = unidades + '0';
 
-            resultado = (desc_millon * 10000000) + (uni_millon * 1000000) +
-                        (cent_mil * 100000) + (desc_mil * 10000) +
-                        (uni_mil * 1000) + (centenas * 100) +
-                        (descenas * 10) + (unidades * 1);
+            Serial.println(contador);
 
-            //          Serial.println(resultado);
             switch (buffer_contadores[1])
             {
             case 10:
-              Store_Contador(Total_Cancel_Credit, resultado);
+              contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 11:
-              Store_Contador(Coin_In, resultado);
+              contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 12:
-              Store_Contador(Coin_Out, resultado);
+              contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 13:
-              Store_Contador(Total_Drop, resultado);
+              contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 14:
-              Store_Contador(Jackpot, resultado);
+              contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 15:
-              Store_Contador(Games_Played, resultado);
+              contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 46:
-              Store_Contador(Bill_Amount, resultado);
+              contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             }
           }
 
           else if (buffer[1] == 0x2F)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, resultado = 0;
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
+            char contador[8] = {};
 
             desc_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
+            contador[0] = desc_millon + '0';
             uni_millon = buffer_contadores[6] % 10;
+            contador[1] = uni_millon + '0';
 
             cent_mil = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
+            contador[2] = cent_mil + '0';
             desc_mil = buffer_contadores[7] % 10;
+            contador[3] = desc_mil + '0';
 
             uni_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
+            contador[4] = uni_mil + '0';
             centenas = buffer_contadores[8] % 10;
+            contador[5] = centenas + '0';
 
             descenas = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
+            contador[6] = descenas + '0';
             unidades = buffer_contadores[9] % 10;
+            contador[7] = unidades + '0';
 
-            resultado = (desc_millon * 10000000) + (uni_millon * 1000000) +
-                        (cent_mil * 100000) + (desc_mil * 10000) +
-                        (uni_mil * 1000) + (centenas * 100) +
-                        (descenas * 10) + (unidades * 1);
+            Serial.println(contador);
 
             switch (buffer[5])
             {
             case 0x2E:
-              Store_Contador(Casheable_In, resultado);
+              contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 0x2F:
-              Store_Contador(Casheable_Restricted_In, resultado);
+              contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 0x30:
-              Store_Contador(Casheable_NONrestricted_In, resultado);
+              contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 0x32:
-              Store_Contador(Casheable_Out, resultado);
+              contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 0x33:
-              Store_Contador(Casheable_Restricted_Out, resultado);
+              contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             case 0x34:
-              Store_Contador(Casheable_NONrestricted_Out, resultado);
+              contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
             default:
               Serial.println("Default");
@@ -312,26 +322,32 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           else if (buffer[1] == 0x2D)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, resultado = 0;
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
+            char contador[8] = {};
 
             desc_millon = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
+            contador[0] = desc_millon + '0';
             uni_millon = buffer_contadores[4] % 10;
+            contador[1] = uni_millon + '0';
 
             cent_mil = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
+            contador[2] = cent_mil + '0';
             desc_mil = buffer_contadores[5] % 10;
+            contador[3] = desc_mil + '0';
 
             uni_mil = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
+            contador[4] = uni_mil + '0';
             centenas = buffer_contadores[6] % 10;
+            contador[5] = centenas + '0';
 
             descenas = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
+            contador[6] = descenas + '0';
             unidades = buffer_contadores[7] % 10;
+            contador[7] = unidades + '0';
 
-            resultado = (desc_millon * 10000000) + (uni_millon * 1000000) +
-                        (cent_mil * 100000) + (desc_mil * 10000) +
-                        (uni_mil * 1000) + (centenas * 100) +
-                        (descenas * 10) + (unidades * 1);
+            Serial.println(contador);
 
-            Store_Contador(Cancel_Credit_Hand_Pay, resultado);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
           }
 
           // bzero(buffer, 128);
@@ -517,17 +533,4 @@ void Encuestas_Maquina(void *pvParameters)
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
   vTaskDelete(NULL);
-}
-
-//----------------------------------------------------------------------------------------------------------------------------
-void Store_Contador(int Contador, int Set_Value)
-{
-  if (contadores.Set_Contadores(Contador, Set_Value))
-  {
-    Serial.println("Guardado con exito");
-  }
-  else
-  {
-    Serial.println("No se pudo guardar");
-  }
 }

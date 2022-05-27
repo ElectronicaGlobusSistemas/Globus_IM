@@ -83,7 +83,7 @@ void MetodoAES::Desencripta_Bloque(int val)
 /*****************************************************************************************************************************/
 /*****************************************************************************************************************************/
 
-char* MetodoAES::Encripta_Mensaje_Servidor(char buffer[])
+char *MetodoAES::Encripta_Mensaje_Servidor(char buffer[])
 {
     memcpy(bufferDesencriptado, buffer, 256);
     Encripta_Bloque(8);
@@ -92,23 +92,10 @@ char* MetodoAES::Encripta_Mensaje_Servidor(char buffer[])
 
 /*****************************************************************************************************************************/
 
-void MetodoAES::Desencripta_Mensaje_Servidor(String buffer)
+char *MetodoAES::Desencripta_Mensaje_Servidor(String buffer)
 {
-
     int len = buffer.length();
-
     std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
-
-    //    decrypt(bufferEncriptado, key, bufferDesencriptado);
     Desencripta_Bloque(8);
-
-    Serial.println("\nDeciphered text:");
-    for (int i = 0; i < len; i++)
-    {
-        char str[3];
-        sprintf(str, "%02x", (int)bufferDesencriptado[i]);
-        Serial.print(str);
-    }
-    Serial.println(" ");
+    return bufferDesencriptado;
 }
-

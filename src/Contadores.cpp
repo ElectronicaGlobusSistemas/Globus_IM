@@ -3,51 +3,120 @@
 
 using namespace std;
 
+int Convert_Char_To_Int(char buffer[]);
+
+char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
+{
+  switch (Filtro_Contador)
+  {
+  case 1:
+    return Total_Cancel_Credit_;
+    break;
+  case 2:
+    return Coin_In_;
+    break;
+  case 3:
+    return Coin_Out_;
+    break;
+  case 4:
+    return Jackpot_;
+    break;
+  case 5:
+    return Total_Drop_;
+    break;
+  case 6:
+    return Cancel_Credit_Hand_Pay_;
+    break;
+  case 7:
+    return Bill_Amount_;
+    break;
+  case 8:
+    return Casheable_In_;
+    break;
+  case 9:
+    return Casheable_Restricted_In_;
+    break;
+  case 10:
+    return Casheable_NONrestricted_In_;
+    break;
+  case 11:
+    return Casheable_Out_;
+    break;
+  case 12:
+    return Casheable_Restricted_Out_;
+    break;
+  case 13:
+    return Casheable_NONrestricted_Out_;
+    break;
+  case 14:
+    return Games_Played_;
+    break;
+  default:
+    return 0x00;
+    break;
+  }
+}
+
 int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
 {
+  int res = 0;
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
   case 1: // Bloque de instrucciones 1;
-    return Total_Cancel_Credit_;
+    res = Convert_Char_To_Int(Total_Cancel_Credit_);
+    return res;
     break;
   case 2: // Bloque de instrucciones 2;
-    return Coin_In_;
+    res = Convert_Char_To_Int(Coin_In_);
+    return res;
     break;
   case 3: // Bloque de instrucciones 3;
-    return Coin_Out_;
+    res = Convert_Char_To_Int(Coin_Out_);
+    return res;
     break;
   case 4: // Bloque de instrucciones 4;
-    return Jackpot_;
+    res = Convert_Char_To_Int(Jackpot_);
+    return res;
     break;
   case 5: // Bloque de instrucciones 5;
-    return Total_Drop_;
+    res = Convert_Char_To_Int(Total_Drop_);
+    return res;
     break;
   case 6: // Bloque de instrucciones 6;
-    return Cancel_Credit_Hand_Pay_;
+    res = Convert_Char_To_Int(Cancel_Credit_Hand_Pay_);
+    return res;
     break;
   case 7: // Bloque de instrucciones 7;
-    return Bill_Amount_;
+    res = Convert_Char_To_Int(Bill_Amount_);
+    return res;
     break;
   case 8: // Bloque de instrucciones 8;
-    return Casheable_In_;
+    res = Convert_Char_To_Int(Casheable_In_);
+    return res;
     break;
   case 9: // Bloque de instrucciones 9;
-    return Casheable_Restricted_In_;
+    res = Convert_Char_To_Int(Casheable_Restricted_In_);
+    return res;
     break;
   case 10: // Bloque de instrucciones 10;
-    return Casheable_NONrestricted_In_;
+    res = Convert_Char_To_Int(Casheable_NONrestricted_In_);
+    return res;
     break;
   case 11: // Bloque de instrucciones 11;
-    return Casheable_Out_;
+    res = Convert_Char_To_Int(Casheable_Out_);
+    return res;
     break;
   case 12: // Bloque de instrucciones 12;
-    return Casheable_Restricted_Out_;
+    res = Convert_Char_To_Int(Casheable_Restricted_Out_);
+    return res;
     break;
   case 13: // Bloque de instrucciones 13;
-    return Casheable_NONrestricted_Out_;
+    res = Convert_Char_To_Int(Casheable_NONrestricted_Out_);
+    return res;
     break;
   case 14: // Bloque de instrucciones 14;
-    return Games_Played_;
+    res = Convert_Char_To_Int(Games_Played_);
+    return res;
     break;
   }
   return 0;
@@ -55,49 +124,64 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
 
 string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
 {
+  int res = 0;
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
   case 1: // Bloque de instrucciones 1;
-    return std::to_string(Total_Cancel_Credit_);
+    res = Convert_Char_To_Int(Total_Cancel_Credit_);
+    return std::to_string(res);
     break;
   case 2: // Bloque de instrucciones 2;
-    return std::to_string(Coin_In_);
+    res = Convert_Char_To_Int(Coin_In_);
+    return std::to_string(res);
     break;
   case 3: // Bloque de instrucciones 3;
-    return std::to_string(Coin_Out_);
+    res = Convert_Char_To_Int(Coin_Out_);
+    return std::to_string(res);
     break;
   case 4: // Bloque de instrucciones 4;
-    return std::to_string(Jackpot_);
+    res = Convert_Char_To_Int(Jackpot_);
+    return std::to_string(res);
     break;
   case 5: // Bloque de instrucciones 5;
-    return std::to_string(Total_Drop_);
+    res = Convert_Char_To_Int(Total_Drop_);
+    return std::to_string(res);
     break;
   case 6: // Bloque de instrucciones 6;
-    return std::to_string(Cancel_Credit_Hand_Pay_);
+    res = Convert_Char_To_Int(Cancel_Credit_Hand_Pay_);
+    return std::to_string(res);
     break;
   case 7: // Bloque de instrucciones 7;
-    return std::to_string(Bill_Amount_);
+    res = Convert_Char_To_Int(Bill_Amount_);
+    return std::to_string(res);
     break;
   case 8: // Bloque de instrucciones 8;
-    return std::to_string(Casheable_In_);
+    res = Convert_Char_To_Int(Casheable_In_);
+    return std::to_string(res);
     break;
   case 9: // Bloque de instrucciones 9;
-    return std::to_string(Casheable_Restricted_In_);
+    res = Convert_Char_To_Int(Casheable_Restricted_In_);
+    return std::to_string(res);
     break;
   case 10: // Bloque de instrucciones 10;
-    return std::to_string(Casheable_NONrestricted_In_);
+    res = Convert_Char_To_Int(Casheable_NONrestricted_In_);
+    return std::to_string(res);
     break;
   case 11: // Bloque de instrucciones 11;
-    return std::to_string(Casheable_Out_);
+    res = Convert_Char_To_Int(Casheable_Out_);
+    return std::to_string(res);
     break;
   case 12: // Bloque de instrucciones 12;
-    return std::to_string(Casheable_Restricted_Out_);
+    res = Convert_Char_To_Int(Casheable_Restricted_Out_);
+    return std::to_string(res);
     break;
   case 13: // Bloque de instrucciones 13;
-    return std::to_string(Casheable_NONrestricted_Out_);
+    res = Convert_Char_To_Int(Casheable_NONrestricted_Out_);
+    return std::to_string(res);
     break;
   case 14: // Bloque de instrucciones 14;
-    return std::to_string(Games_Played_);
+    res = Convert_Char_To_Int(Games_Played_);
+    return std::to_string(res);
     break;
   default:
     return std::to_string(0);
@@ -107,67 +191,79 @@ string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
 
 //---------------------------------------------------------------------------------------------------------------------
 //---------------------------------------->Metodo Para Guardar Contadores<---------------------------------------------
-bool Contadores_SAS::Set_Contadores(int Filtro_Contador, int Data_Contador)
+bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
 {
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
   case 1: // Bloque de instrucciones 1;
-    Total_Cancel_Credit_ = Data_Contador;
+    // for (int i = 0; i < 8; i++)
+    // {
+    // }
+    memcpy(Total_Cancel_Credit_, Data_Contador, sizeof(Total_Cancel_Credit_) / sizeof(Total_Cancel_Credit_[0]));
     return true;
     break;
   case 2: // Bloque de instrucciones 2;
-    Coin_In_ = Data_Contador;
+    memcpy(Coin_In_, Data_Contador, sizeof(Coin_In_) / sizeof(Coin_In_[0]));
     return true;
     break;
   case 3: // Bloque de instrucciones 3;
-    Coin_Out_ = Data_Contador;
+    memcpy(Coin_Out_, Data_Contador, sizeof(Coin_Out_) / sizeof(Coin_Out_[0]));
     return true;
     break;
   case 4: // Bloque de instrucciones 4;
-    Jackpot_ = Data_Contador;
+    memcpy(Jackpot_, Data_Contador, sizeof(Jackpot_) / sizeof(Jackpot_[0]));
     return true;
     break;
   case 5: // Bloque de instrucciones 5;
-    Total_Drop_ = Data_Contador;
+    memcpy(Total_Drop_, Data_Contador, sizeof(Total_Drop_) / sizeof(Total_Drop_[0]));
     return true;
     break;
   case 6: // Bloque de instrucciones 6;
-    Cancel_Credit_Hand_Pay_ = Data_Contador;
+    memcpy(Cancel_Credit_Hand_Pay_, Data_Contador, sizeof(Cancel_Credit_Hand_Pay_) / sizeof(Cancel_Credit_Hand_Pay_[0]));
     return true;
     break;
   case 7: // Bloque de instrucciones 7;
-    Bill_Amount_ = Data_Contador;
+    memcpy(Bill_Amount_, Data_Contador, sizeof(Bill_Amount_) / sizeof(Bill_Amount_[0]));
     return true;
     break;
   case 8: // Bloque de instrucciones 8;
-    Casheable_In_ = Data_Contador;
+    memcpy(Casheable_In_, Data_Contador, sizeof(Casheable_In_) / sizeof(Casheable_In_[0]));
     return true;
     break;
   case 9: // Bloque de instrucciones 9;
-    Casheable_Restricted_In_ = Data_Contador;
+    memcpy(Casheable_Restricted_In_, Data_Contador, sizeof(Casheable_Restricted_In_) / sizeof(Casheable_Restricted_In_[0]));
     return true;
     break;
   case 10: // Bloque de instrucciones 10;
-    Casheable_NONrestricted_In_ = Data_Contador;
+    memcpy(Casheable_NONrestricted_In_, Data_Contador, sizeof(Casheable_NONrestricted_In_) / sizeof(Casheable_NONrestricted_In_[0]));
     return true;
     break;
   case 11: // Bloque de instrucciones 11;
-    Casheable_Out_ = Data_Contador;
+    memcpy(Casheable_Out_, Data_Contador, sizeof(Casheable_Out_) / sizeof(Casheable_Out_[0]));
     return true;
     break;
   case 12: // Bloque de instrucciones 12;
-    Casheable_Restricted_Out_ = Data_Contador;
+    memcpy(Casheable_Restricted_Out_, Data_Contador, sizeof(Casheable_Restricted_Out_) / sizeof(Casheable_Restricted_Out_[0]));
     return true;
     break;
   case 13: // Bloque de instrucciones 13;
-    Casheable_NONrestricted_Out_ = Data_Contador;
+    memcpy(Casheable_NONrestricted_Out_, Data_Contador, sizeof(Casheable_NONrestricted_Out_) / sizeof(Casheable_NONrestricted_Out_[0]));
     return true;
     break;
   case 14: // Bloque de instrucciones 13;
-    Games_Played_ = Data_Contador;
+    memcpy(Games_Played_, Data_Contador, sizeof(Games_Played_) / sizeof(Games_Played_[0]));
     return true;
     break;
   }
   return false;
 }
 //---------------------------------------------------------------------------------------------------------------------
+
+int Convert_Char_To_Int(char buffer[])
+{
+  int resultado = ((buffer[0] - 48) * 10000000) + ((buffer[1] - 48) * 1000000) +
+                  ((buffer[2] - 48) * 100000) + ((buffer[3] - 48) * 10000) +
+                  ((buffer[4] - 48) * 1000) + ((buffer[5] - 48) * 100) +
+                  ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
+  return resultado;
+}

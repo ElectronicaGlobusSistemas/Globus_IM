@@ -10,13 +10,13 @@ bool MetodoCRC::Verifica_CRC_Wifi(String str_CRC)
     len_CRC = str_CRC.length();
     //  Serial.println(len_CRC);
     len = (len_CRC - 2);
-    Serial.print("\nCRC-16/KERMIT:\t");
+//    Serial.print("\nCRC-16/KERMIT:\t");
 
     //                            buf Polynome  Init   XorOut  RefIn RefOut
     //                            len  0x1021  0x0000  0x0000  true  true
     // Serial.println(crc16(data, len, 0x1021, 0x0000, 0x0000, true, true), HEX);
     crcval = crc16(data, len, 0x1021, 0x0000, 0x0000, true, true);
-    Serial.println(crcval, HEX);
+//    Serial.println(crcval, HEX);
 
     indice = &str_CRC[len_CRC - 1]; // CRC recibido parte alta
     CRC_Temp = *indice;
@@ -29,10 +29,10 @@ bool MetodoCRC::Verifica_CRC_Wifi(String str_CRC)
 
     CRC_Recibido = CRC_Temp | CRC_Recibido; // CRC_Recibido contiene el CRC recibido en la trama de contadores maquina
 
-    Serial.print("CRC-16/MAQUINA:\t");
-    Serial.println(CRC_Recibido, HEX);
+//    Serial.print("CRC-16/MAQUINA:\t");
+//    Serial.println(CRC_Recibido, HEX);
 
-    Serial.println("\nComparando CRC...");
+//    Serial.println("\nComparando CRC...");
 
     if (CRC_Recibido == crcval)
     {
@@ -86,12 +86,12 @@ bool MetodoCRC::Verifica_CRC_Maq(char str_CRC[], int len_CRC)
     }
     else
     {
-        //    Serial.println("\nCRC Failed...");
+        Serial.println("\nCRC Failed...");
         return false;
     }
 }
 
-char* MetodoCRC::Calcula_CRC_Wifi(char buffer[])
+char *MetodoCRC::Calcula_CRC_Wifi(char buffer[])
 {
     uint16_t crcval, CRC_Temp, CRC_RES;
     uint8_t *data = (uint8_t *)&buffer[0];
