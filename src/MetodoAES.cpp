@@ -86,7 +86,7 @@ void MetodoAES::Desencripta_Bloque(int val)
 char *MetodoAES::Encripta_Mensaje_Servidor(char buffer[])
 {
     memcpy(bufferDesencriptado, buffer, 256);
-    Encripta_Bloque(8);
+    Encripta_Bloque(16);
     return bufferEncriptado;
 }
 
@@ -96,6 +96,6 @@ char *MetodoAES::Desencripta_Mensaje_Servidor(String buffer)
 {
     int len = buffer.length();
     std::copy(std::begin(buffer), std::end(buffer), std::begin(bufferEncriptado));
-    Desencripta_Bloque(8);
+    Desencripta_Bloque(16);
     return bufferDesencriptado;
 }

@@ -140,13 +140,6 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
 
-    int j = 3;
-
-    for (int i = 0; i < 8; i++)
-    {
-        req[j] = res[i];
-        j++;
-    }
 
     //    Contadores_SAS contadores;
     //    Serial.println(contadores.Get_Contadores_Int(Total_Cancel_Credit));
@@ -154,7 +147,10 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     //    Serial.print("Buffer copiado: ");
     //    Serial.println(j);
     // Total Cancel Credit
-    Serial.println(j);
+    req[0] = 3;
+    req[1] = 0;
+    req[2] = 0;
+    req[3] = 0;
 
     req[4] = '9';
     req[5] = '0';

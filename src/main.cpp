@@ -47,6 +47,7 @@ void loop()
   {
     tiempo_final = tiempo_inicial;
 
+    //    Transmite_Eco_Broadcast();
     // char res[8] = {};
     // bzero(res, 8);
     // memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
@@ -59,12 +60,12 @@ void loop()
 
     if (bandera2 == 0)
     {
-      Transmite_Contadores();
+//      Transmite_Contadores();
       bandera2 = 1;
     }
     else
     {
-      Transmite_Confirmacion('A', '3'); // Transmite ACK a Server
+//      Transmite_Confirmacion('A', '3'); // Transmite ACK a Server
       bandera2 = 0;
     }
   }
