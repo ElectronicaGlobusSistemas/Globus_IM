@@ -22,6 +22,15 @@ using namespace std;
 #define Casheable_Restricted_Out 12
 #define Casheable_NONrestricted_Out 13
 #define Games_Played 14
+#define Physical_Coin_In 15
+#define Physical_Coin_Out 16
+#define Total_Coin_Drop 17
+#define Machine_Paid_Progresive_Payout 18
+#define Machine_Paid_External_Bonus_Payout 19
+#define Attendant_Paid_Progresive_Payout 20
+#define Attendant_Paid_External_Bonus_Payout 21
+#define Ticket_In 22
+#define Ticket_Out 23
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
@@ -42,6 +51,15 @@ private: // Variables Privadas Para contadores
   char Casheable_Restricted_Out_[9];
   char Casheable_NONrestricted_Out_[9];
   char Games_Played_[9];
+  char Physical_Coin_In_[9];
+  char Physical_Coin_Out_[9];
+  char Total_Coin_Drop_[9];
+  char Machine_Paid_Progresive_Payout_[9];
+  char Machine_Paid_External_Bonus_Payout_[9];
+  char Attendant_Paid_Progresive_Payout_[9];
+  char Attendant_Paid_External_Bonus_Payout_[9];
+  char Ticket_In_[11];
+  char Ticket_Out_[11];
   char Vacio;
 
 public:

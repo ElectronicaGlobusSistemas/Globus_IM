@@ -56,42 +56,66 @@ void Transmite_Eco_Broadcast()
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
 
+    // Direccion MAC ESP32
+    Serial.print("Direccion MAC: ");
+    Serial.println(WiFi.macAddress());
+    String mac = WiFi.macAddress();
+
+    // Direccion IP ESP32
+    Serial.print("Direccion IP Local: ");
+    uint32_t ip = WiFi.localIP();
+    Serial.print("Direccion IP Local2: ");
+    Serial.print(ip);
+
+    // Socket de conexion
+    Serial.print("Socket: ");
+    Serial.println(client.remotePort());
+    string socket = std::to_string(client.remotePort());
+
+    // Mascara subred ESP32
+    Serial.print("Mascara Subred: ");
+    Serial.println(WiFi.subnetMask());
+
+    // Puerta de enlace ESP32
+    Serial.print("Puerta de enlace: ");
+    Serial.println(WiFi.gatewayIP());
+
     res[0] = 'L';
     res[1] = '|';
     res[2] = '0';
     res[3] = '1';
     res[4] = '|';
     // MAC
-    res[5] = '2';
-    res[6] = '1';
-    res[7] = '6';
-    res[8] = '.';
-    res[9] = '1';
-    res[10] = '2';
-    res[11] = '8';
-    res[12] = '.';
+    res[5] = '0';
+    res[6] = mac[0];
+    res[7] = mac[1];
+    res[8] = mac[2];
+    res[9] = '0';
+    res[10] = mac[3];
+    res[11] = mac[4];
+    res[12] = mac[5];
     res[13] = '0';
-    res[14] = '5';
-    res[15] = '7';
-    res[16] = '.';
+    res[14] = mac[6];
+    res[15] = mac[7];
+    res[16] = mac[8];
     res[17] = '0';
-    res[18] = '9';
-    res[19] = '7';
-    res[20] = '.';
+    res[18] = mac[9];
+    res[19] = mac[10];
+    res[20] = mac[11];
     res[21] = '0';
-    res[22] = '4';
-    res[23] = '5';
-    res[24] = '.';
-    res[25] = '1';
-    res[26] = '7';
-    res[27] = '5';
+    res[22] = mac[12];
+    res[23] = mac[13];
+    res[24] = mac[14];
+    res[25] = '0';
+    res[26] = mac[15];
+    res[27] = mac[16];
     res[28] = '|';
     // PORT
     res[29] = '0';
-    res[30] = '1';
-    res[31] = '0';
-    res[32] = '0';
-    res[33] = '1';
+    res[30] = socket[0];
+    res[31] = socket[1];
+    res[32] = socket[2];
+    res[33] = socket[3];
     res[34] = '|';
     // IP
     res[35] = '1';
@@ -162,10 +186,6 @@ void Transmite_Eco_Broadcast()
     res[97] = '3';
     res[98] = '2';
 
-    String mac = WiFi.macAddress();
-    Serial.println(WiFi.localIP());
-    Serial.println(WiFi.macAddress());
-
     Serial.println("Set buffer general OK");
     int len = sizeof(res);
     Serial.print("Tamaño a enviar: ");
@@ -228,8 +248,8 @@ void Task_Procesa_Comandos(void *parameter)
 
             if (res[0] == 'S' && res[1] == 'B')
             {
-                Serial.println("Solicitud de modo Bootloader");
-                        }
+                Serial.println("Solicitud de Bootloader");
+            }
             else if (res[0] == 'E' && res[1] == 'B')
             {
                 Serial.println("Eco Broadcast");

@@ -25,10 +25,13 @@ void CONNECT_WIFI(void)
   WiFi.mode(WIFI_STA); // MODO STA.
 
   IPAddress Local_IP(192, 168, 5, 155);
+  IPAddress Gateway (192, 168, 5, 1);
+  IPAddress SubnetMask (255, 255, 255, 0);
   IPAddress primaryDNS(8, 8, 8, 8);   // optional
   IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
-  if (!WiFi.config(Local_IP, primaryDNS, secondaryDNS))
+//  bool WiFiSTAClass::config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
+  if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
   {
     Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
   }
