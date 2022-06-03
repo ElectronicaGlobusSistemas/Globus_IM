@@ -1,0 +1,216 @@
+#include <SPI.h>
+#include <mySD.h>
+#include "Memory_SD.h"
+
+#define MOSI 23
+#define MISO 19
+#define CLK  18
+
+Sd2Card card;
+File myFile;
+SdVolume volume;
+SdFile root;
+
+
+
+
+void Init_SD(void)
+{
+    SD.begin();
+    xTaskCreatePinnedToCore(
+        Task_Verifica_Conexion_SD, //Función a implementar la tarea.
+        "SD_Check", //  Nombre de la tarea
+        10000,      //  Tamaño de stack en palabras (memoria)
+        NULL,       //  Entrada de parametros
+        5,          //  Prioridad de la tarea.
+        NULL,       //  Manejador de la tarea.
+        1);         //  Core donde se ejecutara.  
+}
+
+
+static void Task_Verifica_Conexion_SD(void *parameter)
+{
+    int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
+    for (;;)
+    {
+        if (!card.init(SPI_FULL_SPEED) ) // SD Desconectada...
+        {
+            
+            Serial.println("Memoria SD Desconectada..");
+            //SD.begin(SD_ChipSelect); // Intenta Conectar.
+            card.init(SPI_FULL_SPEED); // Intenta Conectar Despues de Fallo.
+            digitalWrite(SD_Status, LOW); // Apaga  Indicador LED SD Status.
+            Serial.print("Fallo en Conexión SD"); // Mensaje de Fallo.
+            Serial.print(" Intento #: ");
+            Serial.println(Intento_Connect_SD); // Imprime conteo de Fallos.
+            Intento_Connect_SD++; // Aaumento de Contador.
+            
+        }
+        else if (card.init(SPI_FULL_SPEED)) // SD OK
+        {
+            Intento_Connect_SD = 0; // Reset Contador de Fallos.
+            Serial.println("SD OK"); // Mensaje de Conexión SD.
+            digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
+            
+        }
+        vTaskDelay(10000); //Pausa Tarea 10000ms
+    }
+    vTaskDelete(NULL);
+   
+}
+
+//---------------------> Función Para Crear Archivos Txt sin Formato <---------------------------------
+void Create_ARCHIVE_Txt( char* ARCHIVO)
+{
+    if (!SD.exists(ARCHIVO)) // Pregunta si el archivo Existe.
+    {
+        myFile = SD.open(ARCHIVO, FILE_WRITE); // Abre Archivo.
+        myFile.close();
+    }
+}
+//------------------------------------------------------------------------------------------------------
+
+//-----------------------------> Función Para escribir en Archivo Txt <---------------------------------
+void Write_Data_File_Txt(String Datos, char* ARCHIVO)
+{
+    Create_ARCHIVE_Txt(ARCHIVO); // Crea Archivo si no Existe.
+    delay(3);
+    myFile = SD.open(ARCHIVO, FILE_WRITE);
+    if (!myFile)
+    {
+        Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+    }
+    else
+    {
+        myFile.println(Datos);
+        Serial.println("Dato: " + Datos + " Guardado en SD");
+    }
+    myFile.close();
+}
+//-------------------------------------------------------------------------------------------------------
+//---------------------------> Función Para Crear Archivos CSV <-----------------------------------------
+void Create_ARCHIVE_Excel(char* ARCHIVO, String  Encabezado)
+{
+    if (!SD.exists(ARCHIVO)) // Si el archivo no existe lo Crea con encabezado para Excel!!
+    {
+        myFile = SD.open(ARCHIVO, FILE_WRITE);
+        myFile.println(Encabezado);
+        myFile.close();
+        Serial.println("Archivo: "+(String)ARCHIVO+ " Creado con Encabezado");
+    }
+}
+//--------------------------------------------------------------------------------------------------------
+
+//---------------------------> Función para Escribir En Archivos CSV <------------------------------------
+void Write_Data_File(String Datos,char *ARCHIVO,bool select)
+{
+    if (SD.exists(ARCHIVO))
+    {
+        myFile = SD.open(ARCHIVO, FILE_WRITE);
+        if (select == false)
+        {
+            if (!myFile)
+            {
+                Serial.println("Error al escribir en SD");
+            }
+            else
+            {
+                myFile.print(Datos);
+                myFile.print(",");
+                Serial.println("Dato: "+Datos+" Guardado en SD");
+            }
+        }
+        else
+        {
+            if (!myFile)
+            {
+                Serial.println("Error al escribir en SD");
+            }
+            else
+            {
+                myFile.println(Datos);
+                Serial.println("Dato: "+Datos+" Guardado en SD");
+            }
+        }
+        myFile.close();
+    }
+}
+//--------------------------------------------------------------------------------------------------------
+//---------------------------> Función para Escribir En Archivos CSV <------------------------------------
+void Write_Data_File2(String Datos,char *archivo,bool select, String Encabezado)
+{
+    if (SD.exists(archivo))
+    {
+        myFile = SD.open(archivo, FILE_WRITE);
+        if (select == false)
+        {
+            if (!myFile)
+            {
+                Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+            }
+            else
+            {
+                myFile.print(Datos);
+                myFile.print(",");
+                Serial.println("Dato: " + Datos + " Guardado en SD");
+            }
+        }
+        else
+        {
+            if (!myFile)
+            {
+                Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+            }
+            else
+            {
+                myFile.println(Datos);
+                Serial.println("Dato: " + Datos + " Guardado en SD");
+            }
+        }
+        myFile.close();
+    }
+    else
+    {
+        Create_ARCHIVE_Excel(archivo, Encabezado);
+        delay(3);
+        Write_Data_File(Datos, archivo, select);
+    }
+}
+
+void Read_File(const char* ARCHIVO)
+{
+    myFile = SD.open(ARCHIVO);
+    if (myFile)
+    {
+        while (myFile.available())
+        {
+            Serial.write(myFile.read());
+        }
+        myFile.close();
+    }
+    else
+    {
+        Serial.print("Error en lectura de archivo ");
+        Serial.println(ARCHIVO);
+    }
+}
+
+void Remove_Archive(char* ARCHIVO)
+{
+    if (SD.exists(ARCHIVO))
+    {
+        SD.remove(ARCHIVO);
+        Serial.print("\nSe ha Eliminado ");
+        Serial.print(ARCHIVO);
+        Serial.println(" Exitosamente.");
+    }
+    else
+    {
+        Serial.println("\nNo existe archivo: "+(String)ARCHIVO);
+    }
+}
+
+void Nueva_Carpeta(char* Carpeta)
+{
+    SD.mkdir(Carpeta);
+}

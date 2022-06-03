@@ -2,7 +2,8 @@
 #include <string.h>
 #include <iostream>
 #include <stdio.h>
-
+#include "Memory_SD.h"
+#include "RTC.h"
 using namespace std;
 
 #define NUMERO_PORTA_SERIALE UART_NUM_2
@@ -27,6 +28,8 @@ char dat4[1] = {DIR};
 int bandera = 0;
 int contador = 0;
 long numero_contador = 0;
+int Contador_Encuestas=0;
+int Max_Encuestas=23;
 
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
@@ -35,7 +38,8 @@ void Encuestas_Maquina(void *pvParameters);
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-
+String Encabezado_Contadores="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
+char *Archivo_Format;
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
 {
@@ -207,6 +211,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         {
 
           numero_contador++;
+          Contador_Encuestas++;
+          
 
           for (int index = 0; index < conta_bytes; index++)
           {
@@ -245,24 +251,31 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores);   
               break;
             case 11:
               contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 12:
               contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 14:
               contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 15:
               contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 46:
               contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             default:
               Serial.println("Default");
@@ -301,21 +314,27 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x2F:
               contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x30:
               contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x32:
               contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x33:
               contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x34:
               contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
               break;
             default:
               Serial.println("Default");
@@ -351,6 +370,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+            Write_Data_File2(String(contador),Archivo_Format,true,Encabezado_Contadores); 
           }
 
           // bzero(buffer, 128);
@@ -358,12 +378,30 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           Serial.print("Contador de encuestas con CRC valido --> ");
           Serial.println(numero_contador);
+          if(Contador_Encuestas==Max_Encuestas){
+            Contador_Encuestas=0; //Reset Contador
+          }
         }
         else
         {
           // bzero(buffer, 128);
           Serial.println("Error de CRC en contadores...");
           numero_contador = 0;
+          Contador_Encuestas++;
+          if(Contador_Encuestas==Max_Encuestas)
+          {
+            //Guarda ERROR CRC en Ultima posición  
+            Write_Data_File2("Error CRC",Archivo_Format,true,Encabezado_Contadores); 
+            // Era la ultima..
+            Contador_Encuestas=0;
+          }else
+          {
+            // Guarda ERROR CRC en ultima posición
+            // No Era la Ultima. Guarda dato sin salto de linea.
+            Write_Data_File2("Error CRC",Archivo_Format,false,Encabezado_Contadores); 
+              
+          }
+          
         }
       }
       else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
