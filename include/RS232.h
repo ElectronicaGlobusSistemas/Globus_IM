@@ -6,7 +6,7 @@
 #include "Contadores.h"
 #include "Eventos.h"
 #include "CRC_Kermit.h"
-
+#include "Memory_SD.h"
 using namespace std;
 
 #define NUMERO_PORTA_SERIALE UART_NUM_2
@@ -57,7 +57,7 @@ void Init_UART2()
   uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
 
-  //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
+  //-----------------------------------------------Aquí Tareas Nucleo 1 Comunicación Maquina------------------------------
   xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 2048, NULL, 12, NULL, 1); // Máx Priority principal
   xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 5, NULL, 1);
   //----------------------------------------------------------------------------------------------------------------------
@@ -244,24 +244,31 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               Store_Contador(Total_Cancel_Credit, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 11:
               Store_Contador(Coin_In, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 12:
               Store_Contador(Coin_Out, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 13:
               Store_Contador(Total_Drop, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 14:
               Store_Contador(Jackpot, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 15:
               Store_Contador(Games_Played, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 46:
               Store_Contador(Bill_Amount, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             }
           }
@@ -291,21 +298,27 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 0x2E:
               Store_Contador(Casheable_In, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 0x2F:
               Store_Contador(Casheable_Restricted_In, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 0x30:
               Store_Contador(Casheable_NONrestricted_In, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 0x32:
               Store_Contador(Casheable_Out, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 0x33:
               Store_Contador(Casheable_Restricted_Out, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             case 0x34:
               Store_Contador(Casheable_NONrestricted_Out, resultado);
+              Write_Data_File((String)resultado,"cont4.csv",false);
               break;
             default:
               Serial.println("Default");
@@ -335,6 +348,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                         (descenas * 10) + (unidades * 1);
 
             Store_Contador(Cancel_Credit_Hand_Pay, resultado);
+            Write_Data_File((String)resultado,"cont4.csv",true);
           }
 
           // bzero(buffer, 128);
