@@ -213,7 +213,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           numero_contador++;
           Contador_Encuestas++;
           
-
           for (int index = 0; index < conta_bytes; index++)
           {
             String buffer_contadores_string = String(buffer[index], HEX);
@@ -223,7 +222,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
           {
             int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
-            char contador[8] = {};
+            char contador[7] = {};
 
             desc_millon = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
             contador[0] = desc_millon + '0';
@@ -246,6 +245,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             contador[7] = unidades + '0';
 
             Serial.println(contador);
+            Serial.println(sizeof(contador)/sizeof(contador[0]));
 
             switch (buffer_contadores[1])
             {
@@ -501,7 +501,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           else if (buffer[1] == 0x2D)
           {
             int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
-            char contador[8] = {};
+            char contador[7] = {};
 
             desc_millon = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
             contador[0] = desc_millon + '0';
