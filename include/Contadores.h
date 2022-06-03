@@ -31,6 +31,9 @@ using namespace std;
 #define Attendant_Paid_External_Bonus_Payout 21
 #define Ticket_In 22
 #define Ticket_Out 23
+#define Current_Credits 24
+#define Door_Open 25
+#define Games_Since_Last_Power_Up 26
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
@@ -60,6 +63,9 @@ private: // Variables Privadas Para contadores
   char Attendant_Paid_External_Bonus_Payout_[9];
   char Ticket_In_[11];
   char Ticket_Out_[11];
+  char Current_Credits_[9];
+  char Door_Open_[9];
+  char Games_Since_Last_Power_Up_[9];
   char Vacio;
 
 public:

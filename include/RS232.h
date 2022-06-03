@@ -214,7 +214,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             buffer_contadores[index] = buffer_contadores_string.toInt();
           }
 
-          if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x2A || buffer[1] == 0x2B)
+          if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
           {
             int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
             char contador[8] = {};
@@ -268,37 +268,193 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Serial.println("Default");
               break;
             }
+            if (buffer[1] == 0x1A)
+            {
+              contadores.Set_Contadores(Current_Credits, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+            }
           }
 
-          else if (buffer[1] == 0x2F)
+          else if (buffer[1] == 0x2A || buffer[1] == 0x2B)
           {
             int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
             char contador[8] = {};
 
-            desc_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
+            desc_millon = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
             contador[0] = desc_millon + '0';
-            uni_millon = buffer_contadores[6] % 10;
+            uni_millon = buffer_contadores[2] % 10;
             contador[1] = uni_millon + '0';
 
-            cent_mil = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
+            cent_mil = (buffer_contadores[3] - (buffer_contadores[3] % 10)) / 10;
             contador[2] = cent_mil + '0';
-            desc_mil = buffer_contadores[7] % 10;
+            desc_mil = buffer_contadores[3] % 10;
             contador[3] = desc_mil + '0';
 
-            uni_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
+            uni_mil = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
             contador[4] = uni_mil + '0';
-            centenas = buffer_contadores[8] % 10;
+            centenas = buffer_contadores[4] % 10;
             contador[5] = centenas + '0';
 
-            descenas = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
+            descenas = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
             contador[6] = descenas + '0';
-            unidades = buffer_contadores[9] % 10;
+            unidades = buffer_contadores[5] % 10;
             contador[7] = unidades + '0';
+
+            Serial.println(contador);
+
+            switch (buffer[1])
+            {
+            case 0x2A:
+              contadores.Set_Contadores(Physical_Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x2B:
+              contadores.Set_Contadores(Physical_Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            default:
+              Serial.println("Default");
+              break;
+            }
+          }
+
+          else if (buffer[1] == 0x1C)
+          {
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
+            char contador[8] = {};
+
+            desc_millon = (buffer_contadores[26] - (buffer_contadores[26] % 10)) / 10;
+            contador[0] = desc_millon + '0';
+            uni_millon = buffer_contadores[26] % 10;
+            contador[1] = uni_millon + '0';
+
+            cent_mil = (buffer_contadores[27] - (buffer_contadores[27] % 10)) / 10;
+            contador[2] = cent_mil + '0';
+            desc_mil = buffer_contadores[27] % 10;
+            contador[3] = desc_mil + '0';
+
+            uni_mil = (buffer_contadores[28] - (buffer_contadores[28] % 10)) / 10;
+            contador[4] = uni_mil + '0';
+            centenas = buffer_contadores[28] % 10;
+            contador[5] = centenas + '0';
+
+            descenas = (buffer_contadores[29] - (buffer_contadores[29] % 10)) / 10;
+            contador[6] = descenas + '0';
+            unidades = buffer_contadores[29] % 10;
+            contador[7] = unidades + '0';
+
+            Serial.println(contador);
+
+            contadores.Set_Contadores(Door_Open, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+          }
+
+          else if (buffer[1] == 0x18)
+          {
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
+            char contador[8] = {};
+
+            desc_millon = 0;
+            contador[0] = desc_millon + '0';
+            uni_millon = 0;
+            contador[1] = uni_millon + '0';
+
+            cent_mil = 0;
+            contador[2] = cent_mil + '0';
+            desc_mil = 0;
+            contador[3] = desc_mil + '0';
+
+            uni_mil = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
+            contador[4] = uni_mil + '0';
+            centenas = buffer_contadores[2] % 10;
+            contador[5] = centenas + '0';
+
+            descenas = (buffer_contadores[3] - (buffer_contadores[3] % 10)) / 10;
+            contador[6] = descenas + '0';
+            unidades = buffer_contadores[3] % 10;
+            contador[7] = unidades + '0';
+
+            Serial.println(contador);
+
+            contadores.Set_Contadores(Games_Since_Last_Power_Up, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+          }
+
+          else if (buffer[1] == 0x2F)
+          {
+            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, cent_millon, uni_mil_millon = 0;
+            char contador[10] = {};
+
+            if (buffer[5] == 0x0D || buffer[5] == 0x0E)
+            {
+              uni_mil_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
+              contador[0] = uni_mil_millon + '0';
+              cent_millon = buffer_contadores[6] % 10;
+              contador[1] = cent_millon + '0';
+
+              desc_millon = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
+              contador[2] = desc_millon + '0';
+              uni_millon = buffer_contadores[7] % 10;
+              contador[3] = uni_millon + '0';
+
+              cent_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
+              contador[4] = cent_mil + '0';
+              desc_mil = buffer_contadores[8] % 10;
+              contador[5] = desc_mil + '0';
+
+              uni_mil = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
+              contador[6] = uni_mil + '0';
+              centenas = buffer_contadores[9] % 10;
+              contador[7] = centenas + '0';
+
+              descenas = (buffer_contadores[10] - (buffer_contadores[10] % 10)) / 10;
+              contador[8] = descenas + '0';
+              unidades = buffer_contadores[10] % 10;
+              contador[9] = unidades + '0';
+            }
+            else
+            {
+              desc_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
+              contador[0] = desc_millon + '0';
+              uni_millon = buffer_contadores[6] % 10;
+              contador[1] = uni_millon + '0';
+
+              cent_mil = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
+              contador[2] = cent_mil + '0';
+              desc_mil = buffer_contadores[7] % 10;
+              contador[3] = desc_mil + '0';
+
+              uni_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
+              contador[4] = uni_mil + '0';
+              centenas = buffer_contadores[8] % 10;
+              contador[5] = centenas + '0';
+
+              descenas = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
+              contador[6] = descenas + '0';
+              unidades = buffer_contadores[9] % 10;
+              contador[7] = unidades + '0';
+            }
 
             Serial.println(contador);
 
             switch (buffer[5])
             {
+            case 0x0D:
+              contadores.Set_Contadores(Ticket_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x0E:
+              contadores.Set_Contadores(Ticket_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x1D:
+              contadores.Set_Contadores(Machine_Paid_Progresive_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x1E:
+              contadores.Set_Contadores(Machine_Paid_External_Bonus_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x20:
+              contadores.Set_Contadores(Attendant_Paid_Progresive_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x21:
+              contadores.Set_Contadores(Attendant_Paid_External_Bonus_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
+            case 0x24:
+              contadores.Set_Contadores(Total_Coin_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              break;
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               break;
@@ -611,9 +767,21 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
         Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x2E);
-        Transmite_Poll_Long(0xF7);
-        Transmite_Poll_Long(0xE3);
+        Transmite_Poll_Long(0x0E);
+        Transmite_Poll_Long(0xF5);
+        Transmite_Poll_Long(0xC2);
+        break;
+      case 24:
+        Serial.println("Current Credits"); // Physical coin out
+        Transmite_Poll(0x1A);
+        break;
+      case 25:
+        Serial.println("Contador 1C - Door Open Metter"); // Physical coin out
+        Transmite_Poll(0x1C);
+        break;
+      case 26:
+        Serial.println("Contador 18 - Games Since Last Power Up"); // Physical coin out
+        Transmite_Poll(0x18);
         Conta_Encuestas = 0;
         break;
       }

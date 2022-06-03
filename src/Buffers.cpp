@@ -113,7 +113,9 @@ char *Buffers::Get_buffer_recepcion(void)
 
 bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
 {
+    int pos;
     char req[258] = {};
+    char res[10] = {};
     bzero(req, 258);
     int32_t Aux1;
 
@@ -136,252 +138,274 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     Aux1 = ((Aux1 & 0xFF000000) >> 24);
     req[3] = Aux1;
 
-    char res[8] = {};
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL CANCEL CREDIT
+    //--------------------------------------------------------------------------------------------------
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+    pos = 4;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 12
 
+    //--------------------------------------------------------------------------------------------------
+    // COIN IN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Coin_In), sizeof(res) / sizeof(res[0]));
+    pos = 13;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 21
 
-    //    Contadores_SAS contadores;
-    //    Serial.println(contadores.Get_Contadores_Int(Total_Cancel_Credit));
+    //--------------------------------------------------------------------------------------------------
+    // COIN OUT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Coin_Out), sizeof(res) / sizeof(res[0]));
+    pos = 22;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 30
 
-    //    Serial.print("Buffer copiado: ");
-    //    Serial.println(j);
-    // Total Cancel Credit
-    req[0] = 3;
-    req[1] = 0;
-    req[2] = 0;
-    req[3] = 0;
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL DROP
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
+    pos = 31;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 39
 
-    req[4] = '9';
-    req[5] = '0';
-    req[6] = '0';
-    req[7] = '4';
-    req[8] = '1';
-    req[9] = '4';
-    req[10] = '7';
-    req[11] = '2';
-    req[12] = '|'; // 12
-    //    Serial.println(j);
-    // Coin In
-    req[13] = '0';
-    req[14] = '2';
-    req[15] = '0';
-    req[16] = '8';
-    req[17] = '7';
-    req[18] = '4';
-    req[19] = '3';
-    req[20] = '2';
-    req[21] = '|'; // 21
-                   //    Serial.println(j);
-    // Coin Out
-    req[22] = '0';
-    req[23] = '1';
-    req[24] = '5';
-    req[25] = '2';
-    req[26] = '0';
-    req[27] = '0';
-    req[28] = '5';
-    req[29] = '1';
-    req[30] = '|'; // 30
-                   //    Serial.println(j);
-    // Total Drop
-    req[31] = '9';
-    req[32] = '0';
-    req[33] = '6';
-    req[34] = '0';
-    req[35] = '9';
-    req[36] = '8';
-    req[37] = '3';
-    req[38] = '3';
-    req[39] = '|'; // 39
-                   //    Serial.println(j);
-    // Jackpot
-    req[40] = '0';
-    req[41] = '0';
-    req[42] = '0';
-    req[43] = '0';
-    req[44] = '0';
-    req[45] = '0';
-    req[46] = '0';
-    req[47] = '0';
-    req[48] = '|'; // 48
-                   //    Serial.println(j);
-    // Physical Coin In
-    req[49] = '0';
-    req[50] = '0';
-    req[51] = '0';
-    req[52] = '0';
-    req[53] = '0';
-    req[54] = '0';
-    req[55] = '0';
-    req[56] = '0';
-    req[57] = '|'; // 57
-                   //    Serial.println(j);
-    // Physical Coin Out
-    req[58] = '0';
-    req[59] = '0';
-    req[60] = '0';
-    req[61] = '0';
-    req[62] = '0';
-    req[63] = '0';
-    req[64] = '0';
-    req[65] = '0';
-    req[66] = '|'; // 66
-                   //    Serial.println(j);
-    // Total Coin Drop
-    req[67] = '0';
-    req[68] = '0';
-    req[69] = '0';
-    req[70] = '0';
-    req[71] = '0';
-    req[72] = '0';
-    req[73] = '0';
-    req[74] = '0';
-    req[75] = '|'; // 75
-                   //    Serial.println(j);
-    // Machine Paid Progresive
-    req[76] = '0';
-    req[77] = '0';
-    req[78] = '0';
-    req[79] = '0';
-    req[80] = '0';
-    req[81] = '0';
-    req[82] = '0';
-    req[83] = '0';
-    req[84] = '|'; // 84
-                   //    Serial.println(j);
-    // Machine Paid External Bonus
-    req[85] = '0';
-    req[86] = '0';
-    req[87] = '0';
-    req[88] = '0';
-    req[89] = '0';
-    req[90] = '0';
-    req[91] = '0';
-    req[92] = '0';
-    req[93] = '|'; // 93
-                   //    Serial.println(j);
-    // Attendfant Paid  Progresive
-    req[94] = '0';
-    req[95] = '0';
-    req[96] = '0';
-    req[97] = '0';
-    req[98] = '0';
-    req[99] = '0';
-    req[100] = '0';
-    req[101] = '0';
-    req[102] = '|'; // 102
-                    //    Serial.println(j);
-    // Attendfant Paid External Bonus
-    req[103] = '0';
-    req[104] = '0';
-    req[105] = '0';
-    req[106] = '0';
-    req[107] = '0';
-    req[108] = '0';
-    req[109] = '0';
-    req[110] = '0';
-    req[111] = '|'; // 111
-                    //    Serial.println(j);
-    // Ticket Voucher In
-    req[112] = '0';
-    req[113] = '0';
-    req[114] = '0';
-    req[115] = '0';
-    req[116] = '0';
-    req[117] = '0';
-    req[118] = '0';
-    req[119] = '0';
-    req[120] = '0';
-    req[121] = '0';
-    req[122] = '|'; // 122
-                    //    Serial.println(j);
-    // Ticket Voucher Out
-    req[123] = '0';
-    req[124] = '0';
-    req[125] = '0';
-    req[126] = '0';
-    req[127] = '0';
-    req[128] = '0';
-    req[129] = '0';
-    req[130] = '0';
-    req[131] = '0';
-    req[132] = '0';
-    req[133] = '|'; // 133
-                    //    Serial.println(j);
-    // Cancel Credit Hand Paid
-    req[134] = '0';
-    req[135] = '1';
-    req[136] = '6';
-    req[137] = '3';
-    req[138] = '1';
-    req[139] = '5';
-    req[140] = '9';
-    req[141] = '0';
-    req[142] = '|'; // 142
-                    //    Serial.println(j);
-    // Bill Amount
-    req[143] = '0';
-    req[144] = '0';
-    req[145] = '4';
-    req[146] = '7';
-    req[147] = '8';
-    req[148] = '2';
-    req[149] = '0';
-    req[150] = '0';
-    req[151] = '|'; // 151
-                    //    Serial.println(j);
-    // Games Since Power up
-    req[152] = '0';
-    req[153] = '0';
-    req[154] = '0';
-    req[155] = '0';
-    req[156] = '0';
-    req[157] = '0';
-    req[158] = '0';
-    req[159] = '0';
-    req[160] = '|'; // 160
-                    //    Serial.println(j);
-    // Total Games Played
-    req[161] = '0';
-    req[162] = '0';
-    req[163] = '0';
-    req[164] = '0';
-    req[165] = '8';
-    req[166] = '6';
-    req[167] = '2';
-    req[168] = '0';
-    req[169] = '|'; // 169
-                    //    Serial.println(j);
-    // Total Door Open
-    req[170] = '0';
-    req[171] = '0';
-    req[172] = '0';
-    req[173] = '0';
-    req[174] = '1';
-    req[175] = '2';
-    req[176] = '6';
-    req[177] = '8';
-    req[178] = '|'; // 178
-                    //    Serial.println(j);
-    // Current Credits
-    req[179] = '0';
-    req[180] = '0';
-    req[181] = '0';
-    req[182] = '0';
-    req[183] = '0';
-    req[184] = '9';
-    req[185] = '8';
-    req[186] = '0';
-    req[187] = '|'; // 187
-                    //    Serial.println(j);
+    //--------------------------------------------------------------------------------------------------
+    // JACKPOT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Jackpot), sizeof(res) / sizeof(res[0]));
+    pos = 40;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 48
+
+    //--------------------------------------------------------------------------------------------------
+    // PHYSICAL COIN IN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_In), sizeof(res) / sizeof(res[0]));
+    pos = 49;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 57
+
+    //--------------------------------------------------------------------------------------------------
+    // PHYSICAL COIN OUT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_Out), sizeof(res) / sizeof(res[0]));
+    pos = 58;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 66
+
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL COIN DROP
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Total_Coin_Drop), sizeof(res) / sizeof(res[0]));
+    pos = 67;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 75
+
+    //--------------------------------------------------------------------------------------------------
+    // MACHINE PAID PROGRESIVE
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Machine_Paid_Progresive_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 76;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 84
+
+    //--------------------------------------------------------------------------------------------------
+    // MACHINE PAID EXTERNAL BONUS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Machine_Paid_External_Bonus_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 85;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 93
+
+    //--------------------------------------------------------------------------------------------------
+    // ATTENDANT PAID PROGRESIVE
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Attendant_Paid_Progresive_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 94;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 102
+
+    //--------------------------------------------------------------------------------------------------
+    // ATTENDANT PAID EXTERNAL BONUS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Attendant_Paid_External_Bonus_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 103;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 111
+
+    //--------------------------------------------------------------------------------------------------
+    // TICKET IN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 10);
+    memcpy(res, contadores.Get_Contadores_Char(Ticket_In), sizeof(res) / sizeof(res[0]));
+    pos = 112;
+    for (int i = 0; i < 10; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 122
+
+    //--------------------------------------------------------------------------------------------------
+    // TICKET OUT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 10);
+    memcpy(res, contadores.Get_Contadores_Char(Ticket_Out), sizeof(res) / sizeof(res[0]));
+    pos = 123;
+    for (int i = 0; i < 10; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 133
+
+    //--------------------------------------------------------------------------------------------------
+    // CANCEL CREDIT HAND PAY
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Cancel_Credit_Hand_Pay), sizeof(res) / sizeof(res[0]));
+    pos = 134;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 142
+
+    //--------------------------------------------------------------------------------------------------
+    // BILL AMOUNT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Bill_Amount), sizeof(res) / sizeof(res[0]));
+    pos = 143;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 151
+
+    //--------------------------------------------------------------------------------------------------
+    // GAMES SINCE LAST POWER UP
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Games_Since_Last_Power_Up), sizeof(res) / sizeof(res[0]));
+    Serial.println(res);
+    pos = 152;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 160
+
+    //--------------------------------------------------------------------------------------------------
+    // GAMES PLAYED
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Games_Played), sizeof(res) / sizeof(res[0]));
+    pos = 161;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 169
+
+    //--------------------------------------------------------------------------------------------------
+    // DOOR OPEN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Door_Open), sizeof(res) / sizeof(res[0]));
+    pos = 170;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 178
+
+    //--------------------------------------------------------------------------------------------------
+    // CURRENT CREDITS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Current_Credits), sizeof(res) / sizeof(res[0]));
+    pos = 179;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 187
+
     // IP Tarjeta
     req[188] = '0';
     req[189] = '1';
     req[190] = '5';
     req[191] = '5';
     req[192] = '|'; // 192
-                    //    Serial.println(j);
+
     // Bytes libres
     req[193] = '0';
     req[194] = '0';
@@ -398,7 +422,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[205] = '0';
     req[206] = '0';
     req[207] = '|'; // 207
-                    //    Serial.println(j);
+
     // Serie Trama
     req[208] = '0';
     req[209] = '0';
@@ -409,7 +433,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[214] = '0';
     req[215] = '1';
     req[216] = '|'; // 216
-                    //    Serial.println(j);
+
     // ID Jugador
     req[217] = '0';
     req[218] = '0';
@@ -420,7 +444,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[223] = '0';
     req[224] = '0';
     req[225] = '|'; // 225
-                    //    Serial.println(j);
+
     // Hora y fecha
     req[226] = '1';
     req[227] = '1';
@@ -444,7 +468,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[245] = '|'; // 245
     req[246] = '0';
     req[247] = '|'; // 247
-                    //    Serial.println(j);
+
     // ID Operador
     req[248] = '0';
     req[249] = '0';
@@ -456,10 +480,6 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[255] = '0'; // 255
     req[256] = '9'; // 256
     req[257] = '9'; // 257
-    //    Serial.println(j);
-
-    //    Serial.print("Buffer copiado: ");
-    //    Serial.println(j);
 
     memcpy(buffer_contadores_ACC, req, 258);
 

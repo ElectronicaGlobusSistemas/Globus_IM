@@ -225,6 +225,10 @@ void Task_Procesa_Comandos(void *parameter)
         {
             flag_dato_valido_recibido = false;
 
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_recepcion(), 258);
+
             switch (Comando_Recibido())
             {
             case 3:
@@ -234,6 +238,11 @@ void Task_Procesa_Comandos(void *parameter)
 
             default:
                 Serial.println(Comando_Recibido());
+                for (int i = 0; i < 256; i++)
+                {
+                    Serial.print(res[i]);
+                }
+                Serial.println();
                 break;
             }
             Serial.println("--------------------------------------------------------------------------");
