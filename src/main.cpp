@@ -3,6 +3,10 @@
 #include "Bootloader.h"
 
 /* Definir las clases que haran uso de los metodos */
+#include "ESP32Time.h"
+#include "time.h"
+ESP32Time RTC; // Objeto contiene hora(3600 ssegundots) y fecha
+
 #include "Buffers.h"
 Buffers Buffer; // Objeto de buffer de confirmacion Servidor
 
@@ -27,6 +31,7 @@ int bandera2 = 0;
 /* Variables globales */
 bool flag_dato_valido_recibido = false;
 bool flag_dato_no_valido_recibido = false;
+bool flag_serie_trama_contadores = false;
 
 void setup()
 {
@@ -43,7 +48,7 @@ void loop()
 
   // unsigned char val1, val2;
 
-  if ((tiempo_inicial - tiempo_final) >= 10000)
+  if ((tiempo_inicial - tiempo_final) >= 25751)
   {
     tiempo_final = tiempo_inicial;
 
@@ -60,12 +65,12 @@ void loop()
 
     if (bandera2 == 0)
     {
-//      Transmite_Contadores();
+      //      Transmite_Contadores();
       bandera2 = 1;
     }
     else
     {
-//      Transmite_Confirmacion('A', '3'); // Transmite ACK a Server
+      //      Transmite_Confirmacion('A', '3'); // Transmite ACK a Server
       bandera2 = 0;
     }
   }

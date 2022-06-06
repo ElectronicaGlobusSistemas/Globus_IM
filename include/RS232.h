@@ -28,8 +28,8 @@ char dat4[1] = {DIR};
 int bandera = 0;
 int contador = 0;
 long numero_contador = 0;
-int Contador_Encuestas=0;
-int Max_Encuestas=23;
+int Contador_Encuestas = 0;
+int Max_Encuestas = 23;
 
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
@@ -38,7 +38,7 @@ void Encuestas_Maquina(void *pvParameters);
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-String Encabezado_Contadores="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
+String Encabezado_Contadores = "Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
 char *Archivo_Format;
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
@@ -212,7 +212,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           numero_contador++;
           Contador_Encuestas++;
-          
+
           for (int index = 0; index < conta_bytes; index++)
           {
             String buffer_contadores_string = String(buffer[index], HEX);
@@ -221,61 +221,51 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
             char contador[7] = {};
-
-            desc_millon = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
-            contador[0] = desc_millon + '0';
-            uni_millon = buffer_contadores[2] % 10;
-            contador[1] = uni_millon + '0';
-
-            cent_mil = (buffer_contadores[3] - (buffer_contadores[3] % 10)) / 10;
-            contador[2] = cent_mil + '0';
-            desc_mil = buffer_contadores[3] % 10;
-            contador[3] = desc_mil + '0';
-
-            uni_mil = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
-            contador[4] = uni_mil + '0';
-            centenas = buffer_contadores[4] % 10;
-            contador[5] = centenas + '0';
-
-            descenas = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
-            contador[6] = descenas + '0';
-            unidades = buffer_contadores[5] % 10;
-            contador[7] = unidades + '0';
+            bzero(contador, 7);
+            int j = 2;
+            int dato = 0;
+            for (int i = 0; i < 7; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
 
             Serial.println(contador);
-            Serial.println(sizeof(contador)/sizeof(contador[0]));
 
             switch (buffer_contadores[1])
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores);   
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 11:
               contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 12:
               contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 14:
               contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 15:
               contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 46:
               contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             default:
               Serial.println("Default");
@@ -289,28 +279,19 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           else if (buffer[1] == 0x2A || buffer[1] == 0x2B)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
-            char contador[8] = {};
-
-            desc_millon = (buffer_contadores[2] - (buffer_contadores[2] % 10)) / 10;
-            contador[0] = desc_millon + '0';
-            uni_millon = buffer_contadores[2] % 10;
-            contador[1] = uni_millon + '0';
-
-            cent_mil = (buffer_contadores[3] - (buffer_contadores[3] % 10)) / 10;
-            contador[2] = cent_mil + '0';
-            desc_mil = buffer_contadores[3] % 10;
-            contador[3] = desc_mil + '0';
-
-            uni_mil = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
-            contador[4] = uni_mil + '0';
-            centenas = buffer_contadores[4] % 10;
-            contador[5] = centenas + '0';
-
-            descenas = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
-            contador[6] = descenas + '0';
-            unidades = buffer_contadores[5] % 10;
-            contador[7] = unidades + '0';
+            char contador[7] = {};
+            bzero(contador, 7);
+            int j = 2;
+            int dato = 0;
+            for (int i = 0; i < 7; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
 
             Serial.println(contador);
 
@@ -330,28 +311,19 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           else if (buffer[1] == 0x1C)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
-            char contador[8] = {};
-
-            desc_millon = (buffer_contadores[26] - (buffer_contadores[26] % 10)) / 10;
-            contador[0] = desc_millon + '0';
-            uni_millon = buffer_contadores[26] % 10;
-            contador[1] = uni_millon + '0';
-
-            cent_mil = (buffer_contadores[27] - (buffer_contadores[27] % 10)) / 10;
-            contador[2] = cent_mil + '0';
-            desc_mil = buffer_contadores[27] % 10;
-            contador[3] = desc_mil + '0';
-
-            uni_mil = (buffer_contadores[28] - (buffer_contadores[28] % 10)) / 10;
-            contador[4] = uni_mil + '0';
-            centenas = buffer_contadores[28] % 10;
-            contador[5] = centenas + '0';
-
-            descenas = (buffer_contadores[29] - (buffer_contadores[29] % 10)) / 10;
-            contador[6] = descenas + '0';
-            unidades = buffer_contadores[29] % 10;
-            contador[7] = unidades + '0';
+            char contador[7] = {};
+            bzero(contador, 7);
+            int j = 26;
+            int dato = 0;
+            for (int i = 0; i < 7; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
 
             Serial.println(contador);
 
@@ -388,59 +360,58 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             contadores.Set_Contadores(Games_Since_Last_Power_Up, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
           }
 
+          else if (buffer[1] == 0x1F)
+          {
+            char contador[20] = {};
+
+            int j = 2;
+            int dato = 0;
+            for (int i = 0; i < 20; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
+            Serial.println(contador);
+
+            contadores.Set_Contadores(Informacion_Maquina, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+          }
+
           else if (buffer[1] == 0x2F)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, cent_millon, uni_mil_millon = 0;
             char contador[10] = {};
+            bzero(contador, 10);
 
             if (buffer[5] == 0x0D || buffer[5] == 0x0E)
             {
-              uni_mil_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
-              contador[0] = uni_mil_millon + '0';
-              cent_millon = buffer_contadores[6] % 10;
-              contador[1] = cent_millon + '0';
-
-              desc_millon = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
-              contador[2] = desc_millon + '0';
-              uni_millon = buffer_contadores[7] % 10;
-              contador[3] = uni_millon + '0';
-
-              cent_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
-              contador[4] = cent_mil + '0';
-              desc_mil = buffer_contadores[8] % 10;
-              contador[5] = desc_mil + '0';
-
-              uni_mil = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
-              contador[6] = uni_mil + '0';
-              centenas = buffer_contadores[9] % 10;
-              contador[7] = centenas + '0';
-
-              descenas = (buffer_contadores[10] - (buffer_contadores[10] % 10)) / 10;
-              contador[8] = descenas + '0';
-              unidades = buffer_contadores[10] % 10;
-              contador[9] = unidades + '0';
+              int j = 6;
+              int dato = 0;
+              for (int i = 0; i < 9; i++)
+              {
+                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                contador[i] = dato + '0';
+                i++;
+                dato = buffer_contadores[j] % 10;
+                contador[i] = dato + '0';
+                j++;
+              }
             }
             else
             {
-              desc_millon = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
-              contador[0] = desc_millon + '0';
-              uni_millon = buffer_contadores[6] % 10;
-              contador[1] = uni_millon + '0';
-
-              cent_mil = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
-              contador[2] = cent_mil + '0';
-              desc_mil = buffer_contadores[7] % 10;
-              contador[3] = desc_mil + '0';
-
-              uni_mil = (buffer_contadores[8] - (buffer_contadores[8] % 10)) / 10;
-              contador[4] = uni_mil + '0';
-              centenas = buffer_contadores[8] % 10;
-              contador[5] = centenas + '0';
-
-              descenas = (buffer_contadores[9] - (buffer_contadores[9] % 10)) / 10;
-              contador[6] = descenas + '0';
-              unidades = buffer_contadores[9] % 10;
-              contador[7] = unidades + '0';
+              int j = 6;
+              int dato = 0;
+              for (int i = 0; i < 7; i++)
+              {
+                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                contador[i] = dato + '0';
+                i++;
+                dato = buffer_contadores[j] % 10;
+                contador[i] = dato + '0';
+                j++;
+              }
             }
 
             Serial.println(contador);
@@ -470,27 +441,27 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 0x2F:
               contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 0x30:
               contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 0x32:
               contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 0x33:
               contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             case 0x34:
               contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador),Archivo_Format,false,Encabezado_Contadores); 
+              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
               break;
             default:
               Serial.println("Default");
@@ -500,33 +471,24 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           else if (buffer[1] == 0x2D)
           {
-            int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
             char contador[7] = {};
-
-            desc_millon = (buffer_contadores[4] - (buffer_contadores[4] % 10)) / 10;
-            contador[0] = desc_millon + '0';
-            uni_millon = buffer_contadores[4] % 10;
-            contador[1] = uni_millon + '0';
-
-            cent_mil = (buffer_contadores[5] - (buffer_contadores[5] % 10)) / 10;
-            contador[2] = cent_mil + '0';
-            desc_mil = buffer_contadores[5] % 10;
-            contador[3] = desc_mil + '0';
-
-            uni_mil = (buffer_contadores[6] - (buffer_contadores[6] % 10)) / 10;
-            contador[4] = uni_mil + '0';
-            centenas = buffer_contadores[6] % 10;
-            contador[5] = centenas + '0';
-
-            descenas = (buffer_contadores[7] - (buffer_contadores[7] % 10)) / 10;
-            contador[6] = descenas + '0';
-            unidades = buffer_contadores[7] % 10;
-            contador[7] = unidades + '0';
+            bzero(contador, 7);
+            int j = 4;
+            int dato = 0;
+            for (int i = 0; i < 7; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
 
             Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-            Write_Data_File2(String(contador),Archivo_Format,true,Encabezado_Contadores); 
+            Write_Data_File2(String(contador), Archivo_Format, true, Encabezado_Contadores);
           }
 
           // bzero(buffer, 128);
@@ -534,8 +496,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           Serial.print("Contador de encuestas con CRC valido --> ");
           Serial.println(numero_contador);
-          if(Contador_Encuestas==Max_Encuestas){
-            Contador_Encuestas=0; //Reset Contador
+          if (Contador_Encuestas == Max_Encuestas)
+          {
+            Contador_Encuestas = 0; // Reset Contador
           }
         }
         else
@@ -544,20 +507,19 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Serial.println("Error de CRC en contadores...");
           numero_contador = 0;
           Contador_Encuestas++;
-          if(Contador_Encuestas==Max_Encuestas)
+          if (Contador_Encuestas == Max_Encuestas)
           {
-            //Guarda ERROR CRC en Ultima posición  
-            Write_Data_File2("Error CRC",Archivo_Format,true,Encabezado_Contadores); 
+            // Guarda ERROR CRC en Ultima posición
+            Write_Data_File2("Error CRC", Archivo_Format, true, Encabezado_Contadores);
             // Era la ultima..
-            Contador_Encuestas=0;
-          }else
+            Contador_Encuestas = 0;
+          }
+          else
           {
             // Guarda ERROR CRC en ultima posición
             // No Era la Ultima. Guarda dato sin salto de linea.
-            Write_Data_File2("Error CRC",Archivo_Format,false,Encabezado_Contadores); 
-              
+            Write_Data_File2("Error CRC", Archivo_Format, false, Encabezado_Contadores);
           }
-          
         }
       }
       else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
@@ -621,7 +583,7 @@ void Encuestas_Maquina(void *pvParameters)
       switch (Conta_Encuestas)
       {
       case 1:
-        Serial.println("Total Cancel Credito"); // total cancel credit
+        Serial.println("Total Cancel Credit"); // total cancel credit
         Transmite_Poll(0x10);
         break;
       case 2:
@@ -732,8 +694,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll(0x2B);
         break;
       case 17:
-        Serial.println("Total Coin Drop"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));     // Transmite DIR
+        Serial.println("Total Coin Drop");
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -743,8 +705,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x4C);
         break;
       case 18:
-        Serial.println("Machine Paid Progresive Payout"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));                    // Transmite DIR
+        Serial.println("Machine Paid Progresive Payout");
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -755,8 +717,8 @@ void Encuestas_Maquina(void *pvParameters)
         ;
         break;
       case 19:
-        Serial.println("Machine Paid External Bonus Payout"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));                        // Transmite DIR
+        Serial.println("Machine Paid External Bonus Payout");
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -766,8 +728,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0xD2);
         break;
       case 20:
-        Serial.println("Attendant Paid Progresive Payout"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));                      // Transmite DIR
+        Serial.println("Attendant Paid Progresive Payout");
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -777,8 +739,8 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x0A);
         break;
       case 21:
-        Serial.println("Attendant Paid External Payout"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));                    // Transmite DIR
+        Serial.println("Attendant Paid External Payout");
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
         Transmite_Poll_Long(0x00);
@@ -788,7 +750,7 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x1B);
         break;
       case 22:
-        Serial.println("Ticket In");   // Casheable nonrestricted out
+        Serial.println("Ticket In");
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
@@ -799,7 +761,7 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0xF0);
         break;
       case 23:
-        Serial.println("Ticket Out");  // Casheable nonrestricted out
+        Serial.println("Ticket Out");
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         Transmite_Poll_Long(0x2F);
         Transmite_Poll_Long(0x03);
@@ -810,16 +772,20 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0xC2);
         break;
       case 24:
-        Serial.println("Current Credits"); // Physical coin out
+        Serial.println("Current Credits");
         Transmite_Poll(0x1A);
         break;
       case 25:
-        Serial.println("Contador 1C - Door Open Metter"); // Physical coin out
+        Serial.println("Contador 1C - Door Open Metter");
         Transmite_Poll(0x1C);
         break;
       case 26:
-        Serial.println("Contador 18 - Games Since Last Power Up"); // Physical coin out
+        Serial.println("Contador 18 - Games Since Last Power Up");
         Transmite_Poll(0x18);
+        break;
+      case 27:
+        Serial.println("ID Machine");
+        Transmite_Poll(0x1F);
         Conta_Encuestas = 0;
         break;
       }

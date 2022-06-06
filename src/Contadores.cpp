@@ -87,6 +87,12 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   case 26:
     return Games_Since_Last_Power_Up_;
     break;
+  case 27:
+    return Informacion_Maquina_;
+    break;
+  case 50:
+    return Serie_Trama_;
+    break;
   default:
     return 0x00;
     break;
@@ -201,7 +207,9 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
   case 26: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Games_Since_Last_Power_Up_);
     return res;
-    break;
+  case 50: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Serie_Trama_);
+    return res;
   }
   return 0;
 }
@@ -313,6 +321,10 @@ string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
     break;
   case 26: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Games_Since_Last_Power_Up_);
+    return std::to_string(res);
+    break;
+  case 50: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Serie_Trama_);
     return std::to_string(res);
     break;
   default:
@@ -431,9 +443,68 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     memcpy(Games_Since_Last_Power_Up_, Data_Contador, sizeof(Games_Since_Last_Power_Up_) / sizeof(Games_Since_Last_Power_Up_[0]));
     return true;
     break;
+  case 27: // Bloque de instrucciones 13;
+    memcpy(Informacion_Maquina_, Data_Contador, sizeof(Informacion_Maquina_) / sizeof(Informacion_Maquina_[0]));
+    return true;
+    break;
+  case 50: // Bloque de instrucciones 13;
+    memcpy(Serie_Trama_, Data_Contador, sizeof(Serie_Trama_) / sizeof(Serie_Trama_[0]));
+    return true;
+    break;
   }
   return false;
 }
+
+//---------------------------------------------------------------------------------------------------------------------
+//--------------------------------->Metodo Para Aumentar serie trama contadores<---------------------------------------
+bool Contadores_SAS::Incrementa_Serie_Trama()
+{
+  char res[8] = {};
+  bzero(res, 8);
+  int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon, resultado = 0;
+
+  Serie_Trama_Int++;
+
+  desc_millon = (Serie_Trama_Int - (Serie_Trama_Int % 10000000)) / 10000000;
+  res[0] = desc_millon + '0';
+  resultado = Serie_Trama_Int % 10000000;
+
+  uni_millon = (resultado - (resultado % 1000000)) / 1000000;
+  res[1] = uni_millon + '0';
+  resultado = resultado % 1000000;
+
+  cent_mil = (resultado - (resultado % 100000)) / 100000;
+  res[2] = cent_mil + '0';
+  resultado = resultado % 10000;
+
+  desc_mil = (resultado - (resultado % 10000)) / 10000;
+  res[3] = desc_mil + '0';
+  resultado = resultado % 10000;
+
+  uni_mil = (resultado - (resultado % 1000)) / 1000;
+  res[4] = uni_mil + '0';
+  resultado = resultado % 1000;
+
+  centenas = (resultado - (resultado % 100)) / 100;
+  res[5] = centenas + '0';
+  resultado = resultado % 100;
+
+  descenas = (resultado - (resultado % 10)) / 10;
+  res[6] = descenas + '0';
+
+  unidades = resultado % 10;
+  res[7] = unidades + '0';
+
+  if (Set_Contadores(Serie_Trama, res))
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
 //---------------------------------------------------------------------------------------------------------------------
 
 int Convert_Char_To_Int(char buffer[])

@@ -111,7 +111,7 @@ char *Buffers::Get_buffer_recepcion(void)
 /*                           BUFFER DE CONTADORES                                 */
 /**********************************************************************************/
 
-bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
+bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC)
 {
     int pos;
     char req[258] = {};
@@ -423,16 +423,18 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[206] = '0';
     req[207] = '|'; // 207
 
-    // Serie Trama
-    req[208] = '0';
-    req[209] = '0';
-    req[210] = '0';
-    req[211] = '0';
-    req[212] = '0';
-    req[213] = '0';
-    req[214] = '0';
-    req[215] = '1';
-    req[216] = '|'; // 216
+    //--------------------------------------------------------------------------------------------------
+    // SERIE TRAMA
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Serie_Trama), sizeof(res) / sizeof(res[0]));
+    pos = 208;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 216
 
     // ID Jugador
     req[217] = '0';
@@ -445,24 +447,72 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[224] = '0';
     req[225] = '|'; // 225
 
+    String Hora = RTC.getTime();
+    Serial.println(Hora);
+    String Fecha = RTC.getDate();
+    Serial.println(Fecha);
+    String Mes;
+    int month = RTC.getMonth();
+    switch (month)
+    {
+    case 0:
+        Mes = "01";
+        break;
+    case 1:
+        Mes = "02";
+        break;
+    case 2:
+        Mes = "03";
+        break;
+    case 3:
+        Mes = "04";
+        break;
+    case 4:
+        Mes = "05";
+        break;
+    case 5:
+        Mes = "06";
+        break;
+    case 6:
+        Mes = "07";
+        break;
+    case 7:
+        Mes = "08";
+        break;
+    case 8:
+        Mes = "09";
+        break;
+    case 9:
+        Mes = "10";
+        break;
+    case 10:
+        Mes = "11";
+        break;
+    case 11:
+        Mes = "12";
+        break;
+    default:
+        break;
+    }
+
     // Hora y fecha
-    req[226] = '1';
-    req[227] = '1';
+    req[226] = Hora[0];
+    req[227] = Hora[1];
     req[228] = '|'; // 228
-    req[229] = '0';
-    req[230] = '1';
+    req[229] = Hora[3];
+    req[230] = Hora[4];
     req[231] = '|'; // 231
-    req[232] = '0';
-    req[233] = '1';
+    req[232] = Hora[6];
+    req[233] = Hora[7];
     req[234] = '|'; // 234
-    req[235] = '2';
-    req[236] = '7';
+    req[235] = Fecha[9];
+    req[236] = Fecha[10];
     req[237] = '|'; // 237
-    req[238] = '0';
-    req[239] = '5';
+    req[238] = Mes[0];
+    req[239] = Mes[1];
     req[240] = '|'; // 240
-    req[241] = '2';
-    req[242] = '2';
+    req[241] = Fecha[14];
+    req[242] = Fecha[15];
     req[243] = '|'; // 243
     req[244] = '0';
     req[245] = '|'; // 245
@@ -478,6 +528,8 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores)
     req[253] = '0';
     req[254] = '0';
     req[255] = '0'; // 255
+
+    // CRC
     req[256] = '9'; // 256
     req[257] = '9'; // 257
 
@@ -518,4 +570,118 @@ bool Buffers::Set_buffer_contadores_ACC_CRC(void)
 char *Buffers::Get_buffer_contadores_ACC(void)
 {
     return buffer_contadores_ACC_final;
+}
+
+bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
+{
+    int pos;
+    char req[258] = {};
+    bzero(req, 258);
+    int32_t Aux1;
+
+    int Com = 11;
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+
+    req[4] = 'W';
+    req[5] = 'M';
+    req[6] = '|';
+
+    req[7] = '0';
+    req[8] = '0';
+    req[9] = '0';
+    req[10] = '|';
+
+    req[11] = '0';
+    req[12] = '8';
+    req[13] = '|';
+
+    req[14] = '6';
+    req[15] = '4';
+    req[16] = '|';
+
+    req[17] = '0';
+    req[18] = '0';
+    req[19] = '|';
+
+    req[20] = '0';
+    req[21] = '0';
+    req[22] = '0';
+    req[23] = '0';
+    req[24] = '|';
+
+    req[25] = '0';
+    req[26] = '9';
+    req[27] = '1';
+    req[28] = 'D';
+    req[29] = '6';
+    req[30] = '6';
+    req[31] = 'A';
+    req[32] = '|';
+
+    req[33] = '8';
+    req[34] = '5';
+    req[35] = '1';
+    req[36] = '4';
+    req[37] = '|';
+
+    req[38] = '0';
+    req[39] = '0';
+    req[40] = '|';
+
+    for (int i = 41; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+
+    memcpy(buffer_id_maq, req, 258);
+
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_id_maq[indice]);
+    }
+    Serial.println();
+
+    if (Set_buffer_id_maq_encriptado())
+    {
+        if (Set_buffer_id_maq_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+bool Buffers::Set_buffer_id_maq_encriptado(void)
+{
+    memcpy(buffer_id_maq_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_id_maq), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_id_maq_CRC(void)
+{
+    memcpy(buffer_id_maq_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_id_maq_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_id_maq(void)
+{
+    return buffer_id_maq_final;
 }

@@ -3,6 +3,12 @@
 #define ID_Contadores 3
 #define ID_Eventos 5
 
+extern bool flag_serie_trama_contadores;
+
+/*****************************************************************************************/
+/********************************** TRANSMITE ACK ****************************************/
+/*****************************************************************************************/
+
 void Transmite_Confirmacion(char High, char Low)
 {
     if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
@@ -22,15 +28,21 @@ void Transmite_Confirmacion(char High, char Low)
         Serial.println("--------------------------------------------------------------------");
     }
     else
-    {
         Serial.println("Set buffer general ERROR");
-    }
 }
 
-void Transmite_Contadores()
+/*****************************************************************************************/
+/******************************* TRANSMITE CONTADORES ************************************/
+/*****************************************************************************************/
+
+void Transmite_Contadores(void)
 {
-    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores, contadores))
+    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores, contadores, RTC))
     {
+        if (flag_serie_trama_contadores)
+        {
+            contadores.Incrementa_Serie_Trama();
+        }
         char res[258] = {};
         bzero(res, 258); // Pone el buffer en 0
         memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
@@ -46,12 +58,34 @@ void Transmite_Contadores()
         Serial.println("--------------------------------------------------------------------");
     }
     else
-    {
         Serial.println("Set buffer general ERROR");
-    }
 }
 
-void Transmite_Eco_Broadcast()
+/*****************************************************************************************/
+/******************************* SINCRONIZA RELOJ RTC ************************************/
+/*****************************************************************************************/
+
+bool Sincroniza_Reloj_RTC(char res[])
+{
+    int hour, minutes, seconds, day, month, year;
+
+    hour = ((res[4] - 48) * 10) + (res[5] - 48);
+    minutes = ((res[6] - 48) * 10) + (res[7] - 48);
+    seconds = ((res[8] - 48) * 10) + (res[9] - 48);
+    day = ((res[10] - 48) * 10) + (res[11] - 48);
+    month = ((res[12] - 48) * 10) + (res[13] - 48);
+    year = ((res[14] - 48) * 10) + (res[15] - 48);
+    year = year + 2000;
+
+    RTC.setTime(seconds, minutes, hour, day, month, year);
+    return true;
+}
+
+/*****************************************************************************************/
+/******************************* RESPONDE ECO BROADCAST **********************************/
+/*****************************************************************************************/
+
+void Transmite_Eco_Broadcast(void)
 {
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
@@ -198,6 +232,10 @@ void Transmite_Eco_Broadcast()
     Serial.println("--------------------------------------------------------------------");
 }
 
+/*****************************************************************************************/
+/******************************* PROCESA COMANDO RECIBIDO ********************************/
+/*****************************************************************************************/
+
 int Comando_Recibido(void)
 {
     int32_t Comando, Aux1, Aux2, Aux3, Aux4;
@@ -217,6 +255,10 @@ int Comando_Recibido(void)
     return (Comando);
 }
 
+/*****************************************************************************************/
+/********************************** TAREA DE COMANDOS ************************************/
+/*****************************************************************************************/
+
 void Task_Procesa_Comandos(void *parameter)
 {
     for (;;)
@@ -234,6 +276,27 @@ void Task_Procesa_Comandos(void *parameter)
             case 3:
                 Serial.println("Solicitud de contadores SAS");
                 Transmite_Contadores();
+                break;
+
+            case 8:
+                Serial.println("Sincroniza reloj RTC");
+                if (Sincroniza_Reloj_RTC(res))
+                    Transmite_Confirmacion('A', '4');
+                else
+                    Transmite_Confirmacion('A', '5');
+                break;
+            case 14:
+                Serial.println("Solicitud Reset ESP32");
+                Transmite_Confirmacion('A', 'F');
+                ESP.restart();
+
+            case 190:
+                Serial.println("Serializa trama de contadores");
+                if (contadores.Incrementa_Serie_Trama())
+                {
+                    flag_serie_trama_contadores = true;
+                    Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
+                }
                 break;
 
             default:
@@ -256,9 +319,7 @@ void Task_Procesa_Comandos(void *parameter)
             memcpy(res, Buffer.Get_buffer_recepcion(), 258);
 
             if (res[0] == 'S' && res[1] == 'B')
-            {
                 Serial.println("Solicitud de Bootloader");
-            }
             else if (res[0] == 'E' && res[1] == 'B')
             {
                 Serial.println("Eco Broadcast");

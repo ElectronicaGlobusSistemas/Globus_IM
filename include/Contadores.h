@@ -34,6 +34,8 @@ using namespace std;
 #define Current_Credits 24
 #define Door_Open 25
 #define Games_Since_Last_Power_Up 26
+#define Informacion_Maquina 27
+#define Serie_Trama 50
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
@@ -66,11 +68,16 @@ private: // Variables Privadas Para contadores
   char Current_Credits_[9];
   char Door_Open_[9];
   char Games_Since_Last_Power_Up_[9];
+  char Serie_Trama_[9] = {'0','0','0','0','0','0','0','0'};
+  char Informacion_Maquina_[20];
   char Vacio;
+
+  int Serie_Trama_Int = 0;
 
 public:
   char *Get_Contadores_Char(int Filtro_Contador);    // Metodos Publicos
   int Get_Contadores_Int(int Filtro_Contador);       // Metodo Get Contadores
   string Get_Contadores_String(int Filtro_Contador); // Metodo Get Contadores
   bool Set_Contadores(int Filtro_Contador, char[]);  // Metodo Set Contadores
+  bool Incrementa_Serie_Trama();                     // Metodo Set Contadores
 };
