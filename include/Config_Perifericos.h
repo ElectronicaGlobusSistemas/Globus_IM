@@ -47,12 +47,7 @@ void Init_Config(void)
     RTC.setTime(0, 0, 0, 1, 1, 2022);
 
     // Archivo_Format= Hora Actualizada..
-<<<<<<< HEAD
-    Archivo_Format = "03062022";
-    Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
-=======
     
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
     //---------------------------------------------------------------
 
     //--------------------> Rum Tareas <-----------------------------
@@ -131,15 +126,9 @@ void Init_Tasks(void)
 
 void Init_Indicadores_LED(void)
 {
-<<<<<<< HEAD
-    digitalWrite(SD_ChipSelect, LOW);
-    digitalWrite(SD_Status, LOW);
-    digitalWrite(MCU_Status, LOW);
-=======
     digitalWrite(SD_ChipSelect,LOW);
     digitalWrite(SD_Status,LOW);
     digitalWrite(MCU_Status,LOW);
     digitalWrite(WIFI_Status,LOW);
    
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
 }

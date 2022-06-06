@@ -28,13 +28,8 @@ char dat4[1] = {DIR};
 int bandera = 0;
 int contador = 0;
 long numero_contador = 0;
-<<<<<<< HEAD
-int Contador_Encuestas = 0;
-int Max_Encuestas = 23;
-=======
 int Contador_Encuestas=0;
 int Max_Encuestas=14;
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
 
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
@@ -43,11 +38,7 @@ void Encuestas_Maquina(void *pvParameters);
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-<<<<<<< HEAD
-String Encabezado_Contadores = "Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
-=======
 String Encabezado_Contadores="Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
 char *Archivo_Format;
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
@@ -250,33 +241,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 11:
-              contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 12:
-              contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 13:
-              contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 14:
-              contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 15:
-              contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 46:
-              contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-=======
               Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores);   
               break;
             case 11:
@@ -302,7 +266,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             case 46:
               contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
               break;
             default:
               Serial.println("Default");
@@ -420,12 +383,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           else if (buffer[1] == 0x2F)
           {
             char contador[10] = {};
-<<<<<<< HEAD
-            bzero(contador, 10);
-
-=======
             bzero(contador,10);
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
             if (buffer[5] == 0x0D || buffer[5] == 0x0E)
             {
               int j = 6;
@@ -482,29 +440,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x2F:
-              contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x30:
-              contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x32:
-              contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x33:
-              contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x34:
-              contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(String(contador), Archivo_Format, false, Encabezado_Contadores);
-=======
               Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
               break;
             case 0x2F:
@@ -526,7 +461,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             case 0x34:
               contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
               break;
             default:
               Serial.println("Default");
@@ -553,11 +487,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
-            Write_Data_File2(String(contador), Archivo_Format, true, Encabezado_Contadores);
-=======
             Write_Data_File2(contador,Archivo_Format,true,Encabezado_Contadores); 
->>>>>>> 10d620083e899eeae9d8b6b01e4215a3f22b947a
           }
 
           // bzero(buffer, 128);
