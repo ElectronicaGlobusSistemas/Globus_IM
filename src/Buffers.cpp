@@ -579,7 +579,7 @@ bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
     bzero(req, 258);
     int32_t Aux1;
 
-    int Com = 11;
+    Com = 11;
 
     Aux1 = Com;
     Aux1 = (Aux1 & 0x000000FF);
