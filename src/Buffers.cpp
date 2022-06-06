@@ -572,6 +572,10 @@ char *Buffers::Get_buffer_contadores_ACC(void)
     return buffer_contadores_ACC_final;
 }
 
+/**********************************************************************************/
+/*                           BUFFER DE ID MAQUINA                                 */
+/**********************************************************************************/
+
 bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
 {
     int pos;
