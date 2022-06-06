@@ -12,7 +12,7 @@ SdVolume volume;
 SdFile root;
 
 String Encabezado_Contadores2="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
-
+TaskHandle_t SD_CHECK;// Manejador de tareas
 void Init_SD(void)
 {
     SD.begin();
@@ -22,13 +22,15 @@ void Init_SD(void)
         10000,      //  Tamaño de stack en palabras (memoria)
         NULL,       //  Entrada de parametros
         5,          //  Prioridad de la tarea.
-        NULL,       //  Manejador de la tarea.
+        &SD_CHECK,   //  Manejador de la tarea.
         1);         //  Core donde se ejecutara.  
 }
 
 
 static void Task_Verifica_Conexion_SD(void *parameter)
 {
+    vTaskSuspend(SD_CHECK);// Inicio  Tarea Suspendida.
+    //vTaskResume(SD_CHECK);
     int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
     for (;;)
     {
