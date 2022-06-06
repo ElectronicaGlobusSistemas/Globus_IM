@@ -10,6 +10,7 @@
 
 
 TaskHandle_t Task1;
+
 void loop2(void *parameter);
 void Init_Tasks();
 void Init_Indicadores_LED(void);
@@ -28,21 +29,23 @@ void Init_Config(void)
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
+    //-------------------->  Módulos <-------------------------------
+    Init_SD(); // Inicializa Memoria SD.
+    Archivo_Format="17062022.csv";
+    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
+    //---------------------------------------------------------------
+
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2();          // Inicializa Comunicación Maquina Puerto #2
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------------------------------------------------
-
-    //-------------------->  Módulos <-------------------------------
-    Init_SD(); // Inicializa Memoria SD.
-    //---------------------------------------------------------------
+    
 
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI(); 
     CONNECT_SERVER_TCP();
     // Archivo_Format= Hora Actualizada..
-    Archivo_Format="03062022";
-    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
+    
     //---------------------------------------------------------------
 
     //--------------------> Rum Tareas <-----------------------------
@@ -125,4 +128,6 @@ void Init_Indicadores_LED(void)
     digitalWrite(SD_ChipSelect,LOW);
     digitalWrite(SD_Status,LOW);
     digitalWrite(MCU_Status,LOW);
+    digitalWrite(WIFI_Status,LOW);
+   
 }

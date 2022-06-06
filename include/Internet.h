@@ -1,5 +1,6 @@
 #include <WiFi.h>
 
+#define WIFI_Status 15
 const char *ssid = "GLOBUS-DESARROLLO";
 const char *password = "Globus2020*";
 const int wifi_timeout = 10000;
@@ -23,8 +24,8 @@ extern bool flag_dato_no_valido_recibido;
 void CONNECT_WIFI(void)
 {
   WiFi.mode(WIFI_STA); // MODO STA.
-
-  IPAddress Local_IP(192, 168, 5, 155);
+  pinMode(WIFI_Status,OUTPUT);
+  IPAddress Local_IP(192, 168, 5, 154);
   IPAddress Gateway (192, 168, 5, 1);
   IPAddress SubnetMask (255, 255, 255, 0);
   IPAddress primaryDNS(8, 8, 8, 8);   // optional
@@ -77,6 +78,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
   {
     if (WiFi.status() == WL_CONNECTED)
     {
+      digitalWrite(WIFI_Status,HIGH);
       Serial.println("Wifi conectado");
       vTaskDelay(60000 / portTICK_PERIOD_MS);
       continue;
@@ -96,8 +98,10 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       {
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(ssid);
+        digitalWrite(WIFI_Status,LOW);
         vTaskDelay(30000 / portTICK_PERIOD_MS);
         continue;
+
       }
       else
       {
