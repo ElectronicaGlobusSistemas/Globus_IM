@@ -11,8 +11,7 @@ File myFile;
 SdVolume volume;
 SdFile root;
 
-
-
+String Encabezado_Contadores2="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
 
 void Init_SD(void)
 {
@@ -39,11 +38,12 @@ static void Task_Verifica_Conexion_SD(void *parameter)
             Serial.println("Memoria SD Desconectada..");
             //SD.begin(SD_ChipSelect); // Intenta Conectar.
             card.init(SPI_FULL_SPEED); // Intenta Conectar Despues de Fallo.
-            digitalWrite(SD_Status, LOW); // Apaga  Indicador LED SD Status.
+            
             Serial.print("Fallo en Conexión SD"); // Mensaje de Fallo.
             Serial.print(" Intento #: ");
             Serial.println(Intento_Connect_SD); // Imprime conteo de Fallos.
             Intento_Connect_SD++; // Aaumento de Contador.
+            digitalWrite(SD_Status, LOW); // Apaga  Indicador LED SD Status.
             
         }
         else if (card.init(SPI_FULL_SPEED)) // SD OK
@@ -53,6 +53,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
             digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
             
         }
+        
         vTaskDelay(10000); //Pausa Tarea 10000ms
     }
     vTaskDelete(NULL);
@@ -91,12 +92,21 @@ void Write_Data_File_Txt(String Datos, char* ARCHIVO)
 //---------------------------> Función Para Crear Archivos CSV <-----------------------------------------
 void Create_ARCHIVE_Excel(char* ARCHIVO, String  Encabezado)
 {
-    if (!SD.exists(ARCHIVO)) // Si el archivo no existe lo Crea con encabezado para Excel!!
+    if(card.init(SPI_FULL_SPEED))
     {
-        myFile = SD.open(ARCHIVO, FILE_WRITE);
-        myFile.println(Encabezado);
-        myFile.close();
-        Serial.println("Archivo: "+(String)ARCHIVO+ " Creado con Encabezado");
+        if (!SD.exists(ARCHIVO)) // Si el archivo no existe lo Crea con encabezado para Excel!!
+        {
+            myFile = SD.open(ARCHIVO, FILE_WRITE);
+            myFile.println(Encabezado);
+            myFile.close();
+            Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
+        }
+        else
+        {
+            delay(1);
+        }
+    }else{
+        Serial.println("No Fue Posible Crear el Archivo: "+ String(ARCHIVO));
     }
 }
 //--------------------------------------------------------------------------------------------------------
@@ -104,42 +114,41 @@ void Create_ARCHIVE_Excel(char* ARCHIVO, String  Encabezado)
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
 void Write_Data_File(String Datos,char *ARCHIVO,bool select)
 {
-    if (SD.exists(ARCHIVO))
+    myFile = SD.open(ARCHIVO, FILE_WRITE);
+    if (select == false)
     {
-        myFile = SD.open(ARCHIVO, FILE_WRITE);
-        if (select == false)
+        if (!myFile)
         {
-            if (!myFile)
-            {
-                Serial.println("Error al escribir en SD");
-            }
-            else
-            {
-                myFile.print(Datos);
-                myFile.print(",");
-                Serial.println("Dato: "+Datos+" Guardado en SD");
-            }
+            Serial.println("Error al escribir en SD");
         }
         else
         {
-            if (!myFile)
-            {
-                Serial.println("Error al escribir en SD");
-            }
-            else
-            {
-                myFile.println(Datos);
-                Serial.println("Dato: "+Datos+" Guardado en SD");
-            }
+            myFile.print(Datos);
+            myFile.print(",");
+            Serial.println("Dato: " + Datos + " Guardado en SD");
         }
-        myFile.close();
     }
+    else
+    {
+        if (!myFile)
+        {
+            Serial.println("Error al escribir en SD");
+        }
+        else
+        {
+            myFile.println(Datos);
+            Serial.println("Dato: " + Datos + " Guardado en SD");
+        }
+    }
+    myFile.close();
 }
 //--------------------------------------------------------------------------------------------------------
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
-void Write_Data_File2(String Datos,char *archivo,bool select, String Encabezado)
+void Write_Data_File2(char* Datos,char *archivo,bool select, String Encabezado)
 {
-    if (SD.exists(archivo))
+    Create_ARCHIVE_Excel(archivo, Encabezado);
+    delay(10);
+    if (card.init(SPI_FULL_SPEED))
     {
         myFile = SD.open(archivo, FILE_WRITE);
         if (select == false)
@@ -147,12 +156,13 @@ void Write_Data_File2(String Datos,char *archivo,bool select, String Encabezado)
             if (!myFile)
             {
                 Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+                myFile.close();
             }
             else
             {
                 myFile.print(Datos);
                 myFile.print(",");
-                Serial.println("Dato: " + Datos + " Guardado en SD");
+                Serial.println("Dato: " +(String) Datos + " Guardado en SD");
             }
         }
         else
@@ -160,20 +170,42 @@ void Write_Data_File2(String Datos,char *archivo,bool select, String Encabezado)
             if (!myFile)
             {
                 Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+                myFile.close();
             }
             else
             {
                 myFile.println(Datos);
-                Serial.println("Dato: " + Datos + " Guardado en SD");
+                Serial.println("Dato: " +(String)Datos + " Guardado en SD");
             }
         }
         myFile.close();
     }
     else
     {
-        Create_ARCHIVE_Excel(archivo, Encabezado);
-        delay(3);
-        Write_Data_File(Datos, archivo, select);
+        Serial.println("No se Puede Escribir en SD Desconectada.");
+    }
+}
+void Write_Data_File3(String Datos,char *archivo,bool select, String Encabezado)
+{
+    Create_ARCHIVE_Excel(archivo, Encabezado);
+    delay(10);
+    if (card.init(SPI_FULL_SPEED))
+    {
+        myFile = SD.open(archivo, FILE_WRITE);
+        if (!myFile)
+        {
+            Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+            myFile.close();
+        }
+        else
+        {
+            myFile.println();
+            myFile.close();
+        }
+    }
+    else
+    {
+        Serial.println("No se Puede Escribir en SD Desconectada.");
     }
 }
 
