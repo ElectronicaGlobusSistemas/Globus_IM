@@ -29,18 +29,24 @@ char dat4[1] = {DIR};
 
 int bandera = 0;
 int contador = 0;
-long numero_contador = 0;
+int numero_contador = 0;
+int numero_encuesta = 0;
 int Contador_Encuestas = 0;
 int Max_Encuestas = 14;
 bool ACK_Maq = false;
+bool ACK_Premio = false;
 int Conta_Poll_Billetes = 0;
 
+bool flag_ultimo_contador_Ok = false;
+bool flag_comunicacion_maquina_Ok = false;
+int conta_poll_comunicacion_maquina = 0;
 bool flag_evento_valido_recibido = false;
 bool flag_handle_maquina = false;
 int Handle_Maquina = 0;
 
 #define flag_bloquea_Maquina 1
 #define flag_desbloquea_Maquina 2
+#define flag_encuesta_premio 3
 
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
@@ -50,6 +56,8 @@ bool Inactiva_Maquina(void);
 void Transmite_Inactiva_Maquina(void);
 bool Activa_Maquina(void);
 void Transmite_Activa_Maquina(void);
+bool Verifica_Premio_1B(void);
+void Encuesta_contador_1B(void);
 
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -217,6 +225,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         }
         Serial.println();
       }
+
       if (conta_bytes == 1)
       {
         if (buffer[0] == 0x01 && flag_handle_maquina)
@@ -537,6 +546,26 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Write_Data_File2(contador, Archivo_Format, true, Encabezado_Contadores);
           }
 
+          else if (buffer[1] == 0x1B)
+          {
+            char contador[10] = {};
+            bzero(contador, 10);
+            int j = 4;
+            int dato = 0;
+            for (int i = 0; i < 10; i++)
+            {
+              dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              contador[i] = dato + '0';
+              i++;
+              dato = buffer_contadores[j] % 10;
+              contador[i] = dato + '0';
+              j++;
+            }
+
+            Serial.println(contador);
+
+            contadores.Set_Contadores(Premio_1B, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+          }
           // bzero(buffer, 128);
           conta_bytes = 0;
 
@@ -595,9 +624,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
   free(UART2_data);
   vTaskDelete(NULL);
 }
-
-//----------------------------------------------------------------------------------------------------------------------------
-
 //---------------------------- Tarea Para Consulta de Contadores y General Poll-----------------------------------------------
 
 void Encuestas_Maquina(void *pvParameters)
@@ -607,7 +633,19 @@ void Encuestas_Maquina(void *pvParameters)
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = pdMS_TO_TICKS(100);
   for (;;)
-  { // A Task shall never return or exit.
+  {
+    // Verifica cada 10 segundos aproximadamente si hay comunicacion con la maquina
+    if (numero_encuesta > 20) // Numero de encuestas realizadas a la maquina
+    {
+      if (numero_contador < 15) // Numero de respuestas recibidas por la maquina
+        flag_comunicacion_maquina_Ok = false;
+      else
+        flag_comunicacion_maquina_Ok = true;
+      numero_encuesta = 0;
+      numero_contador = 0;
+    }
+
+    // A Task shall never return or exit.
     // Get the actual execution tick
     xLastWakeTime = xTaskGetTickCount();
     // Switch the led
@@ -625,6 +663,7 @@ void Encuestas_Maquina(void *pvParameters)
     }
     else if (Conta_Poll >= 5)
     {
+      numero_encuesta++;
       Conta_Poll = 0;
       if (flag_handle_maquina)
       {
@@ -638,6 +677,11 @@ void Encuestas_Maquina(void *pvParameters)
         case 2:
           Serial.println("Activa Maquina");
           Transmite_Activa_Maquina();
+          Handle_Maquina = 0;
+          break;
+        case 3:
+          Serial.println("Encuesta Premio");
+          Encuesta_contador_1B();
           Handle_Maquina = 0;
           break;
         default:
@@ -867,8 +911,11 @@ void Encuestas_Maquina(void *pvParameters)
         case 29:
           Encuesta_Billetes();
           Conta_Encuestas = 0;
+          flag_ultimo_contador_Ok = true;
         }
       }
+      Serial.print("Contador de encuestas realizadas --> ");
+      Serial.println(numero_encuesta);
     }
     // Ejecuta   Taraea Encuestas_Maquina Cada 100ms
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -959,4 +1006,27 @@ void Transmite_Activa_Maquina(void)
   Transmite_Poll_Long(0x02);
   Transmite_Poll_Long(0xCA);
   Transmite_Poll_Long(0x3A);
+}
+
+//---------------------------- Tarea Para Encuestar premio y reset evento 52 -----------------------------------------------
+
+bool Verifica_Premio_1B(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = flag_encuesta_premio;
+  delay(600);
+  if (ACK_Premio)
+  {
+    ACK_Premio = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+void Encuesta_contador_1B(void)
+{
+  Transmite_Poll(0x1B);
 }

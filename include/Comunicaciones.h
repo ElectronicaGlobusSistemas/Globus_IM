@@ -10,12 +10,26 @@
 int Contador_Transmision = 0;
 int Contador_Transmision_Contadores = 0;
 
+int Contador_Cancel_Credit_Ant = 0;
+int Contador_Cancel_Credit_Act = 0;
+bool flag_premio_pagado_cashout = false;
+
+int Contador_Bill_In_Ant = 0;
+int Contador_Bill_In_Act = 0;
+bool flag_billete_insertado = false;
+
+int Contador_Coin_In_Ant = 0;
+int Contador_Coin_In_Act = 0;
+bool flag_maquina_en_juego = false;
+
 extern bool flag_sincronizacion_RTC;
 extern bool flag_serie_trama_contadores;
 extern bool flag_evento_valido_recibido;
+extern bool flag_ultimo_contador_Ok;
 
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
+void Verifica_Cambio_Contadores(void);
 void Transmite_Configuracion(void);
 void Transmision_Controlada_Contadores(void);
 
@@ -438,13 +452,20 @@ void Task_Procesa_Comandos(void *parameter)
             {
             case 3:
                 Serial.println("Solicitud de contadores SAS");
-                Transmite_Contadores_Accounting();
+                if (flag_comunicacion_maquina_Ok)
+                    Transmite_Contadores_Accounting();
+                else
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             case 4:
                 Serial.println("Solicitud de billetes SAS");
-                Transmite_Billetes();
-                
+                if (flag_comunicacion_maquina_Ok)
+                    Transmite_Billetes();
+                else
+                    Transmite_Confirmacion('A', '0');
+                break;
+
             case 7:
                 Serial.println("Evento recibido con exito");
                 break;
@@ -462,12 +483,18 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 11:
                 Serial.println("Solicitud de informacion MAQ");
-                Transmite_ID_Maquina();
+                if (flag_comunicacion_maquina_Ok)
+                    Transmite_ID_Maquina();
+                else
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             case 12:
                 Serial.println("Solicitud de ROM Signature Maq");
-                Transmite_ROM_Signature();
+                if (flag_comunicacion_maquina_Ok)
+                    Transmite_ROM_Signature();
+                else
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             case 14:
@@ -477,18 +504,28 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 15:
                 Serial.println("Solicitud de inactivar maquina");
-                if (Inactiva_Maquina())
-                    Transmite_Confirmacion('A', 'B');
+                if (flag_comunicacion_maquina_Ok)
+                {
+                    if (Inactiva_Maquina())
+                        Transmite_Confirmacion('A', 'B');
+                    else
+                        Transmite_Confirmacion('A', 'C');
+                }
                 else
-                    Transmite_Confirmacion('A', 'C');
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             case 18:
                 Serial.println("Solicitud de activar maquina");
-                if (Activa_Maquina())
-                    Transmite_Confirmacion('A', '9');
+                if (flag_comunicacion_maquina_Ok)
+                {
+                    if (Activa_Maquina())
+                        Transmite_Confirmacion('A', '9');
+                    else
+                        Transmite_Confirmacion('A', 'A');
+                }
                 else
-                    Transmite_Confirmacion('A', 'A');
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             case 181:
@@ -511,7 +548,10 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 308:
                 Serial.println("Solicitud de contadores Cashless");
-                Transmite_Contadores_Cashless();
+                if (flag_comunicacion_maquina_Ok)
+                    Transmite_Contadores_Cashless();
+                else
+                    Transmite_Confirmacion('A', '0');
                 break;
 
             default:
@@ -545,6 +585,19 @@ void Task_Procesa_Comandos(void *parameter)
         {
             Transmite_Eventos();
             flag_evento_valido_recibido = false;
+
+            char evento = eventos.Get_evento();
+            Serial.print("Evento enviado....... ");
+            Serial.println(evento, HEX);
+            switch (evento)
+            {
+            case 0x51:
+                Verifica_Premio_1B();
+                break;
+
+            default:
+                break;
+            }
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
         continue;
@@ -559,10 +612,47 @@ void Task_Maneja_Transmision(void *parameter)
 {
     for (;;)
     {
+        Verifica_Cambio_Contadores();
         Transmite_Configuracion();
         Transmision_Controlada_Contadores();
-        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         continue;
+    }
+}
+
+void Verifica_Cambio_Contadores(void)
+{
+    if (flag_ultimo_contador_Ok && flag_comunicacion_maquina_Ok)
+    {
+        // DETECTA CAMBIO COIN IN - MAQUINA EN JUEGO
+        Contador_Coin_In_Act = contadores.Get_Contadores_Int(Coin_In);
+        if (Contador_Coin_In_Ant == 0)
+            Contador_Coin_In_Ant = Contador_Coin_In_Act;
+        else if (Contador_Coin_In_Act > Contador_Coin_In_Ant)
+        {
+            Contador_Coin_In_Ant = Contador_Coin_In_Act;
+            flag_maquina_en_juego = true;
+        }
+
+        // DETECTA CAMBIO CANCEL CREDIT - PREMIO PAGADO
+        Contador_Cancel_Credit_Act = contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+        if (Contador_Cancel_Credit_Ant == 0)
+            Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
+        else if (Contador_Cancel_Credit_Act > Contador_Cancel_Credit_Ant)
+        {
+            Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
+            flag_premio_pagado_cashout = true;
+        }
+
+        // DETECTA CAMBIO BILLETERO - BILLETE INSERTADO
+        Contador_Bill_In_Act = contadores.Get_Contadores_Int(Bill_Amount);
+        if (Contador_Bill_In_Ant == 0)
+            Contador_Bill_In_Ant = Contador_Bill_In_Act;
+        else if (Contador_Bill_In_Act > Contador_Bill_In_Ant)
+        {
+            Contador_Bill_In_Ant = Contador_Bill_In_Act;
+            flag_billete_insertado = true;
+        }
     }
 }
 
@@ -570,18 +660,22 @@ void Transmite_Configuracion(void)
 {
     switch (Contador_Transmision)
     {
-    case 1:
+    case 10:
+        if (!flag_comunicacion_maquina_Ok)
+            Transmite_Confirmacion('A', '0');
+        break;
+
+    case 20:
         if (!flag_sincronizacion_RTC)
             Transmite_Confirmacion('A', '3');
         break;
 
-    case 2:
+    case 30:
         if (!flag_serie_trama_contadores)
+        {
             Transmite_Confirmacion('B', 'C');
-
-    default:
-        Contador_Transmision = 0;
-        break;
+            Contador_Transmision = 0;
+        }
     }
     Contador_Transmision++;
 }
@@ -589,9 +683,54 @@ void Transmite_Configuracion(void)
 void Transmision_Controlada_Contadores(void)
 {
     Contador_Transmision_Contadores++;
-    if (Contador_Transmision_Contadores >= 4)
+
+    if (flag_comunicacion_maquina_Ok) // Si hay comunicacion con la maquina...
     {
-        Contador_Transmision_Contadores = 0;
-        Transmite_Contadores_Accounting();
+        // Si la maquina NO esta en juego, transmite cada 2 minutos, si el valor es 120
+        if (!flag_maquina_en_juego && !flag_premio_pagado_cashout && !flag_billete_insertado)
+        {
+            if (Contador_Transmision_Contadores >= 120)
+            {
+                Serial.println("Contadores, maquina NO juego....");
+                Contador_Transmision_Contadores = 0;
+                Transmite_Contadores_Accounting();
+            }
+        }
+
+        // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
+        else if (flag_maquina_en_juego && !flag_premio_pagado_cashout && !flag_billete_insertado)
+        {
+            if (Contador_Transmision_Contadores >= 30)
+            {
+                Serial.println("Contadores, maquina SI juego....");
+                flag_maquina_en_juego = false;
+                Contador_Transmision_Contadores = 0;
+                Transmite_Contadores_Accounting();
+            }
+        }
+
+        // Si cambio el cancel credit, porque se pago un premio
+        else if (flag_premio_pagado_cashout)
+        {
+            Serial.println("Contadores, premio pagado....");
+            Transmite_Contadores_Accounting();
+            flag_premio_pagado_cashout = false;
+        }
+
+        // Si cambio el billetero, porque se ingreso un nuevo billete
+        else if (flag_billete_insertado)
+        {
+            Serial.println("Contadores, billete insertado....");
+            Transmite_Contadores_Accounting();
+            flag_billete_insertado = false;
+        }
+    }
+    else
+    {
+        if (Contador_Transmision_Contadores >= 120)
+        {
+            Contador_Transmision_Contadores = 0;
+            Transmite_Confirmacion('A', '0');
+        }
     }
 }

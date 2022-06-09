@@ -41,6 +41,7 @@ using namespace std;
 #define Billetes_10k 31
 #define Billetes_20k 32
 #define Billetes_50k 33
+#define Premio_1B 34
 #define Serie_Trama 50
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
@@ -82,6 +83,7 @@ private: // Variables Privadas Para contadores
   char Billetes_10k_[9];
   char Billetes_20k_[9];
   char Billetes_50k_[9];
+  char Premio_1B_[11];
   char Vacio;
 
   int Serie_Trama_Int = 0;

@@ -108,6 +108,9 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   case 33:
     return Billetes_50k_;
     break;
+  case 34:
+    return Premio_1B_;
+    break;
   case 50:
     return Serie_Trama_;
     break;
@@ -239,6 +242,9 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
     return res;
   case 33: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_50k_);
+    return res;
+  case 34: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Premio_1B_);
     return res;
   case 50: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Serie_Trama_);
@@ -374,6 +380,10 @@ string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
     break;
   case 33: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_50k_);
+    return std::to_string(res);
+    break;
+  case 34: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Premio_1B_);
     return std::to_string(res);
     break;
   case 50: // Bloque de instrucciones 14;
@@ -522,6 +532,10 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     break;
   case 33: // Bloque de instrucciones 13;
     memcpy(Billetes_50k_, Data_Contador, sizeof(Billetes_50k_) / sizeof(Billetes_50k_[0]));
+    return true;
+    break;
+  case 34: // Bloque de instrucciones 13;
+    memcpy(Premio_1B_, Data_Contador, sizeof(Premio_1B_) / sizeof(Premio_1B_[0]));
     return true;
     break;
   case 50: // Bloque de instrucciones 13;
