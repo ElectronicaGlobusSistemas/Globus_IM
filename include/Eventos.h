@@ -4,5 +4,6 @@ private:
     char Evento_SAS;
 
 public:
-    bool set_evento(char evento);
+    bool Set_evento(char evento);
+    char Get_evento(void);
 };

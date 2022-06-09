@@ -5,15 +5,15 @@
 /* Definir las clases que haran uso de los metodos */
 #include "ESP32Time.h"
 #include "time.h"
-ESP32Time RTC; // Objeto contiene hora(3600 ssegundots) y fecha
+ESP32Time RTC; // Objeto contiene hora y fecha
 
 #include "Buffers.h"
-Buffers Buffer; // Objeto de buffer de confirmacion Servidor
+Buffers Buffer; // Objeto de buffer de mensajes servidor
 
 //#include "Contadores.h"
 Contadores_SAS contadores; // Objeto contiene contadores maquina
 
-#include "Eventos.h"
+//#include "Eventos.h"
 Eventos_SAS eventos; // Objeto contiene eventos maquina
 
 /* Definir los metodos que haran uso de las clases */
@@ -32,6 +32,8 @@ int bandera2 = 0;
 bool flag_dato_valido_recibido = false;
 bool flag_dato_no_valido_recibido = false;
 bool flag_serie_trama_contadores = false;
+bool flag_sincronizacion_RTC = false;
+
 
 void setup()
 {
@@ -48,7 +50,7 @@ void loop()
 
   // unsigned char val1, val2;
 
-  if ((tiempo_inicial - tiempo_final) >= 25751)
+  if ((tiempo_inicial - tiempo_final) >= 5000)
   {
     tiempo_final = tiempo_inicial;
 

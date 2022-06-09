@@ -35,6 +35,12 @@ using namespace std;
 #define Door_Open 25
 #define Games_Since_Last_Power_Up 26
 #define Informacion_Maquina 27
+#define ROM_Signature 28
+#define Billetes_2k 29
+#define Billetes_5k 30
+#define Billetes_10k 31
+#define Billetes_20k 32
+#define Billetes_50k 33
 #define Serie_Trama 50
 
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
@@ -68,8 +74,14 @@ private: // Variables Privadas Para contadores
   char Current_Credits_[9];
   char Door_Open_[9];
   char Games_Since_Last_Power_Up_[9];
-  char Serie_Trama_[9] = {'0','0','0','0','0','0','0','0'};
+  char Serie_Trama_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Informacion_Maquina_[20];
+  char ROM_Signature_[2];
+  char Billetes_2k_[9];
+  char Billetes_5k_[9];
+  char Billetes_10k_[9];
+  char Billetes_20k_[9];
+  char Billetes_50k_[9];
   char Vacio;
 
   int Serie_Trama_Int = 0;

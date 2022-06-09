@@ -18,20 +18,56 @@ String buffer;
 extern bool flag_dato_valido_recibido;
 extern bool flag_dato_no_valido_recibido;
 
+void Task_Verifica_Conexion_Wifi(void *parameter);
+void Task_Verifica_Conexion_Servidor_TCP(void *parameter);
+void Task_Verifica_Mensajes_Servidor_TCP(void *parameter);
+
+/***************************************************************************************************************************/
+/***************************************************************************************************************************/
+void Init_Wifi()
+{
+  xTaskCreatePinnedToCore(
+      Task_Verifica_Conexion_Wifi, //  Funcion a implementar la tarea
+      "Verifica conewxion wifi",   //  Nombre de la tarea
+      10000,                       //  Tamaño de stack en palabras (memoria)
+      NULL,                        //  Entrada de parametros
+      configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
+      NULL,                        //  Manejador de la tarea
+      0);                          //  Core donde se ejecutara la tarea
+
+  xTaskCreatePinnedToCore(
+      Task_Verifica_Conexion_Servidor_TCP,
+      "Verifica conexion server",
+      5000,
+      NULL,
+      configMAX_PRIORITIES - 20,
+      NULL,
+      0); // Core donde se ejecutara la tarea
+
+  xTaskCreatePinnedToCore(
+      Task_Verifica_Mensajes_Servidor_TCP,
+      "Verifica mensajes server",
+      5000,
+      NULL,
+      configMAX_PRIORITIES - 5,
+      NULL,
+      0); // Core donde se ejecutara la tarea
+}
+
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
 
 void CONNECT_WIFI(void)
 {
   WiFi.mode(WIFI_STA); // MODO STA.
-  pinMode(WIFI_Status,OUTPUT);
-  IPAddress Local_IP(192, 168, 5, 154);
-  IPAddress Gateway (192, 168, 5, 1);
-  IPAddress SubnetMask (255, 255, 255, 0);
+  pinMode(WIFI_Status, OUTPUT);
+  IPAddress Local_IP(192, 168, 5, 155);
+  IPAddress Gateway(192, 168, 5, 1);
+  IPAddress SubnetMask(255, 255, 255, 0);
   IPAddress primaryDNS(8, 8, 8, 8);   // optional
   IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
-//  bool WiFiSTAClass::config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
+  //  bool WiFiSTAClass::config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
   if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
   {
     Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
@@ -78,7 +114,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
   {
     if (WiFi.status() == WL_CONNECTED)
     {
-      digitalWrite(WIFI_Status,HIGH);
+      digitalWrite(WIFI_Status, HIGH);
       Serial.println("Wifi conectado");
       vTaskDelay(60000 / portTICK_PERIOD_MS);
       continue;
@@ -98,10 +134,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       {
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(ssid);
-        digitalWrite(WIFI_Status,LOW);
+        digitalWrite(WIFI_Status, LOW);
         vTaskDelay(30000 / portTICK_PERIOD_MS);
         continue;
-
       }
       else
       {

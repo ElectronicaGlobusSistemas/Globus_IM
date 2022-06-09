@@ -90,6 +90,24 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   case 27:
     return Informacion_Maquina_;
     break;
+  case 28:
+    return ROM_Signature_;
+    break;
+  case 29:
+    return Billetes_2k_;
+    break;
+  case 30:
+    return Billetes_5k_;
+    break;
+  case 31:
+    return Billetes_10k_;
+    break;
+  case 32:
+    return Billetes_20k_;
+    break;
+  case 33:
+    return Billetes_50k_;
+    break;
   case 50:
     return Serie_Trama_;
     break;
@@ -207,6 +225,21 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
   case 26: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Games_Since_Last_Power_Up_);
     return res;
+  case 29: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_2k_);
+    return res;
+  case 30: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_5k_);
+    return res;
+  case 31: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_10k_);
+    return res;
+  case 32: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_20k_);
+    return res;
+  case 33: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_50k_);
+    return res;
   case 50: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Serie_Trama_);
     return res;
@@ -321,6 +354,26 @@ string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
     break;
   case 26: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Games_Since_Last_Power_Up_);
+    return std::to_string(res);
+    break;
+  case 29: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_2k_);
+    return std::to_string(res);
+    break;
+  case 30: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_5k_);
+    return std::to_string(res);
+    break;
+  case 31: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_10k_);
+    return std::to_string(res);
+    break;
+  case 32: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_20k_);
+    return std::to_string(res);
+    break;
+  case 33: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Billetes_50k_);
     return std::to_string(res);
     break;
   case 50: // Bloque de instrucciones 14;
@@ -445,6 +498,30 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     break;
   case 27: // Bloque de instrucciones 13;
     memcpy(Informacion_Maquina_, Data_Contador, sizeof(Informacion_Maquina_) / sizeof(Informacion_Maquina_[0]));
+    return true;
+    break;
+  case 28: // Bloque de instrucciones 13;
+    memcpy(ROM_Signature_, Data_Contador, sizeof(ROM_Signature_) / sizeof(ROM_Signature_[0]));
+    return true;
+    break;
+  case 29: // Bloque de instrucciones 13;
+    memcpy(Billetes_2k_, Data_Contador, sizeof(Billetes_2k_) / sizeof(Billetes_2k_[0]));
+    return true;
+    break;
+  case 30: // Bloque de instrucciones 13;
+    memcpy(Billetes_5k_, Data_Contador, sizeof(Billetes_5k_) / sizeof(Billetes_5k_[0]));
+    return true;
+    break;
+  case 31: // Bloque de instrucciones 13;
+    memcpy(Billetes_10k_, Data_Contador, sizeof(Billetes_10k_) / sizeof(Billetes_10k_[0]));
+    return true;
+    break;
+  case 32: // Bloque de instrucciones 13;
+    memcpy(Billetes_20k_, Data_Contador, sizeof(Billetes_20k_) / sizeof(Billetes_20k_[0]));
+    return true;
+    break;
+  case 33: // Bloque de instrucciones 13;
+    memcpy(Billetes_50k_, Data_Contador, sizeof(Billetes_50k_) / sizeof(Billetes_50k_[0]));
     return true;
     break;
   case 50: // Bloque de instrucciones 13;

@@ -1,6 +1,6 @@
 #include "Eventos.h"
 
-bool Eventos_SAS::set_evento(char evento)
+bool Eventos_SAS::Set_evento(char evento)
 {
     switch (evento)
     {
@@ -16,7 +16,11 @@ bool Eventos_SAS::set_evento(char evento)
         Evento_SAS = evento;
         return true;
         break;
-    case 0x18: // Maqina apagada
+    case 0x18: // Maquina apagada
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x4F: // Billete aceptado
         Evento_SAS = evento;
         return true;
         break;
@@ -40,11 +44,15 @@ bool Eventos_SAS::set_evento(char evento)
         Evento_SAS = evento;
         return true;
         break;
-    case 0x7E: // Juego iniciado
+    case 0x6C: // Requerimiento AFT Solicitud Registro
         Evento_SAS = evento;
         return true;
         break;
-    case 0x7F: // Juego temrinado
+    case 0x6D: // Requerimiento AFT Interrogacion registro
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x6E: // Requerimiento AFT Cancelar registro
         Evento_SAS = evento;
         return true;
         break;
@@ -53,4 +61,9 @@ bool Eventos_SAS::set_evento(char evento)
         return false;
         break;
     }
+}
+
+char Eventos_SAS::Get_evento(void)
+{
+    return Evento_SAS;
 }

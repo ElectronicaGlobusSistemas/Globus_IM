@@ -1,10 +1,43 @@
 #include "Internet.h"
 
-#define ID_Contadores 3
+#define ID_Contadores_Accounting 3
+#define ID_Billetes 4
 #define ID_Eventos 5
+#define ID_Maquina 11
+#define ID_ROM_Signature 12
+#define ID_Contadores_Cashless 308
 
+int Contador_Transmision = 0;
+int Contador_Transmision_Contadores = 0;
+
+extern bool flag_sincronizacion_RTC;
 extern bool flag_serie_trama_contadores;
+extern bool flag_evento_valido_recibido;
 
+void Task_Procesa_Comandos(void *parameter);
+void Task_Maneja_Transmision(void *parameter);
+void Transmite_Configuracion(void);
+void Transmision_Controlada_Contadores(void);
+
+void init_Comunicaciones()
+{
+    xTaskCreatePinnedToCore(
+        Task_Procesa_Comandos,
+        "Procesa comandos server",
+        5000,
+        NULL,
+        configMAX_PRIORITIES - 5,
+        NULL,
+        0); // Core donde se ejecutara la tarea
+    xTaskCreatePinnedToCore(
+        Task_Maneja_Transmision,
+        "Maneja la transmision con server",
+        5000,
+        NULL,
+        configMAX_PRIORITIES - 15,
+        NULL,
+        0); // Core donde se ejecutara la tarea
+}
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK ****************************************/
 /*****************************************************************************************/
@@ -32,12 +65,12 @@ void Transmite_Confirmacion(char High, char Low)
 }
 
 /*****************************************************************************************/
-/******************************* TRANSMITE CONTADORES ************************************/
+/************************** TRANSMITE CONTADORES ACCOUNTING ******************************/
 /*****************************************************************************************/
 
-void Transmite_Contadores(void)
+void Transmite_Contadores_Accounting(void)
 {
-    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores, contadores, RTC))
+    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC))
     {
         if (flag_serie_trama_contadores)
         {
@@ -46,6 +79,58 @@ void Transmite_Contadores(void)
         char res[258] = {};
         bzero(res, 258); // Pone el buffer en 0
         memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+        Serial.println("Set buffer general ERROR");
+}
+
+/*****************************************************************************************/
+/************************** TRANSMITE CONTADORES CASHLESS ********************************/
+/*****************************************************************************************/
+
+void Transmite_Contadores_Cashless(void)
+{
+    if (Buffer.Set_buffer_contadores_CASH(ID_Contadores_Cashless, contadores))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_contadores_CASH(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+        Serial.println("Set buffer general ERROR");
+}
+
+/*****************************************************************************************/
+/************************** TRANSMITE CONTADORES BILLETES ********************************/
+/*****************************************************************************************/
+
+void Transmite_Billetes(void)
+{
+    if (Buffer.Set_buffer_billetes(ID_Billetes, contadores))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_billetes(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
         Serial.print("Tamaño a enviar: ");
@@ -79,6 +164,84 @@ bool Sincroniza_Reloj_RTC(char res[])
 
     RTC.setTime(seconds, minutes, hour, day, month, year);
     return true;
+}
+
+/*****************************************************************************************/
+/************************** TRANSMITE INFORMACION MAQUINA ********************************/
+/*****************************************************************************************/
+
+void Transmite_ID_Maquina(void)
+{
+    if (Buffer.Set_buffer_id_maq(ID_Maquina, contadores))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_id_maq(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+        Serial.println("Set buffer general ERROR");
+}
+
+/*****************************************************************************************/
+/******************************* TRANSMITE EVENTOS SAS ***********************************/
+/*****************************************************************************************/
+
+void Transmite_Eventos(void)
+{
+    if (Buffer.Set_buffer_eventos(ID_Eventos, eventos, RTC))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_eventos(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+        Serial.println("Set buffer general ERROR");
+}
+
+/*****************************************************************************************/
+/******************************* TRANSMITE ROM SIGNATURE *********************************/
+/*****************************************************************************************/
+
+void Transmite_ROM_Signature(void)
+{
+    if (Buffer.Set_buffer_ROM_Singnature(ID_ROM_Signature, contadores))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_ROM_Singnature(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+        Serial.println("Set buffer general ERROR");
 }
 
 /*****************************************************************************************/
@@ -275,28 +438,80 @@ void Task_Procesa_Comandos(void *parameter)
             {
             case 3:
                 Serial.println("Solicitud de contadores SAS");
-                Transmite_Contadores();
+                Transmite_Contadores_Accounting();
+                break;
+
+            case 4:
+                Serial.println("Solicitud de billetes SAS");
+                Transmite_Billetes();
+                
+            case 7:
+                Serial.println("Evento recibido con exito");
                 break;
 
             case 8:
                 Serial.println("Sincroniza reloj RTC");
                 if (Sincroniza_Reloj_RTC(res))
+                {
+                    flag_sincronizacion_RTC = true;
                     Transmite_Confirmacion('A', '4');
+                }
                 else
                     Transmite_Confirmacion('A', '5');
                 break;
+
+            case 11:
+                Serial.println("Solicitud de informacion MAQ");
+                Transmite_ID_Maquina();
+                break;
+
+            case 12:
+                Serial.println("Solicitud de ROM Signature Maq");
+                Transmite_ROM_Signature();
+                break;
+
             case 14:
                 Serial.println("Solicitud Reset ESP32");
                 Transmite_Confirmacion('A', 'F');
                 ESP.restart();
 
+            case 15:
+                Serial.println("Solicitud de inactivar maquina");
+                if (Inactiva_Maquina())
+                    Transmite_Confirmacion('A', 'B');
+                else
+                    Transmite_Confirmacion('A', 'C');
+                break;
+
+            case 18:
+                Serial.println("Solicitud de activar maquina");
+                if (Activa_Maquina())
+                    Transmite_Confirmacion('A', '9');
+                else
+                    Transmite_Confirmacion('A', 'A');
+                break;
+
+            case 181:
+                Serial.println("Confirmacion contadores recibido con exito");
+                //                Transmite_Confirmacion('A', '1');
+
             case 190:
                 Serial.println("Serializa trama de contadores");
-                if (contadores.Incrementa_Serie_Trama())
+                if (!flag_serie_trama_contadores)
                 {
-                    flag_serie_trama_contadores = true;
-                    Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
+                    if (contadores.Incrementa_Serie_Trama())
+                    {
+                        flag_serie_trama_contadores = true;
+                        Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
+                    }
                 }
+                else
+                    Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
+                break;
+
+            case 308:
+                Serial.println("Solicitud de contadores Cashless");
+                Transmite_Contadores_Cashless();
                 break;
 
             default:
@@ -326,7 +541,57 @@ void Task_Procesa_Comandos(void *parameter)
                 Transmite_Eco_Broadcast();
             }
         }
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        else if (flag_evento_valido_recibido)
+        {
+            Transmite_Eventos();
+            flag_evento_valido_recibido = false;
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
         continue;
+    }
+}
+
+/*****************************************************************************************/
+/******************************** TAREA DE TRANSMISION ***********************************/
+/*****************************************************************************************/
+
+void Task_Maneja_Transmision(void *parameter)
+{
+    for (;;)
+    {
+        Transmite_Configuracion();
+        Transmision_Controlada_Contadores();
+        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        continue;
+    }
+}
+
+void Transmite_Configuracion(void)
+{
+    switch (Contador_Transmision)
+    {
+    case 1:
+        if (!flag_sincronizacion_RTC)
+            Transmite_Confirmacion('A', '3');
+        break;
+
+    case 2:
+        if (!flag_serie_trama_contadores)
+            Transmite_Confirmacion('B', 'C');
+
+    default:
+        Contador_Transmision = 0;
+        break;
+    }
+    Contador_Transmision++;
+}
+
+void Transmision_Controlada_Contadores(void)
+{
+    Contador_Transmision_Contadores++;
+    if (Contador_Transmision_Contadores >= 4)
+    {
+        Contador_Transmision_Contadores = 0;
+        Transmite_Contadores_Accounting();
     }
 }
