@@ -27,12 +27,13 @@ char dat[1] = {SYNC};
 char dat3[1] = {POLL};
 char dat4[1] = {DIR};
 
+char *Archivo_Format;
 String SD_Cont;
 int bandera = 0;
 int contador = 0;
-<<<<<<< HEAD
 long numero_contador = 0;
 int Contador_Encuestas=0;
+int numero_encuesta=0; 
 int Max_Encuestas=27;
 String Encabezado_Contadores="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out,Games Played,Coin In Fisico,Coin Out Fisico,Total Coin Drop,Machine Paid Progresive Payout,Machine Paid External Bonus Payout,Attendant Paid Progresive Payout,Attendant Paid External Payout,Ticket In,Ticket Out,Current Credits,Contador 1C - Door Open Metter,Contador 18 - Games Since Last Power Up";
 bool Enable_Storage=false;
@@ -42,15 +43,17 @@ void Encuestas_Maquina(void *pvParameters);
 void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable_Storage);
 void Add_String(char* contador, String stringDT, bool Separador);
 void Add_String_Hora(String Horario);
+void Encuesta_Billetes(void);
+bool Inactiva_Maquina(void);
+void Transmite_Inactiva_Maquina(void);
+bool Activa_Maquina(void);
+void Transmite_Activa_Maquina(void);
+bool Verifica_Premio_1B(void);
+void Encuesta_contador_1B(void);
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
 
-=======
-int numero_contador = 0;
-int numero_encuesta = 0;
-int Contador_Encuestas = 0;
-int Max_Encuestas = 14;
 bool ACK_Maq = false;
 bool ACK_Premio = false;
 int Conta_Poll_Billetes = 0;
@@ -66,23 +69,14 @@ int Handle_Maquina = 0;
 #define flag_desbloquea_Maquina 2
 #define flag_encuesta_premio 3
 
-void Transmite_Sincronizacion(void);
-static void UART_ISR_ROUTINE(void *pvParameters);
-void Encuestas_Maquina(void *pvParameters);
-void Encuesta_Billetes(void);
-bool Inactiva_Maquina(void);
-void Transmite_Inactiva_Maquina(void);
-bool Activa_Maquina(void);
-void Transmite_Activa_Maquina(void);
-bool Verifica_Premio_1B(void);
-void Encuesta_contador_1B(void);
+
+
 
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-String Encabezado_Contadores = "Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
-char *Archivo_Format;
+
+
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
 {
@@ -243,9 +237,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         }
         Serial.println();
       }
-<<<<<<< HEAD
-      if (buffer[0] == 0x01)
-=======
 
       if (conta_bytes == 1)
       {
@@ -257,7 +248,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
       }
 
       if (buffer[0] == 0x01 && conta_bytes > 1)
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
       {
         Serial.println("Es un contador");
 
@@ -295,7 +285,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
               Add_String_Hora(RTC.getTime()); // Add Hora a Cadena.
               Add_String(contador,SD_Cont,true);  // Add Contador a Cadena.
               break;
@@ -322,33 +311,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             case 46:
               contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
              Add_String(contador,SD_Cont,true); 
-=======
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 11:
-              contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 12:
-              contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 13:
-              contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 14:
-              contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 15:
-              contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 46:
-              contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
               break;
             default:
               Serial.println("Default");
@@ -559,7 +521,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
              Add_String(contador,SD_Cont,true); 
               break;
             case 0x2F:
@@ -581,29 +542,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             case 0x34:
               contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
              Add_String(contador,SD_Cont,true); 
-=======
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x2F:
-              contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x30:
-              contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x32:
-              contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x33:
-              contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
-              break;
-            case 0x34:
-              contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador, Archivo_Format, false, Encabezado_Contadores);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
               break;
             default:
               Serial.println("Default");
@@ -630,11 +568,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-<<<<<<< HEAD
             Add_String(contador, SD_Cont, true);
-=======
-            Write_Data_File2(contador, Archivo_Format, true, Encabezado_Contadores);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
           }
 
           else if (buffer[1] == 0x1B)
@@ -763,216 +697,6 @@ void Encuestas_Maquina(void *pvParameters)
       Conta_Poll = 0;
       if (flag_handle_maquina)
       {
-<<<<<<< HEAD
-      case 1:
-        Serial.println("Total Cancel Credit"); // total cancel credit
-        Transmite_Poll(0x10);
-        break;
-      case 2:
-        Serial.println("Coin In"); // Coin in
-        Transmite_Poll(0x11);
-        break;
-      case 3:
-        Serial.println("Coin Out"); // Coin out
-        Transmite_Poll(0x12);
-        break;
-      case 4:
-        Serial.println("Jackpot"); // Jackpot
-        Transmite_Poll(0x14);
-        break;
-      case 5:
-        Serial.println("Total Drop"); // total drop
-        Transmite_Poll(0x13);
-        break;
-      case 6:
-        Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
-        sendDataa(dat4, sizeof(dat4));             // Transmite DIR
-        Transmite_Poll_Long(0x2D);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0xFF);
-        Transmite_Poll_Long(0xE0);
-        break;
-      case 7:
-        Serial.println("Bill amount");
-        Transmite_Poll(0x46); // Bill amount
-        break;
-      case 8:
-        Serial.println("Casheable In"); // Casheable in
-        sendDataa(dat4, sizeof(dat4));  // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x2E);
-        Transmite_Poll_Long(0xF7);
-        Transmite_Poll_Long(0xE3);
-        break;
-      case 9:
-        Serial.println("Casheable Restricted In"); // Casheable restricted in
-        sendDataa(dat4, sizeof(dat4));             // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x7E);
-        Transmite_Poll_Long(0xF2);
-        break;
-      case 10:
-        Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
-        sendDataa(dat4, sizeof(dat4));                // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x30);
-        Transmite_Poll_Long(0x08);
-        Transmite_Poll_Long(0x1A);
-        break;
-      case 11:
-        Serial.println("Casheable Out"); // Casheable out
-        sendDataa(dat4, sizeof(dat4));   // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x32);
-        Transmite_Poll_Long(0x1A);
-        Transmite_Poll_Long(0x39);
-        break;
-      case 12:
-        Serial.println("Casheable Restricted Out"); // Casheable restricted out
-        sendDataa(dat4, sizeof(dat4));              // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x33);
-        Transmite_Poll_Long(0x93);
-        Transmite_Poll_Long(0x28);
-        break;
-      case 13:
-        Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
-        sendDataa(dat4, sizeof(dat4));                 // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x34);
-        Transmite_Poll_Long(0x2C);
-        Transmite_Poll_Long(0x5C);
-        break;
-      case 14:
-        Serial.println("Games Played"); // Games played
-        Transmite_Poll(0x15);
-        break;
-      case 15:
-        Serial.println("Coin In Fisico"); // Physical coin in
-        Transmite_Poll(0x2A);
-        break;
-        
-      case 16:
-        Serial.println("Coin Out Fisico"); // Physical coin out
-        Transmite_Poll(0x2B);
-        break;
-      case 17:
-        Serial.println("Total Coin Drop");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x24);
-        Transmite_Poll_Long(0xAD);
-        Transmite_Poll_Long(0x4C);
-        break;
-      case 18:
-        Serial.println("Machine Paid Progresive Payout");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x1D);
-        Transmite_Poll_Long(0xEF);
-        Transmite_Poll_Long(0xE0);
-        ;
-        break;
-      case 19:
-        Serial.println("Machine Paid External Bonus Payout");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x1E);
-        Transmite_Poll_Long(0x74);
-        Transmite_Poll_Long(0xD2);
-        break;
-        
-      case 20:
-        Serial.println("Attendant Paid Progresive Payout");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x20);
-        Transmite_Poll_Long(0x89);
-        Transmite_Poll_Long(0x0A);
-        break;
-      case 21:
-        Serial.println("Attendant Paid External Payout");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x21);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x1B);
-        break;
-      case 22:
-        Serial.println("Ticket In");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x0D);
-        Transmite_Poll_Long(0x6E);
-        Transmite_Poll_Long(0xF0);
-        break;
-      case 23:
-        Serial.println("Ticket Out");
-        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        Transmite_Poll_Long(0x2F);
-        Transmite_Poll_Long(0x03);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x00);
-        Transmite_Poll_Long(0x0E);
-        Transmite_Poll_Long(0xF5);
-        Transmite_Poll_Long(0xC2);
-        break;
-      case 24:
-        Serial.println("Current Credits");
-        Transmite_Poll(0x1A);
-        break;
-      case 25:
-        Serial.println("Contador 1C - Door Open Metter");
-        Transmite_Poll(0x1C);
-        break;
-      case 26:
-        Serial.println("Contador 18 - Games Since Last Power Up");
-        Transmite_Poll(0x18);
-        break;
-      case 27:
-        Serial.println("ID Machine");
-        Transmite_Poll(0x1F);
-        Conta_Encuestas = 0;
-        break;
-=======
         switch (Handle_Maquina)
         {
         case 1:
@@ -995,7 +719,6 @@ void Encuestas_Maquina(void *pvParameters)
           break;
         }
         flag_handle_maquina = false;
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
       }
       else
       {
@@ -1229,7 +952,6 @@ void Encuestas_Maquina(void *pvParameters)
   }
   vTaskDelete(NULL);
 }
-<<<<<<< HEAD
 void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable_Storage)
 {
   if (Enable_Storage == true)
@@ -1275,7 +997,6 @@ void Add_String_Hora(String Horario)
 }
 
 
-=======
 
 //---------------------------- Funcion para encuestar Billetes  ----------------------------------------------
 
@@ -1384,4 +1105,3 @@ void Encuesta_contador_1B(void)
 {
   Transmite_Poll(0x1B);
 }
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91

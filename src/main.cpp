@@ -52,8 +52,6 @@ void loop()
 {
   
 
-<<<<<<< HEAD
-=======
   tiempo_inicial = millis();
 
   // unsigned char val1, val2;
@@ -84,7 +82,6 @@ void loop()
       bandera2 = 0;
     }
   }
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
 }
 
 void loop2(void *parameter)
@@ -93,16 +90,10 @@ void loop2(void *parameter)
   for (;;)
   {
     digitalWrite(2, HIGH); // turn the LED on (HIGH is the voltage level)
-<<<<<<< HEAD
     delay(100);            // wait for a second
     digitalWrite(2, LOW);  // turn the LED off by making the voltage LOW
     delay(100);
     
-=======
-    delay(250);            // wait for a second
-    digitalWrite(2, LOW);  // turn the LED off by making the voltage LOW
-    delay(250);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
   }
   vTaskDelay(10);
 }

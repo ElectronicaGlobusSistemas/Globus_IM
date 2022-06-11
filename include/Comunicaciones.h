@@ -1,12 +1,9 @@
 #include "Internet.h"
-<<<<<<< HEAD
 #include "Memory_SD.h"
-#define ID_Contadores 3
-=======
+
 
 #define ID_Contadores_Accounting 3
 #define ID_Billetes 4
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
 #define ID_Eventos 5
 #define ID_Maquina 11
 #define ID_ROM_Signature 12

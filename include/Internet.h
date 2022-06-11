@@ -64,13 +64,6 @@ void Init_Wifi()
 
 void CONNECT_WIFI(void)
 {
-<<<<<<< HEAD
-  WiFi.mode(WIFI_AP_STA); // MODO STA.
-  pinMode(WIFI_Status,OUTPUT);
-  IPAddress Local_IP(192, 168, 5, 153);
-  IPAddress Gateway (192, 168, 5, 1);
-  IPAddress SubnetMask (255, 255, 255, 0);
-=======
   //-----------------------------------------------------------------------------------------------------------
   // Obtiene direccion IP guardada en Objeto Configuracion
   memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
@@ -87,12 +80,11 @@ void CONNECT_WIFI(void)
   // size_t dir_sn_mask = NVS.getBytesLength("Dir_SN_MASK");
   // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
   //-----------------------------------------------------------------------------------------------------------
-  WiFi.mode(WIFI_STA); // MODO STA.
+  WiFi.mode(WIFI_MODE_APSTA); // MODO STA.
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
   IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
   IPAddress primaryDNS(8, 8, 8, 8);   // optional
   IPAddress secondaryDNS(8, 8, 4, 4); // optional
 

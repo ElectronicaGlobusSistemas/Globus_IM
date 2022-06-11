@@ -1,11 +1,8 @@
 #include <Arduino.h>
 #include "Memory_SD.h"
 #include "RTC.h"
-<<<<<<< HEAD
-=======
 #include "nvs_flash.h"
 
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency 240
 #define MCU_Status 2
@@ -32,23 +29,17 @@ void Init_Config(void)
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
-<<<<<<< HEAD
     //vTaskSuspendAll(); // Suspende Todas Las Tareas.
     RTC.setTime(0, 12, 10,9 , 6, 2022);
     //-------------------->  Módulos <-------------------------------
    
-=======
     // vTaskSuspendAll(); // Suspende Todas Las Tareas.
     //---------------------------------------------------------------
     // Inicializa las variables guardadas en memoria NVS
     Init_Configuracion_Inicial();
     //---------------------------------------------------------------
-    RTC.setTime(0, 0, 0, 1, 1, 2022);
     //-------------------->  Módulos <-------------------------------
-    Init_SD(); // Inicializa Memoria SD.
-    Archivo_Format = "17062022.csv";
-    Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
+
     //---------------------------------------------------------------
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
@@ -57,7 +48,6 @@ void Init_Config(void)
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();
     CONNECT_SERVER_TCP();
-<<<<<<< HEAD
 
     // Archivo_Format= Hora Actualizada..
     //  Init_FTP_SERVER();  // Preconfigura  y Pausa Server FTP
@@ -66,9 +56,7 @@ void Init_Config(void)
 
     Archivo_Format="25062022.csv"; // Crea Archivo Si no Existe.
     Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
-=======
     Init_Wifi();
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
     //---------------------------------------------------------------
     //--------------------> Run Tareas <-----------------------------
     Init_Tasks();
@@ -76,10 +64,7 @@ void Init_Config(void)
     //-------------------->  Update  <-------------------------------
     Bootloader(); // Inicializa  Bootloader
     //---------------------------------------------------------------
-<<<<<<< HEAD
     
-=======
->>>>>>> 0a6858e63669ecc12effe1ba4496756a97320c91
 }
 
 void Init_Tasks(void)
@@ -115,7 +100,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 250};
+        uint8_t ip[] = {192, 168, 5, 153};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
