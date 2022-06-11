@@ -23,9 +23,9 @@ extern bool flag_dato_no_valido_recibido;
 
 void CONNECT_WIFI(void)
 {
-  WiFi.mode(WIFI_STA); // MODO STA.
+  WiFi.mode(WIFI_AP_STA); // MODO STA.
   pinMode(WIFI_Status,OUTPUT);
-  IPAddress Local_IP(192, 168, 5, 154);
+  IPAddress Local_IP(192, 168, 5, 153);
   IPAddress Gateway (192, 168, 5, 1);
   IPAddress SubnetMask (255, 255, 255, 0);
   IPAddress primaryDNS(8, 8, 8, 8);   // optional

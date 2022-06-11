@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "Memory_SD.h"
 #include "RTC.h"
-
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency 240   
 #define MCU_Status      2
@@ -29,11 +28,9 @@ void Init_Config(void)
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
     //vTaskSuspendAll(); // Suspende Todas Las Tareas.
-
+    RTC.setTime(0, 12, 10,9 , 6, 2022);
     //-------------------->  Módulos <-------------------------------
-    Init_SD(); // Inicializa Memoria SD.
-    Archivo_Format="17062022.csv";
-    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
+   
     //---------------------------------------------------------------
 
     //-----------------> Config Comunicación Maquina <---------------
@@ -45,8 +42,14 @@ void Init_Config(void)
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI(); 
     CONNECT_SERVER_TCP();
+
     // Archivo_Format= Hora Actualizada..
-    
+    //  Init_FTP_SERVER();  // Preconfigura  y Pausa Server FTP
+    Init_SD(); // Inicializa Memoria SD.
+   // Init_FTP_SERVER();
+
+    Archivo_Format="25062022.csv"; // Crea Archivo Si no Existe.
+    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
     //---------------------------------------------------------------
 
     //--------------------> Rum Tareas <-----------------------------
@@ -56,7 +59,7 @@ void Init_Config(void)
     //-------------------->  Update  <-------------------------------
      Bootloader(); // Inicializa  Bootloader
     //---------------------------------------------------------------
-   
+    
 }
 
 void Init_Tasks(void)

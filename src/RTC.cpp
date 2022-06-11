@@ -25,11 +25,3 @@ String Get_Fecha(void)
     return (Dia + Mes + Year);           // 01302022 Nombre archivo Format
 }
 //------------------------------------------------------------------------------------------
-
-//------------------------------> Función Para Actualizar Hora <----------------------------
-void Sincroniza_Hora(int Segundos, int Minutos, int Hora, int Dia, int Mes, int Year)
-{
-    rtc.setTime(Segundos, Minutos, Hora, Dia, Mes, Year);
-    // rtc.setTime(16, 35, 15, 18, 5, 2022);
-}
-//------------------------------------------------------------------------------------------

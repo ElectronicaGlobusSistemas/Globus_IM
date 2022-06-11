@@ -25,20 +25,24 @@ char dat[1] = {SYNC};
 char dat3[1] = {POLL};
 char dat4[1] = {DIR};
 
+String SD_Cont;
 int bandera = 0;
 int contador = 0;
 long numero_contador = 0;
 int Contador_Encuestas=0;
-int Max_Encuestas=14;
-
+int Max_Encuestas=27;
+String Encabezado_Contadores="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out,Games Played,Coin In Fisico,Coin Out Fisico,Total Coin Drop,Machine Paid Progresive Payout,Machine Paid External Bonus Payout,Attendant Paid Progresive Payout,Attendant Paid External Payout,Ticket In,Ticket Out,Current Credits,Contador 1C - Door Open Metter,Contador 18 - Games Since Last Power Up";
+bool Enable_Storage=false;
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
 void Encuestas_Maquina(void *pvParameters);
-
+void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable_Storage);
+void Add_String(char* contador, String stringDT, bool Separador);
+void Add_String_Hora(String Horario);
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-String Encabezado_Contadores="Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out, Games Played";
+
 char *Archivo_Format;
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
@@ -56,7 +60,7 @@ void Init_UART2()
   ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
   uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
-
+  //uart_set_rx_timeout(uart_port_t uart_num, const uint8_t tout_thresh);
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
   //  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 2048, NULL, 12, NULL, 1); // Máx Priority principal
   //  xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 5, NULL, 1);
@@ -185,12 +189,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
       // Handle received event
       if (event.type == UART_DATA)
       {
-        //  uart_get_wakeup_threshold()
+        
         conta_bytes = 0;
         int UART2_data_length = 0;
         ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_2, (size_t *)&UART2_data_length));
         UART2_data_length = uart_read_bytes(NUMERO_PORTA_SERIALE, UART2_data, UART2_data_length, 100);
-
         for (byte i = 0; i < UART2_data_length; i++)
         {
           if (UART2_data[i] != 0x00 && UART2_data[i] != 0x1F && UART2_data[i] != 0x80 && UART2_data[i] != 0x81)
@@ -202,7 +205,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         }
         Serial.println();
       }
-
       if (buffer[0] == 0x01)
       {
         Serial.println("Es un contador");
@@ -241,31 +243,32 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores);   
+              Add_String_Hora(RTC.getTime()); // Add Hora a Cadena.
+              Add_String(contador,SD_Cont,true);  // Add Contador a Cadena.
               break;
             case 11:
               contadores.Set_Contadores(Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+              Add_String(contador,SD_Cont,true); 
               break;
             case 12:
               contadores.Set_Contadores(Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 14:
               contadores.Set_Contadores(Jackpot, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 15:
               contadores.Set_Contadores(Games_Played, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 46:
               contadores.Set_Contadores(Bill_Amount, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             default:
               Serial.println("Default");
@@ -274,6 +277,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             if (buffer[1] == 0x1A)
             {
               contadores.Set_Contadores(Current_Credits, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
             }
           }
 
@@ -299,9 +303,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 0x2A:
               contadores.Set_Contadores(Physical_Coin_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+           Add_String(contador,SD_Cont,true); 
               break;
             case 0x2B:
               contadores.Set_Contadores(Physical_Coin_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+           Add_String(contador,SD_Cont,true); 
               break;
             default:
               Serial.println("Default");
@@ -328,6 +334,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Door_Open, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+           Add_String(contador,SD_Cont,true); 
           }
 
           else if (buffer[1] == 0x18)
@@ -358,6 +365,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Games_Since_Last_Power_Up, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+            Add_String(contador,SD_Cont,false);
+            Storage_Contadores_SD(SD_Cont,Archivo_Format,Encabezado_Contadores,247,265,Enable_Storage);
           }
 
           else if (buffer[1] == 0x1F)
@@ -376,7 +385,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
             Serial.println(contador);
-
             contadores.Set_Contadores(Informacion_Maquina, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
           }
 
@@ -419,48 +427,55 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 0x0D:
               contadores.Set_Contadores(Ticket_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x0E:
               contadores.Set_Contadores(Ticket_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x1D:
               contadores.Set_Contadores(Machine_Paid_Progresive_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x1E:
               contadores.Set_Contadores(Machine_Paid_External_Bonus_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x20:
               contadores.Set_Contadores(Attendant_Paid_Progresive_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x21:
               contadores.Set_Contadores(Attendant_Paid_External_Bonus_Payout, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x24:
               contadores.Set_Contadores(Total_Coin_Drop, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x2E:
               contadores.Set_Contadores(Casheable_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x2F:
               contadores.Set_Contadores(Casheable_Restricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x30:
               contadores.Set_Contadores(Casheable_NONrestricted_In, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x32:
               contadores.Set_Contadores(Casheable_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x33:
               contadores.Set_Contadores(Casheable_Restricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             case 0x34:
               contadores.Set_Contadores(Casheable_NONrestricted_Out, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Write_Data_File2(contador,Archivo_Format,false,Encabezado_Contadores); 
+             Add_String(contador,SD_Cont,true); 
               break;
             default:
               Serial.println("Default");
@@ -487,7 +502,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador) ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-            Write_Data_File2(contador,Archivo_Format,true,Encabezado_Contadores); 
+            Add_String(contador, SD_Cont, true);
           }
 
           // bzero(buffer, 128);
@@ -497,27 +512,32 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Serial.println(numero_contador);
           if (Contador_Encuestas == Max_Encuestas)
           {
-            Contador_Encuestas = 0; // Reset Contador
+            Contador_Encuestas = 0; // Reset Contador de Encuestas
           }
         }
         else
         {
           // bzero(buffer, 128);
           Serial.println("Error de CRC en contadores...");
-          numero_contador = 0;
           Contador_Encuestas++;
           if (Contador_Encuestas == Max_Encuestas)
           {
-            // Guarda ERROR CRC en Ultima posición
-            Write_Data_File2("Error CRC", Archivo_Format, true, Encabezado_Contadores);
-            // Era la ultima..
-            Contador_Encuestas = 0;
+
+            Add_String("ErrorCRC", SD_Cont, false);
+            Storage_Contadores_SD(SD_Cont, Archivo_Format, Encabezado_Contadores, 247, 265, Enable_Storage);
+            Contador_Encuestas=0;
           }
           else
           {
-            // Guarda ERROR CRC en ultima posición
-            // No Era la Ultima. Guarda dato sin salto de linea.
-            Write_Data_File2("Error CRC", Archivo_Format, false, Encabezado_Contadores);
+            if(Contador_Encuestas==0)
+            {
+              Add_String_Hora(RTC.getTime());        // Add Hora a Cadena.
+              Add_String("ErrorCRC", SD_Cont, true); // Add Error CRC en Encuesta 0.
+            }else if(Contador_Encuestas!=0)
+            {
+              Add_String("ErrorCRC", SD_Cont, true);
+            }
+           
           }
         }
       }
@@ -688,6 +708,7 @@ void Encuestas_Maquina(void *pvParameters)
         Serial.println("Coin In Fisico"); // Physical coin in
         Transmite_Poll(0x2A);
         break;
+        
       case 16:
         Serial.println("Coin Out Fisico"); // Physical coin out
         Transmite_Poll(0x2B);
@@ -726,6 +747,7 @@ void Encuestas_Maquina(void *pvParameters)
         Transmite_Poll_Long(0x74);
         Transmite_Poll_Long(0xD2);
         break;
+        
       case 20:
         Serial.println("Attendant Paid Progresive Payout");
         sendDataa(dat4, sizeof(dat4)); // Transmite DIR
@@ -794,3 +816,48 @@ void Encuestas_Maquina(void *pvParameters)
   }
   vTaskDelete(NULL);
 }
+void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable_Storage)
+{
+  if (Enable_Storage == true)
+  {
+
+    if (SD_Cont.length() >= LimMin && SD_Cont.length() <= LimMax) // Asegura Guardado Completo.
+    {
+      Write_Data_File2(SD_Cont, ARCHIVO, false, Encabezado1);
+      Write_Data_File2("", ARCHIVO, true, Encabezado1);
+      Serial.println(SD_Cont.length());
+    }
+    for (int i = 0; i <= SD_Cont.length(); i++)
+    {
+      SD_Cont.remove(i);
+    }
+  }
+  else
+  {
+    Serial.println("Guardado SD Deshabilitado..");
+    for (int i = 0; i <= SD_Cont.length(); i++)
+    {
+      SD_Cont.remove(i);
+    }
+    Serial.println("Datos Borrados..");
+  }
+}
+void Add_String(char* contador, String stringDT, bool Separador)
+{
+  if(Separador==true)
+  {
+    SD_Cont += String(contador);
+    SD_Cont += String(","); // Add Separador
+  }
+  else if(Separador==false)
+  {
+    SD_Cont += String(contador); // Delete Separador
+  }
+}
+void Add_String_Hora(String Horario)
+{
+  SD_Cont += String(Horario);
+  SD_Cont += String(","); // Add Separador
+}
+
+
