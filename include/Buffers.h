@@ -48,7 +48,6 @@ private:
 
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC; 
-//    Contadores_SAS Metodo_Contadores;
 
 public:
     /* Constructor inicializa las variables en cero */

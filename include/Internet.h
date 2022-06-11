@@ -1,19 +1,24 @@
 #include <WiFi.h>
 
 #define WIFI_Status 15
-const char *ssid = "GLOBUS-DESARROLLO";
-const char *password = "Globus2020*";
 const int wifi_timeout = 10000;
 
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
 
-const IPAddress serverIP(192, 168, 5, 208); // Direccion del servidor
-uint16_t serverPort = 1001;                 // Puerto del servidor
-
 WiFiClient client; // Declara un objeto cliente para conectarse al servidor
 
 String buffer;
+
+char IP_Local[4];   // IP del ESP32
+char IP_GW[4];      // IP de enlace
+char SN_MASK[4];    // Mascara Subred
+char IP_Server[4];  // IP del servidor
+IPAddress serverIP; // Objeto IP Servidor
+// const IPAddress serverIP(192, 168, 5, 208); // Direccion del servidor
+uint16_t serverPort;  // Puerto del servidor
+String SSID_Wifi;     // Nombre de red
+String Password_Wifi; // Contraseña de la red
 
 extern bool flag_dato_valido_recibido;
 extern bool flag_dato_no_valido_recibido;
@@ -59,11 +64,27 @@ void Init_Wifi()
 
 void CONNECT_WIFI(void)
 {
+  //-----------------------------------------------------------------------------------------------------------
+  // Obtiene direccion IP guardada en Objeto Configuracion
+  memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
+  //  size_t ip_len = NVS.getBytesLength("Dir_IP");
+  //  NVS.getBytes("Dir_IP", IP_Local, ip_len);
+  //-----------------------------------------------------------------------------------------------------------
+  // Obtiene direccion IP de enlace guardada en Objeto configuracion
+  memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+  // size_t ip_len_gw = NVS.getBytesLength("Dir_IP_GW");
+  // NVS.getBytes("Dir_IP_GW", IP_GW, ip_len_gw);
+  //-----------------------------------------------------------------------------------------------------------
+  // Obtiene direccion mascara subred
+  memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+  // size_t dir_sn_mask = NVS.getBytesLength("Dir_SN_MASK");
+  // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
+  //-----------------------------------------------------------------------------------------------------------
   WiFi.mode(WIFI_STA); // MODO STA.
   pinMode(WIFI_Status, OUTPUT);
-  IPAddress Local_IP(192, 168, 5, 155);
-  IPAddress Gateway(192, 168, 5, 1);
-  IPAddress SubnetMask(255, 255, 255, 0);
+  IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
+  IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
+  IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
   IPAddress primaryDNS(8, 8, 8, 8);   // optional
   IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
@@ -75,10 +96,10 @@ void CONNECT_WIFI(void)
 
   WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
 
-  Serial.print("Conectando a... ");
-  Serial.println(ssid);
+  SSID_Wifi = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+  Password_Wifi = Configuracion.Get_Configuracion(Password, "Password_red");
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
 
   unsigned long startAttemptTime = millis();
 
@@ -90,7 +111,7 @@ void CONNECT_WIFI(void)
   {
     Serial.println("\nWiFi connected!");
     Serial.print("Conectado a: ");
-    Serial.println(ssid);
+    Serial.println(SSID_Wifi);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     Serial.print("ESP Mac Address: ");
@@ -99,7 +120,7 @@ void CONNECT_WIFI(void)
   else
   {
     Serial.print("\nNo se puede conectar a... ");
-    Serial.println(ssid);
+    Serial.println(SSID_Wifi);
   }
 }
 
@@ -122,9 +143,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
     else
     {
       Serial.print("Conectando a... ");
-      Serial.println(ssid);
+      Serial.println(SSID_Wifi);
 
-      WiFi.begin(ssid, password);
+      WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
       tiempo_inicial = millis();
       while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
       {
@@ -133,7 +154,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       if (WiFi.status() != WL_CONNECTED)
       {
         Serial.print("\nNo se puede conectar a... ");
-        Serial.println(ssid);
+        Serial.println(SSID_Wifi);
         digitalWrite(WIFI_Status, LOW);
         vTaskDelay(30000 / portTICK_PERIOD_MS);
         continue;
@@ -142,7 +163,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       {
         Serial.println("\nWiFi connected!");
         Serial.print("Conectado a: ");
-        Serial.println(ssid);
+        Serial.println(SSID_Wifi);
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
         Serial.print("ESP Mac Address: ");
@@ -159,6 +180,16 @@ void CONNECT_SERVER_TCP(void)
 {
   if (WiFi.isConnected())
   {
+    // Obtiene direccion IP Servidor guardada en Objeto configuracion
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    // size_t ip_len = NVS.getBytesLength("Dir_IP_Serv");
+    // NVS.getBytes("Dir_IP_Serv", IP_Server, ip_len);
+    IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+
+    // Obtiene Numero de puerto guardada en NVS
+    serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+    // serverPort = NVS.getUInt("Socket", 0);
+
     Serial.println("\nConectando al servidor TCP...");
     if (client.connect(serverIP, serverPort)) // Intenta acceder a la dirección de destino
     {
@@ -193,6 +224,14 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
       }
 
       Serial.println("Conectando al servidor TCP...");
+
+      // Obtiene direccion IP Servidor guardada en Objeto configuracion
+      memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+      IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+ 
+      // Obtiene Numero de puerto guardada en Objeto configuracion
+      serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+
       client.connect(serverIP, serverPort);
 
       if (!client.connected())
@@ -238,7 +277,7 @@ void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
     if (client.available())
     {
       buffer = client.readStringUntil('\n'); // Leer datos a nueva línea
-      Serial.print("Dato entrante...");
+      Serial.println("Dato entrante...");
 
       if (Buffer.Set_buffer_recepcion(buffer))
       {

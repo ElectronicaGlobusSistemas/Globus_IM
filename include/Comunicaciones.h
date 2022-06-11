@@ -275,8 +275,7 @@ void Transmite_Eco_Broadcast(void)
     // Direccion IP ESP32
     Serial.print("Direccion IP Local: ");
     uint32_t ip = WiFi.localIP();
-    Serial.print("Direccion IP Local2: ");
-    Serial.print(ip);
+    Serial.println(WiFi.localIP());
 
     // Socket de conexion
     Serial.print("Socket: ");
@@ -291,111 +290,167 @@ void Transmite_Eco_Broadcast(void)
     Serial.print("Puerta de enlace: ");
     Serial.println(WiFi.gatewayIP());
 
+    // Nombre de la maquina
+    Serial.print("Nombre de MAQ: ");
+    String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
+    Serial.println(Name);
+
+    Serial.print("**************************************************************************************");
+    Serial.println();
+
+    char IP[4];
+    bzero(IP, 4);
+    memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
+
+    char dir_ip[12] = {};
+    int j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)IP[i];
+        dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        dir_ip[j] = (resultado % 10) + '0';
+        j++;
+    }
+
+    char IP_GW[4];
+    bzero(IP_GW, 4);
+    memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+
+    char dir_ip_gw[12] = {};
+    j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)IP_GW[i];
+        dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        dir_ip_gw[j] = (resultado % 10) + '0';
+        j++;
+    }
+
+    char SN_MASK[4];
+    bzero(SN_MASK, 4);
+    memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+    char sn_mask[12] = {};
+    j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)SN_MASK[i];
+        sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        sn_mask[j] = (resultado % 10) + '0';
+        j++;
+    }
+
     res[0] = 'L';
     res[1] = '|';
     res[2] = '0';
     res[3] = '1';
     res[4] = '|';
     // MAC
-    res[5] = '0';
-    res[6] = mac[0];
-    res[7] = mac[1];
-    res[8] = mac[2];
-    res[9] = '0';
-    res[10] = mac[3];
-    res[11] = mac[4];
-    res[12] = mac[5];
-    res[13] = '0';
-    res[14] = mac[6];
-    res[15] = mac[7];
-    res[16] = mac[8];
-    res[17] = '0';
-    res[18] = mac[9];
-    res[19] = mac[10];
-    res[20] = mac[11];
-    res[21] = '0';
-    res[22] = mac[12];
-    res[23] = mac[13];
-    res[24] = mac[14];
-    res[25] = '0';
-    res[26] = mac[15];
-    res[27] = mac[16];
-    res[28] = '|';
+    res[5] = mac[0];
+    res[6] = mac[1];
+    res[7] = mac[2];
+    res[8] = mac[3];
+    res[9] = mac[4];
+    res[10] = mac[5];
+    res[11] = mac[6];
+    res[12] = mac[7];
+    res[13] = mac[8];
+    res[14] = mac[9];
+    res[15] = mac[10];
+    res[16] = mac[11];
+    res[17] = mac[12];
+    res[18] = mac[13];
+    res[19] = mac[14];
+    res[20] = mac[15];
+    res[21] = mac[16];
+    res[22] = '|';
     // PORT
-    res[29] = '0';
-    res[30] = socket[0];
-    res[31] = socket[1];
-    res[32] = socket[2];
-    res[33] = socket[3];
-    res[34] = '|';
+    res[23] = '0';
+    res[24] = socket[0];
+    res[25] = socket[1];
+    res[26] = socket[2];
+    res[27] = socket[3];
+    res[28] = '|';
     // IP
-    res[35] = '1';
-    res[36] = '9';
-    res[37] = '2';
-    res[38] = '.';
-    res[39] = '1';
-    res[40] = '6';
-    res[41] = '8';
-    res[42] = '.';
-    res[43] = '0';
-    res[44] = '0';
-    res[45] = '5';
-    res[46] = '.';
-    res[47] = '1';
-    res[48] = '5';
-    res[49] = '5';
-    res[50] = '|';
+    res[29] = dir_ip[0];
+    res[30] = dir_ip[1];
+    res[31] = dir_ip[2];
+    res[32] = '.';
+    res[33] = dir_ip[3];
+    res[34] = dir_ip[4];
+    res[35] = dir_ip[5];
+    res[36] = '.';
+    res[37] = dir_ip[6];
+    res[38] = dir_ip[7];
+    res[39] = dir_ip[8];
+    res[40] = '.';
+    res[41] = dir_ip[9];
+    res[42] = dir_ip[10];
+    res[43] = dir_ip[11];
+    res[44] = '|';
     // MASCARA
-    res[51] = '2';
-    res[52] = '5';
-    res[53] = '5';
-    res[54] = '.';
-    res[55] = '2';
-    res[56] = '5';
-    res[57] = '5';
-    res[58] = '.';
-    res[59] = '2';
-    res[60] = '5';
-    res[61] = '5';
-    res[62] = '.';
-    res[63] = '0';
-    res[64] = '0';
-    res[65] = '0';
-    res[66] = '|';
+    res[45] = sn_mask[0];
+    res[46] = sn_mask[1];
+    res[47] = sn_mask[2];
+    res[48] = '.';
+    res[49] = sn_mask[3];
+    res[50] = sn_mask[4];
+    res[51] = sn_mask[5];
+    res[52] = '.';
+    res[53] = sn_mask[6];
+    res[54] = sn_mask[7];
+    res[55] = sn_mask[8];
+    res[56] = '.';
+    res[57] = sn_mask[9];
+    res[58] = sn_mask[10];
+    res[59] = sn_mask[11];
+    res[60] = '|';
     // IP Enlace
-    res[67] = '1';
-    res[68] = '9';
-    res[69] = '2';
-    res[70] = '.';
-    res[71] = '1';
-    res[72] = '6';
-    res[73] = '8';
-    res[74] = '.';
-    res[75] = '0';
-    res[76] = '0';
-    res[77] = '5';
-    res[78] = '.';
-    res[79] = '0';
-    res[80] = '0';
-    res[81] = '1';
-    res[82] = '|';
+    res[61] = dir_ip_gw[0];
+    res[62] = dir_ip_gw[1];
+    res[63] = dir_ip_gw[2];
+    res[64] = '.';
+    res[65] = dir_ip_gw[3];
+    res[66] = dir_ip_gw[4];
+    res[67] = dir_ip_gw[5];
+    res[68] = '.';
+    res[69] = dir_ip_gw[6];
+    res[70] = dir_ip_gw[7];
+    res[71] = dir_ip_gw[8];
+    res[72] = '.';
+    res[73] = dir_ip_gw[9];
+    res[74] = dir_ip_gw[10];
+    res[75] = dir_ip_gw[11];
+    res[76] = '|';
     // Nombre MAQ
-    res[83] = 'M';
-    res[84] = 'a';
-    res[85] = 'q';
-    res[86] = '_';
-    res[87] = 'P';
-    res[88] = 'r';
-    res[89] = 'u';
-    res[90] = 'e';
-    res[91] = 'b';
-    res[92] = 'a';
-    res[93] = '_';
-    res[94] = 'E';
-    res[95] = 'S';
-    res[96] = 'P';
-    res[97] = '3';
-    res[98] = '2';
+    res[77] = Name[0];
+    res[78] = Name[1];
+    res[79] = Name[2];
+    res[80] = Name[3];
+    res[81] = Name[4];
+    res[82] = Name[5];
+    res[83] = Name[6];
+    res[84] = Name[7];
+    res[85] = Name[8];
+    res[86] = Name[9];
+    res[87] = Name[10];
+    res[88] = Name[11];
+    res[89] = Name[12];
+    res[90] = Name[13];
+    res[91] = Name[14];
+    res[92] = Name[15];
 
     Serial.println("Set buffer general OK");
     int len = sizeof(res);
@@ -407,6 +462,277 @@ void Transmite_Eco_Broadcast(void)
     Serial.print("Bytes enviados: ");
     Serial.println(length_);
     Serial.println("--------------------------------------------------------------------");
+}
+
+/*****************************************************************************************/
+/*************************** GUARDA LA NUEVA CONFIGURACION *******************************/
+/*****************************************************************************************/
+
+void Guarda_Configuracion_ESP32(void)
+{
+    char req[258] = {};
+    bzero(req, 258); // Pone el buffer en 0
+    memcpy(req, Buffer.Get_buffer_recepcion(), 258);
+
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+
+    if (req[97] != 0x0A || req[98] != 0x0D)
+    {
+        Serial.println();
+        Serial.println("Error de Set All...");
+        Serial.println(req[97], HEX);
+        Serial.println(req[98], HEX);
+        res[0] = 'E';
+        res[1] = '0';
+        res[2] = '0';
+        res[3] = 0x0A;
+        res[4] = 0x0D;
+
+        for (int i = 5; i < 256; i++)
+        {
+            res[i] = '0';
+        }
+
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+    else
+    {
+        Serial.println("ESet all Ok...");
+
+        res[0] = 'L';
+        res[1] = '|';
+        res[2] = '0';
+        res[3] = '2';
+        res[4] = '|';
+        res[5] = 'O';
+        res[6] = 'K';
+        res[7] = '|';
+        res[8] = 0x0A;
+        res[9] = 0x0D;
+
+        for (int i = 10; i < 256; i++)
+        {
+            res[i] = '0';
+        }
+
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        Serial.println("buffer enviado: ");
+        Serial.println(res);
+        int length_ = client.write(res, len);
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+    }
+
+    //     // Direccion MAC ESP32
+    //     Serial.print("Direccion MAC: ");
+    //     Serial.println(WiFi.macAddress());
+    //     String mac = WiFi.macAddress();
+
+    //     // Direccion IP ESP32
+    //     Serial.print("Direccion IP Local: ");
+    //     uint32_t ip = WiFi.localIP();
+    //     Serial.println(WiFi.localIP());
+
+    //     // Socket de conexion
+    //     Serial.print("Socket: ");
+    //     Serial.println(client.remotePort());
+    //     string socket = std::to_string(client.remotePort());
+
+    //     // Mascara subred ESP32
+    //     Serial.print("Mascara Subred: ");
+    //     Serial.println(WiFi.subnetMask());
+
+    //     // Puerta de enlace ESP32
+    //     Serial.print("Puerta de enlace: ");
+    //     Serial.println(WiFi.gatewayIP());
+
+    //     // Nombre de la maquina
+    //     Serial.print("Nombre de MAQ: ");
+    //     String Name = NVS.getString("Name_Maq");
+    //     Serial.println(Name);
+
+    //     Serial.print("****************************************************");
+    //     Serial.println();
+
+    //     size_t ip_len = NVS.getBytesLength("Dir_IP");
+    //     char IP[ip_len];
+    //     NVS.getBytes("Dir_IP", IP, ip_len);
+
+    //     char dir_ip[12] = {};
+    //     int j = 0;
+    //     for (int i = 0; i < 4; i++)
+    //     {
+    //         int octeto = (int)IP[i];
+    //         dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+    //         j++;
+    //         int resultado = octeto % 100;
+    //         dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+    //         j++;
+    //         dir_ip[j] = (resultado % 10) + '0';
+    //         j++;
+    //     }
+
+    //     size_t ip_len_gw = NVS.getBytesLength("Dir_IP_GW");
+    //     char IP_GW[ip_len_gw];
+    //     NVS.getBytes("Dir_IP_GW", IP_GW, ip_len_gw);
+
+    //     char dir_ip_gw[12] = {};
+    //     j = 0;
+    //     for (int i = 0; i < 4; i++)
+    //     {
+    //         int octeto = (int)IP_GW[i];
+    //         dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+    //         j++;
+    //         int resultado = octeto % 100;
+    //         dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+    //         j++;
+    //         dir_ip_gw[j] = (resultado % 10) + '0';
+    //         j++;
+    //     }
+
+    //     size_t sn_mask_len = NVS.getBytesLength("Dir_SN_MASK");
+    //     char SN_MASK[sn_mask_len];
+    //     NVS.getBytes("Dir_SN_MASK", SN_MASK, sn_mask_len);
+
+    //     char sn_mask[12] = {};
+    //     j = 0;
+    //     for (int i = 0; i < 4; i++)
+    //     {
+    //         int octeto = (int)SN_MASK[i];
+    //         sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+    //         j++;
+    //         int resultado = octeto % 100;
+    //         sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+    //         j++;
+    //         sn_mask[j] = (resultado % 10) + '0';
+    //         j++;
+    //     }
+
+    //     res[0] = 'L';
+    //     res[1] = '|';
+    //     res[2] = '0';
+    //     res[3] = '1';
+    //     res[4] = '|';
+    //     // MAC
+    //     res[5] = mac[0];
+    //     res[6] = mac[1];
+    //     res[7] = mac[2];
+    //     res[8] = mac[3];
+    //     res[9] = mac[4];
+    //     res[10] = mac[5];
+    //     res[11] = mac[6];
+    //     res[12] = mac[7];
+    //     res[13] = mac[8];
+    //     res[14] = mac[9];
+    //     res[15] = mac[10];
+    //     res[16] = mac[11];
+    //     res[17] = mac[12];
+    //     res[18] = mac[13];
+    //     res[19] = mac[14];
+    //     res[20] = mac[15];
+    //     res[21] = mac[16];
+    //     res[22] = '|';
+    //     // PORT
+    //     res[23] = '0';
+    //     res[24] = socket[0];
+    //     res[25] = socket[1];
+    //     res[26] = socket[2];
+    //     res[27] = socket[3];
+    //     res[28] = '|';
+    //     // IP
+    //     res[29] = dir_ip[0];
+    //     res[30] = dir_ip[1];
+    //     res[31] = dir_ip[2];
+    //     res[32] = '.';
+    //     res[33] = dir_ip[3];
+    //     res[34] = dir_ip[4];
+    //     res[35] = dir_ip[5];
+    //     res[36] = '.';
+    //     res[37] = dir_ip[6];
+    //     res[38] = dir_ip[7];
+    //     res[39] = dir_ip[8];
+    //     res[40] = '.';
+    //     res[41] = dir_ip[9];
+    //     res[42] = dir_ip[10];
+    //     res[43] = dir_ip[11];
+    //     res[44] = '|';
+    //     // MASCARA
+    //     res[45] = sn_mask[0];
+    //     res[46] = sn_mask[1];
+    //     res[47] = sn_mask[2];
+    //     res[48] = '.';
+    //     res[49] = sn_mask[3];
+    //     res[50] = sn_mask[4];
+    //     res[51] = sn_mask[5];
+    //     res[52] = '.';
+    //     res[53] = sn_mask[6];
+    //     res[54] = sn_mask[7];
+    //     res[55] = sn_mask[8];
+    //     res[56] = '.';
+    //     res[57] = sn_mask[9];
+    //     res[58] = sn_mask[10];
+    //     res[59] = sn_mask[11];
+    //     res[60] = '|';
+    //     // IP Enlace
+    //     res[61] = dir_ip_gw[0];
+    //     res[62] = dir_ip_gw[1];
+    //     res[63] = dir_ip_gw[2];
+    //     res[64] = '.';
+    //     res[65] = dir_ip_gw[3];
+    //     res[66] = dir_ip_gw[4];
+    //     res[67] = dir_ip_gw[5];
+    //     res[68] = '.';
+    //     res[69] = dir_ip_gw[6];
+    //     res[70] = dir_ip_gw[7];
+    //     res[71] = dir_ip_gw[8];
+    //     res[72] = '.';
+    //     res[73] = dir_ip_gw[9];
+    //     res[74] = dir_ip_gw[10];
+    //     res[75] = dir_ip_gw[11];
+    //     res[76] = '|';
+    //     // Nombre MAQ
+    //     res[77] = Name[0];
+    //     res[78] = Name[1];
+    //     res[79] = Name[2];
+    //     res[80] = Name[3];
+    //     res[81] = Name[4];
+    //     res[82] = Name[5];
+    //     res[83] = Name[6];
+    //     res[84] = Name[7];
+    //     res[85] = Name[8];
+    //     res[86] = Name[9];
+    //     res[87] = Name[10];
+    //     res[88] = Name[11];
+    //     res[89] = Name[12];
+    //     res[90] = Name[13];
+    //     res[91] = Name[14];
+    //     res[92] = Name[15];
+
+    //     Serial.println("Set buffer general OK");
+    //     int len = sizeof(res);
+    //     Serial.print("Tamaño a enviar: ");
+    //     Serial.println(len);
+    //     Serial.println("buffer enviado: ");
+    //     Serial.println(res);
+    //     int length_ = client.write(res, len);
+    //     Serial.print("Bytes enviados: ");
+    //     Serial.println(length_);
+    //     Serial.println("--------------------------------------------------------------------");
+    //    }
 }
 
 /*****************************************************************************************/
@@ -574,11 +900,30 @@ void Task_Procesa_Comandos(void *parameter)
             memcpy(res, Buffer.Get_buffer_recepcion(), 258);
 
             if (res[0] == 'S' && res[1] == 'B')
+            {
                 Serial.println("Solicitud de Bootloader");
+            }
             else if (res[0] == 'E' && res[1] == 'B')
             {
                 Serial.println("Eco Broadcast");
                 Transmite_Eco_Broadcast();
+            }
+            else if (res[0] == 'S' && res[1] == 'A')
+            {
+                Serial.println("Guarda Configuracion");
+                for (int i = 0; i < 117; i++)
+                {
+                    Serial.print(res[i]);
+                }
+                Guarda_Configuracion_ESP32();
+            }
+            else
+            {
+                for (int i = 0; i < 256; i++)
+                {
+                    Serial.print(res[i]);
+                }
+                Serial.println();
             }
         }
         else if (flag_evento_valido_recibido)
@@ -661,13 +1006,13 @@ void Transmite_Configuracion(void)
     switch (Contador_Transmision)
     {
     case 10:
-        if (!flag_comunicacion_maquina_Ok)
-            Transmite_Confirmacion('A', '0');
+        if (!flag_sincronizacion_RTC)
+            Transmite_Confirmacion('A', '3');
         break;
 
     case 20:
-        if (!flag_sincronizacion_RTC)
-            Transmite_Confirmacion('A', '3');
+        if (!flag_comunicacion_maquina_Ok)
+            Transmite_Confirmacion('A', '0');
         break;
 
     case 30:

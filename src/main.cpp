@@ -3,6 +3,12 @@
 #include "Bootloader.h"
 
 /* Definir las clases que haran uso de los metodos */
+#include "Preferences.h"
+Preferences NVS;
+
+#include "Configuracion.h"
+Configuracion_ESP32 Configuracion;
+
 #include "ESP32Time.h"
 #include "time.h"
 ESP32Time RTC; // Objeto contiene hora y fecha
