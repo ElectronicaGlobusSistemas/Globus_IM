@@ -41,7 +41,7 @@ void Init_Wifi()
       configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
       &Status_WIFI,                        //  Manejador de la tarea
       0);                          //  Core donde se ejecutara la tarea
-      vTaskSuspend(Status_WIFI);
+    //  vTaskSuspend(Status_WIFI);
       
 
   xTaskCreatePinnedToCore(
@@ -52,7 +52,7 @@ void Init_Wifi()
       configMAX_PRIORITIES - 20,
       &Status_SERVER_TCP,
       0); // Core donde se ejecutara la tarea
-      vTaskSuspend(Status_SERVER_TCP);
+     // vTaskSuspend(Status_SERVER_TCP);
       
 
   xTaskCreatePinnedToCore(
