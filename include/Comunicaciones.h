@@ -1,7 +1,6 @@
 #include "Internet.h"
 #include "Memory_SD.h"
 
-
 #define ID_Contadores_Accounting 3
 #define ID_Billetes 4
 #define ID_Eventos 5
@@ -54,6 +53,23 @@ void init_Comunicaciones()
         NULL,
         0); // Core donde se ejecutara la tarea
 }
+
+/*****************************************************************************************/
+/********************************* TRANSMITE A SERVIDOR **********************************/
+/*****************************************************************************************/
+
+void Transmite_A_Servidor(char buffer[], int len)
+{
+    Serial.print("Tamaño a enviar: ");
+    Serial.println(len);
+    Serial.println("buffer enviado: ");
+    Serial.println(buffer);
+    int length_ = client.write(buffer, len);
+    Serial.print("Bytes enviados: ");
+    Serial.println(length_);
+    Serial.println("--------------------------------------------------------------------");
+}
+
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK ****************************************/
 /*****************************************************************************************/
@@ -67,14 +83,15 @@ void Transmite_Confirmacion(char High, char Low)
         memcpy(res, Buffer.Get_buffer_ACK(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
+        // Serial.print("Tamaño a enviar: ");
+        // Serial.println(len);
+        // Serial.println("buffer enviado: ");
+        // Serial.println(res);
+        // int length_ = client.write(res, len);
+        // Serial.print("Bytes enviados: ");
+        // Serial.println(length_);
+        // Serial.println("--------------------------------------------------------------------");
     }
     else
         Serial.println("Set buffer general ERROR");
