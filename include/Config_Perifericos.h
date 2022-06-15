@@ -87,7 +87,7 @@ void Init_Tasks(void)
         &Task1,   //  Manejador de la tarea
         0);       //  Core donde se ejecutara la tarea
 }
-
+/*
 void TaskManager()
 {
     xTaskCreatePinnedToCore(
@@ -99,8 +99,9 @@ void TaskManager()
         &Task1,   //  Manejador de la tarea
         0);       //  Core donde se ejecutara la tarea
 }
-
-bool FTP_MODE=true;
+/*
+/*
+bool FTP_MODE=false;
 bool Bootloader_MODE=false;
 
 static void RumTask(void *parameter)
@@ -132,6 +133,7 @@ static void RumTask(void *parameter)
     }
     vTaskDelay(10);
 }
+*/
 
 void Init_Indicadores_LED(void)
 {
