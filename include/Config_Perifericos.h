@@ -9,12 +9,25 @@
 #define WIFI_Status 15
 //-----------------------------------------------------------------
 
+//-------------------------> Extern TaskHandle_t <-----------------
+extern TaskHandle_t SD_CHECK;      //  Manejador de tareas
+extern Sd2Card card;               //  Memoria SD.
+extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
+extern TaskHandle_t Status_WIFI;
+extern TaskHandle_t Status_SERVER_TCP;
+extern TaskHandle_t Modo_Bootloader;
+extern WiFiClient client; // Declara un objeto cliente para conectarse al servidor
+//------------------------------------------------------------------
+
 TaskHandle_t Task1;
 
 void loop2(void *parameter);
 void Init_Tasks();
 void Init_Indicadores_LED(void);
 void Init_Configuracion_Inicial(void);
+void TaskManager();
+static void RumTask(void *parameter);
+
 
 void Init_Config(void)
 {
@@ -29,31 +42,28 @@ void Init_Config(void)
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
-    //vTaskSuspendAll(); // Suspende Todas Las Tareas.
-    RTC.setTime(0, 12, 10,9 , 6, 2022);
-    //-------------------->  Módulos <-------------------------------
-   
-    // vTaskSuspendAll(); // Suspende Todas Las Tareas.
-    //---------------------------------------------------------------
-    // Inicializa las variables guardadas en memoria NVS
-    Init_Configuracion_Inicial();
-    //---------------------------------------------------------------
-    //-------------------->  Módulos <-------------------------------
 
+    //--------------------> Setup Reloj <----------------------------
+    RTC.setTime(0, 12, 10,9 , 6, 2022);
     //---------------------------------------------------------------
+   
+    //--------------------> Init NVS Datos <-------------------------
+    Init_Configuracion_Inicial(); // Inicializa Config de Memoria
+    //---------------------------------------------------------------
+   
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
-    init_Comunicaciones();
+    
     //--------------------> Config  WIFI <---------------------------
-    CONNECT_WIFI();
-    CONNECT_SERVER_TCP();
-
-    // Archivo_Format= Hora Actualizada..
-    //  Init_FTP_SERVER();  // Preconfigura  y Pausa Server FTP
+    CONNECT_WIFI();       // Inicializa  Modulo WIFI
+    CONNECT_SERVER_TCP(); // Inicializa Servidor TCP
+    init_Comunicaciones();// Inicializa Tareas TCP
+    //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
-   // Init_FTP_SERVER();
-
+    //TaskManager();
+    //---------------------------------------------------------------
+   
     Archivo_Format="25062022.csv"; // Crea Archivo Si no Existe.
     Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
     Init_Wifi();
@@ -62,9 +72,8 @@ void Init_Config(void)
     Init_Tasks();
     //---------------------------------------------------------------
     //-------------------->  Update  <-------------------------------
-    Bootloader(); // Inicializa  Bootloader
+    Init_Bootloader();
     //---------------------------------------------------------------
-    
 }
 
 void Init_Tasks(void)
@@ -77,6 +86,51 @@ void Init_Tasks(void)
         1,        //  Prioridad de la tarea
         &Task1,   //  Manejador de la tarea
         0);       //  Core donde se ejecutara la tarea
+}
+
+void TaskManager()
+{
+    xTaskCreatePinnedToCore(
+        RumTask,    //  Funcion a implementar la tarea
+        "TASK MANAGER", //  Nombre de la tarea
+        10000,    //  Tamaño de stack en palabras (memoria)
+        NULL,     //  Entrada de parametros
+        configMAX_PRIORITIES-10,        //  Prioridad de la tarea
+        &Task1,   //  Manejador de la tarea
+        0);       //  Core donde se ejecutara la tarea
+}
+
+bool FTP_MODE=true;
+bool Bootloader_MODE=false;
+
+static void RumTask(void *parameter)
+{
+    for (;;)
+    {
+        if (!card.init(SPI_FULL_SPEED))
+        {
+            vTaskResume(SD_CHECK); // Inicia Tarea SD.
+        }
+        if (FTP_MODE == true)
+        {
+            vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
+        }
+        if (!WiFi.status() == WL_CONNECTED)
+        {
+            vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
+        }
+        if(!client.connected())
+        {
+            vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
+        }
+        if (Bootloader_MODE == true && WiFi.status() == WL_CONNECTED)
+        {
+            vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+        }
+        delay(10);
+        vTaskDelay(1000);
+    }
+    vTaskDelay(10);
 }
 
 void Init_Indicadores_LED(void)
@@ -94,13 +148,12 @@ void Init_Configuracion_Inicial(void)
     // Borrar particiones creadas en NVS
     // nvs_flash_erase();
     // nvs_flash_init();
-
     NVS.begin("Config_ESP32", false);
 
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 153};
+        uint8_t ip[] = {192, 168, 5, 152};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 

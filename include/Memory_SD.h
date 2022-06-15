@@ -13,6 +13,7 @@
 //------------------------------------>  Archivos Header <--------------------------------
 #include "mySD.h"
 #include <WiFiClient.h>
+
 //----------------------------------------------------------------------------------------
 
 #define FTP_SERVER_VERSION "2022"    // Version de  Libreria.
@@ -26,6 +27,9 @@
 //----------------------------> Hardware SD <----------------------------------------------
 #define SD_ChipSelect   5            // Selector de Esclavo SPI SS1_SPI.
 #define SD_Status       4            // Indicador  de Estado de Memoria SD.
+#define MOSI 23                      // Pin de Datos In           
+#define MISO 19                      // Pin de Datos Out
+#define CLK  18                      // Señal de reloj
 //-----------------------------------------------------------------------------------------
 //----------------------------> Prototipo de Funciones <-----------------------------------
 void Init_SD(void);
@@ -42,6 +46,7 @@ void Nueva_Carpeta(char* Carpeta);
 void Init_FTP_SERVER();
 void RESET_SD(void);
 static void Rum_FTP_SERVER(void *parameter);
+void SD_Status_Rum(void);
 
 //------------------------------------------------------------------------------------------
 

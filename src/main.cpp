@@ -1,7 +1,6 @@
 #include <Arduino.h>
 
 #include "Bootloader.h"
-
 /* Definir las clases que haran uso de los metodos */
 #include "Preferences.h"
 Preferences NVS;
@@ -48,6 +47,7 @@ void setup()
   
 }
 
+
 void loop()
 {
   
@@ -86,7 +86,7 @@ void loop()
 
 void loop2(void *parameter)
 {
-  vTaskSuspend(Task1);
+ // vTaskSuspend(Task1);
   for (;;)
   {
     digitalWrite(2, HIGH); // turn the LED on (HIGH is the voltage level)

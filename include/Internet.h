@@ -19,6 +19,8 @@ IPAddress serverIP; // Objeto IP Servidor
 uint16_t serverPort;  // Puerto del servidor
 String SSID_Wifi;     // Nombre de red
 String Password_Wifi; // Contraseña de la red
+TaskHandle_t Status_WIFI;
+TaskHandle_t Status_SERVER_TCP;
 
 extern bool flag_dato_valido_recibido;
 extern bool flag_dato_no_valido_recibido;
@@ -37,8 +39,10 @@ void Init_Wifi()
       10000,                       //  Tamaño de stack en palabras (memoria)
       NULL,                        //  Entrada de parametros
       configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
-      NULL,                        //  Manejador de la tarea
+      &Status_WIFI,                        //  Manejador de la tarea
       0);                          //  Core donde se ejecutara la tarea
+      vTaskSuspend(Status_WIFI);
+      
 
   xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_Servidor_TCP,
@@ -46,8 +50,10 @@ void Init_Wifi()
       5000,
       NULL,
       configMAX_PRIORITIES - 20,
-      NULL,
+      &Status_SERVER_TCP,
       0); // Core donde se ejecutara la tarea
+      vTaskSuspend(Status_SERVER_TCP);
+      
 
   xTaskCreatePinnedToCore(
       Task_Verifica_Mensajes_Servidor_TCP,
@@ -80,7 +86,7 @@ void CONNECT_WIFI(void)
   // size_t dir_sn_mask = NVS.getBytesLength("Dir_SN_MASK");
   // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
   //-----------------------------------------------------------------------------------------------------------
-  WiFi.mode(WIFI_MODE_APSTA); // MODO STA.
+  WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -116,11 +122,13 @@ void CONNECT_WIFI(void)
     Serial.println(WiFi.localIP());
     Serial.print("ESP Mac Address: ");
     Serial.println(WiFi.macAddress());
+    digitalWrite(WIFI_Status,HIGH);
   }
   else
   {
     Serial.print("\nNo se puede conectar a... ");
     Serial.println(SSID_Wifi);
+    digitalWrite(WIFI_Status,LOW);
   }
 }
 
@@ -168,6 +176,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.println(WiFi.localIP());
         Serial.print("ESP Mac Address: ");
         Serial.println(WiFi.macAddress());
+        
       }
     }
   }
@@ -248,6 +257,7 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
         Serial.println(serverIP);
         Serial.print("Conectado a Server PORT: ");
         Serial.println(serverPort);
+        
       }
     }
     else

@@ -16,17 +16,11 @@ unsigned long count=0;
 #include <WiFi.h>
 #include <WiFiClient.h>
 //------------------------------------------------------------------------------------------------------
-
-//-------------------------------------------> Hardware SPI <-------------------------------------------
-#define MOSI 23             
-#define MISO 19
-#define CLK  18
-//------------------------------------------------------------------------------------------------------
-
 //--------------------------------------------> Objetos <-----------------------------------------------
-Sd2Card card;               //  Memoria SD.
+
 File myFile;                //  Manejo de Archivos.
 File file;                  //  Manejo de Archivos.
+Sd2Card card;               //  Memoria SD.
 TaskHandle_t SD_CHECK;      //  Manejador de tareas
 FtpServer ftpSrv;           //  Objeto servidor FTP
 TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
@@ -51,6 +45,7 @@ void Init_SD(void)
       5,                         //  Prioridad de la tarea.
       &SD_CHECK,                 //  Manejador de la tarea.
       1);                        //  Core donde se ejecutara.
+    
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------------> Inicializa Servidor FTP <------------------------------------
@@ -64,7 +59,7 @@ void Init_FTP_SERVER()
       configMAX_PRIORITIES - 10,  //  Prioridad de la tarea.
       &Ftp_SERVER,                //  Manejador de la tarea.
       0);                         //  Core donde se ejecutara.
-    vTaskSuspend(Ftp_SERVER);     //  Crea y Pausa Tarea Ftp_SERVER.
+    vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
@@ -93,40 +88,42 @@ static void Rum_FTP_SERVER(void *parameter)
     {
       Conteo = 0;
     }
-    ftpSrv.handleFTP(); // make sure in loop you call handleFTP()!!
+    ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
     vTaskDelay(10);
   }
   vTaskDelete(NULL);
 }
+
+
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea para Verifcar Conexión de SD <--------------------------
 static void Task_Verifica_Conexion_SD(void *parameter)
 {
-  int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
+  Serial.println("Verificador de Memoria SD Activado");
+  int Intento_Connect_SD = 0;                 // Variable Contadora de Intentos de Conexión SD.
   for (;;)
   {
-    if (!card.init(SPI_FULL_SPEED)) // SD Desconectada...
+    if (!card.init(SPI_FULL_SPEED))           // SD Desconectada...
     {
       Serial.println("Memoria SD Desconectada..");
-      digitalWrite(SD_Status, LOW); // Apaga  Indicador LED SD Status.
-      Enable_Status = false;
-      // SD.begin(SD_ChipSelect); // Intenta Conectar.
-      card.init(SPI_FULL_SPEED);            // Intenta Conectar Despues de Fallo.
-      Serial.print("Fallo en Conexión SD"); // Mensaje de Fallo.
-      Serial.print(" Intento #: ");
-      Serial.println(Intento_Connect_SD); // Imprime conteo de Fallos.
-      Intento_Connect_SD++;               // Aaumento de Contador.
+      digitalWrite(SD_Status, LOW);           // Apaga  Indicador LED SD Status.
+      Enable_Status = false;                  // Desactiva Parpadeo de LED SD Status en Modo FTP Server
+      card.init(SPI_FULL_SPEED);              // Intenta Conectar Despues de Fallo.
+      Serial.print("Fallo en Conexión SD");   // Mensaje de Fallo.
+      Serial.print(" Intento #: ");           // Mensaje de Fallo.
+      Serial.println(Intento_Connect_SD);     // Imprime conteo de Fallos.
+      Intento_Connect_SD++;                   // Aaumento de Contador.
     }
     else // SD OK
     {
       Intento_Connect_SD = 0;        // Reset Contador de Fallos.
       Serial.println("SD OK");       // Mensaje de Conexión SD.
       digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
-      Enable_Status = true;
+      Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
     }
     vTaskDelay(10000); // Pausa Tarea 10000ms
   }
-  vTaskDelete(NULL);
+  vTaskDelete(NULL); // Elimina  Tarea.
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------> Función Para Crear Archivos Txt sin Formato <---------------------------------

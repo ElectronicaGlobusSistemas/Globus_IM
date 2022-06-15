@@ -17,8 +17,8 @@ TaskHandle_t RecepcionRS232, Encuestas;
 #define POLL 0x81
 #define DIR 0x01
 
-#define U2RXD 17
-#define U2TXD 16
+#define U2RXD 16
+#define U2TXD 17
 
 uint8_t rxbuf[255];   // Buffer di ricezione
 uint16_t rx_fifo_len; // Lunghezza dati
