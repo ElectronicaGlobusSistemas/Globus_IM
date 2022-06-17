@@ -79,10 +79,10 @@ bool Buffers::Verifica_buffer_Maq(char buffer[], int len)
 }
 
 /**********************************************************************************/
-/*                  BUFFER DE RECEPCION DE DATOS SERVIDOR                         */
+/*                BUFFER DE RECEPCION DE DATOS SERVIDOR TCP                       */
 /**********************************************************************************/
 
-bool Buffers::Set_buffer_recepcion(String buffer)
+bool Buffers::Set_buffer_recepcion_TCP(String buffer)
 {
     if (Metodo_CRC.Verifica_CRC_Wifi(buffer))
     {
@@ -105,6 +105,24 @@ bool Buffers::Set_buffer_recepcion_desencriptado(String buffer)
 char *Buffers::Get_buffer_recepcion(void)
 {
     return buffer_recepcion;
+}
+
+/**********************************************************************************/
+/*                BUFFER DE RECEPCION DE DATOS SERVIDOR UDP                       */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_recepcion_UDP(char buffer[])
+{
+    if (Metodo_CRC.Verifica_CRC_Wifi(buffer))
+    {
+        if (Set_buffer_recepcion_desencriptado(buffer))
+        {
+            return true;
+        }
+        return false;
+    }
+    memcpy(buffer_recepcion, buffer, 258);
+    return false;
 }
 
 /**********************************************************************************/
@@ -905,14 +923,14 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 
     memcpy(res, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
-    Serial.println(res[0], HEX);
+//    Serial.println(res[0], HEX);
 
     String string_dato = String(res[0], HEX);
 
     (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
     (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
 
-    Serial.println(res[1], HEX);
+//    Serial.println(res[1], HEX);
 
     String string_dato1 = String(res[1], HEX);
 

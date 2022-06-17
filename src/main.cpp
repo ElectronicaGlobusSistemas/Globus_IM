@@ -15,6 +15,9 @@ ESP32Time RTC; // Objeto contiene hora y fecha
 #include "Buffers.h"
 Buffers Buffer; // Objeto de buffer de mensajes servidor
 
+#include "Clase_Variables_Globales.h"
+Variables_Globales Variables_globales;
+
 //#include "Contadores.h"
 Contadores_SAS contadores; // Objeto contiene contadores maquina
 
@@ -31,26 +34,16 @@ Eventos_SAS eventos; // Objeto contiene eventos maquina
 unsigned long tiempo_inicial, tiempo_final = 0;
 int bandera2 = 0;
 
-/* Variables globales */
-bool flag_dato_valido_recibido = false;
-bool flag_dato_no_valido_recibido = false;
-bool flag_serie_trama_contadores = false;
-bool flag_sincronizacion_RTC = false;
-
 
 void setup()
 {
   Init_Config();
 
   pinMode(2, OUTPUT);
-
-  
 }
-
 
 void loop()
 {
-  
 
   tiempo_inicial = millis();
 
@@ -86,7 +79,7 @@ void loop()
 
 void loop2(void *parameter)
 {
- // vTaskSuspend(Task1);
+  // vTaskSuspend(Task1);
   for (;;)
   {
     digitalWrite(2, HIGH); // turn the LED on (HIGH is the voltage level)

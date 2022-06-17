@@ -65,6 +65,21 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, String dato)
     }
 }
 
+bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, bool state)
+{
+    switch (expression)
+    {
+    case 9:
+        Tipo_Conexion_ = state;
+        return true;
+        break;
+
+    default:
+        return false;
+        break;
+    }
+}
+
 char *Configuracion_ESP32::Get_Configuracion(int expression, char)
 {
     switch (expression)
@@ -118,6 +133,20 @@ String Configuracion_ESP32::Get_Configuracion(int expression, String)
 
     default:
         return "Hola Mundo";
+        break;
+    }
+}
+
+bool Configuracion_ESP32::Get_Configuracion(int expression)
+{
+    switch (expression)
+    {
+    case 9:
+        return Tipo_Conexion_;
+        break;
+
+    default:
+        return NULL;
         break;
     }
 }

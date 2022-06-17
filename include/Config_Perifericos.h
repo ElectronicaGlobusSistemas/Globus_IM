@@ -10,9 +10,9 @@
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
-extern TaskHandle_t SD_CHECK;      //  Manejador de tareas
-extern Sd2Card card;               //  Memoria SD.
-extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
+extern TaskHandle_t SD_CHECK;   //  Manejador de tareas
+extern Sd2Card card;            //  Memoria SD.
+extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 extern TaskHandle_t Status_WIFI;
 extern TaskHandle_t Status_SERVER_TCP;
 extern TaskHandle_t Modo_Bootloader;
@@ -27,7 +27,6 @@ void Init_Indicadores_LED(void);
 void Init_Configuracion_Inicial(void);
 void TaskManager();
 static void RumTask(void *parameter);
-
 
 void Init_Config(void)
 {
@@ -44,28 +43,28 @@ void Init_Config(void)
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj <----------------------------
-    RTC.setTime(0, 12, 10,9 , 6, 2022);
+    RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
-   
+
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
-   
+
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
-    
+
     //--------------------> Config  WIFI <---------------------------
-    CONNECT_WIFI();       // Inicializa  Modulo WIFI
-    CONNECT_SERVER_TCP(); // Inicializa Servidor TCP
-    init_Comunicaciones();// Inicializa Tareas TCP
+    CONNECT_WIFI();        // Inicializa  Modulo WIFI
+    CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
+    init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
-    //TaskManager();
+    // TaskManager();
     //---------------------------------------------------------------
-   
-    Archivo_Format="25062022.csv"; // Crea Archivo Si no Existe.
-    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
+
+    Archivo_Format = "25062022.csv"; // Crea Archivo Si no Existe.
+    Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
     Init_Wifi();
     //---------------------------------------------------------------
     //--------------------> Run Tareas <-----------------------------
@@ -120,13 +119,13 @@ static void RumTask(void *parameter)
         {
             vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
-        if(!client.connected())
+        if(!clientTCP.connected())
         {
             vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
         }
         if (Bootloader_MODE == true && WiFi.status() == WL_CONNECTED)
         {
-            vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+            vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader.
         }
         delay(10);
         vTaskDelay(1000);
@@ -206,6 +205,15 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Guardando Password por defecto...");
         String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
+    }
+
+    if (!NVS.isKey("TYPE_CONNECT")) // Configura el tipo de conexion server
+    {
+        Serial.println("Guardando tipo de conexion por defecto UDP");
+        // Conexion UDP = false
+        // Conexion TCP = true
+        bool Conexion_Server = false;
+        NVS.putBool("TYPE_CONNECT", Conexion_Server);
     }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -294,13 +302,22 @@ void Init_Configuracion_Inicial(void)
     Serial.println(Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq"));
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
-    // Inicializa NRed Wifi y Password
+    // Inicializa Red Wifi y Password
     String ssid = NVS.getString("SSID_DESA");
     Configuracion.Set_Configuracion_ESP32(SSID, ssid);
     String password = NVS.getString("PASS_DESA");
     Configuracion.Set_Configuracion_ESP32(Password, password);
     Serial.print("Conecta a Red: ");
     Serial.println(Configuracion.Get_Configuracion(SSID, "Nombre_Red"));
+    /*--------------------------------------------------------------------------------------------------------------------------*/
+
+    // Inicializa Tipo de conexion Servidor UDP o TCP
+    bool Conexion_Server = NVS.getBool("TYPE_CONNECT");
+    Configuracion.Set_Configuracion_ESP32(Tipo_Conexion, Conexion_Server);
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+        Serial.println("Tipo de conexion a servidor: TCP");
+    else
+        Serial.println("Tipo de conexion a servidor: UDP");
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     Serial.println("\n");

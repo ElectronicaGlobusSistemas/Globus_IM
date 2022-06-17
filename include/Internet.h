@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiUdp.h>
 
 #define WIFI_Status 15
 const int wifi_timeout = 10000;
@@ -6,9 +7,11 @@ const int wifi_timeout = 10000;
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
 
-WiFiClient client; // Declara un objeto cliente para conectarse al servidor
+WiFiClient clientTCP; // Declara un objeto cliente para conectarse al servidor
+WiFiUDP clientUDP;    // Declara un objeto para cliente UDP
 
 String buffer;
+char incomingPacket[258];
 
 char IP_Local[4];   // IP del ESP32
 char IP_GW[4];      // IP de enlace
@@ -19,15 +22,13 @@ IPAddress serverIP; // Objeto IP Servidor
 uint16_t serverPort;  // Puerto del servidor
 String SSID_Wifi;     // Nombre de red
 String Password_Wifi; // Contraseña de la red
-TaskHandle_t Status_WIFI;
-TaskHandle_t Status_SERVER_TCP;
 
-extern bool flag_dato_valido_recibido;
-extern bool flag_dato_no_valido_recibido;
+TaskHandle_t Status_WIFI;
+TaskHandle_t Status_SERVER;
 
 void Task_Verifica_Conexion_Wifi(void *parameter);
-void Task_Verifica_Conexion_Servidor_TCP(void *parameter);
-void Task_Verifica_Mensajes_Servidor_TCP(void *parameter);
+void Task_Verifica_Conexion_Servidor(void *parameter);
+void Task_Verifica_Mensajes_Servidor(void *parameter);
 
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
@@ -39,24 +40,22 @@ void Init_Wifi()
       10000,                       //  Tamaño de stack en palabras (memoria)
       NULL,                        //  Entrada de parametros
       configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
-      &Status_WIFI,                        //  Manejador de la tarea
+      &Status_WIFI,                //  Manejador de la tarea
       0);                          //  Core donde se ejecutara la tarea
-    //  vTaskSuspend(Status_WIFI);
-      
+  //  vTaskSuspend(Status_WIFI);
 
   xTaskCreatePinnedToCore(
-      Task_Verifica_Conexion_Servidor_TCP,
+      Task_Verifica_Conexion_Servidor,
       "Verifica conexion server",
       5000,
       NULL,
       configMAX_PRIORITIES - 20,
-      &Status_SERVER_TCP,
+      &Status_SERVER,
       0); // Core donde se ejecutara la tarea
-     // vTaskSuspend(Status_SERVER_TCP);
-      
+  //    // vTaskSuspend(Status_SERVER);
 
   xTaskCreatePinnedToCore(
-      Task_Verifica_Mensajes_Servidor_TCP,
+      Task_Verifica_Mensajes_Servidor,
       "Verifica mensajes server",
       5000,
       NULL,
@@ -122,13 +121,13 @@ void CONNECT_WIFI(void)
     Serial.println(WiFi.localIP());
     Serial.print("ESP Mac Address: ");
     Serial.println(WiFi.macAddress());
-    digitalWrite(WIFI_Status,HIGH);
+    digitalWrite(WIFI_Status, HIGH);
   }
   else
   {
     Serial.print("\nNo se puede conectar a... ");
     Serial.println(SSID_Wifi);
-    digitalWrite(WIFI_Status,LOW);
+    digitalWrite(WIFI_Status, LOW);
   }
 }
 
@@ -176,7 +175,6 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.println(WiFi.localIP());
         Serial.print("ESP Mac Address: ");
         Serial.println(WiFi.macAddress());
-        
       }
     }
   }
@@ -199,19 +197,27 @@ void CONNECT_SERVER_TCP(void)
     serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
     // serverPort = NVS.getUInt("Socket", 0);
 
-    Serial.println("\nConectando al servidor TCP...");
-    if (client.connect(serverIP, serverPort)) // Intenta acceder a la dirección de destino
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
-      Serial.println("Conexion exitosa");
-      Serial.print("Conectado a Server IP: ");
-      Serial.println(serverIP);
-      Serial.print("Conectado a Server PORT: ");
-      Serial.println(serverPort);
+      Serial.println("\nConectando al servidor TCP...");
+      if (clientTCP.connect(serverIP, serverPort)) // Intenta acceder a la dirección de destino
+      {
+        Serial.println("Conexion exitosa");
+        Serial.print("Conectado a Server IP: ");
+        Serial.println(serverIP);
+        Serial.print("Conectado a Server PORT: ");
+        Serial.println(serverPort);
+      }
+      else
+      {
+        Serial.println("Acceso denegado");
+        clientTCP.stop(); // Cerrar el cliente
+      }
     }
     else
     {
-      Serial.println("Acceso denegado");
-      client.stop(); // Cerrar el cliente
+      clientUDP.begin(serverPort);
+      Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
     }
   }
 }
@@ -219,51 +225,57 @@ void CONNECT_SERVER_TCP(void)
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
 
-void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
+void Task_Verifica_Conexion_Servidor(void *parameter)
 {
   for (;;)
   {
-    if (WiFi.isConnected())
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
-      if (client.connected())
+      if (WiFi.isConnected())
       {
-        Serial.println("Servidor conectado");
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
-        continue;
-      }
+        if (clientTCP.connected())
+        {
+          Serial.println("Servidor conectado");
+          vTaskDelay(10000 / portTICK_PERIOD_MS);
+          continue;
+        }
 
-      Serial.println("Conectando al servidor TCP...");
+        Serial.println("Conectando al servidor TCP...");
 
-      // Obtiene direccion IP Servidor guardada en Objeto configuracion
-      memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
-      IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
- 
-      // Obtiene Numero de puerto guardada en Objeto configuracion
-      serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+        // Obtiene direccion IP Servidor guardada en Objeto configuracion
+        memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+        IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
 
-      client.connect(serverIP, serverPort);
+        // Obtiene Numero de puerto guardada en Objeto configuracion
+        serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
 
-      if (!client.connected())
-      {
-        Serial.println("Acceso denegado");
-        client.stop(); // Cerrar el cliente
-        vTaskDelay(20000 / portTICK_PERIOD_MS);
-        continue;
+        clientTCP.connect(serverIP, serverPort);
+
+        if (!clientTCP.connected())
+        {
+          Serial.println("Acceso denegado");
+          clientTCP.stop(); // Cerrar el cliente
+          vTaskDelay(20000 / portTICK_PERIOD_MS);
+          continue;
+        }
+        else
+        {
+          Serial.println("Conexion exitosa");
+          Serial.print("Conectado a Server IP: ");
+          Serial.println(serverIP);
+          Serial.print("Conectado a Server PORT: ");
+          Serial.println(serverPort);
+        }
       }
       else
       {
-        Serial.println("Conexion exitosa");
-        Serial.print("Conectado a Server IP: ");
-        Serial.println(serverIP);
-        Serial.print("Conectado a Server PORT: ");
-        Serial.println(serverPort);
-        
+        vTaskDelay(20000 / portTICK_PERIOD_MS);
+        continue;
       }
     }
     else
     {
-      vTaskDelay(20000 / portTICK_PERIOD_MS);
-      continue;
+      vTaskSuspend(Status_SERVER);
     }
   }
 }
@@ -274,38 +286,76 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
 void DISCONNECT_SERVER_TCP(void)
 {
   Serial.println("Cerrar la conexión actual");
-  client.stop(); // Cerrar el cliente
+  clientTCP.stop(); // Cerrar el cliente
 }
 
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
 
-void Task_Verifica_Mensajes_Servidor_TCP(void *parameter)
+void Task_Verifica_Mensajes_Servidor(void *parameter)
 {
   for (;;)
   {
-    if (client.available())
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
-      buffer = client.readStringUntil('\n'); // Leer datos a nueva línea
-      Serial.println("Dato entrante...");
-
-      if (Buffer.Set_buffer_recepcion(buffer))
+      // Mensajes Servidor TCP
+      if (clientTCP.available())
       {
-        Serial.println("CRC de datos entrante OK");
-        flag_dato_valido_recibido = true;
+        buffer = clientTCP.readStringUntil('\n'); // Leer datos a nueva línea
+        Serial.println("Dato entrante...");
+
+        if (Buffer.Set_buffer_recepcion_TCP(buffer))
+        {
+          Serial.println("CRC de datos entrante OK");
+          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+        }
+        else
+        {
+          Serial.println("CRC de datos entrante ERROR");
+          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+        }
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        continue;
       }
       else
       {
-        Serial.println("CRC de datos entrante ERROR");
-        flag_dato_no_valido_recibido = true;
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        continue;
       }
-      vTaskDelay(50 / portTICK_PERIOD_MS);
-      continue;
     }
     else
     {
-      vTaskDelay(50 / portTICK_PERIOD_MS);
-      continue;
+      // Mensajes Servidor UDP
+      int packetSize = clientUDP.parsePacket();
+      if (packetSize)
+      {
+        // receive incoming UDP packets
+        Serial.printf("Received %d bytes from %s, port %d\n", packetSize, clientUDP.remoteIP().toString().c_str(), clientUDP.remotePort());
+        int len = clientUDP.read(incomingPacket, 258);
+        if (len > 0)
+        {
+          incomingPacket[len] = 0;
+        }
+        //        Serial.printf("UDP packet contents: %s\n", incomingPacket);
+
+        if (Buffer.Set_buffer_recepcion_UDP(incomingPacket))
+        {
+          Serial.println("CRC de datos entrante OK");
+          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+        }
+        else
+        {
+          Serial.println("CRC de datos entrante ERROR");
+          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+        }
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        continue;
+      }
+      else
+      {
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        continue;
+      }
     }
   }
 }

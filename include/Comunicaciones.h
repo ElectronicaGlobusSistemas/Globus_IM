@@ -23,9 +23,6 @@ int Contador_Coin_In_Ant = 0;
 int Contador_Coin_In_Act = 0;
 bool flag_maquina_en_juego = false;
 
-extern bool flag_sincronizacion_RTC;
-extern bool flag_serie_trama_contadores;
-extern bool flag_evento_valido_recibido;
 extern bool flag_ultimo_contador_Ok;
 
 void Task_Procesa_Comandos(void *parameter);
@@ -62,9 +59,21 @@ void Transmite_A_Servidor(char buffer[], int len)
 {
     Serial.print("Tamaño a enviar: ");
     Serial.println(len);
-    Serial.println("buffer enviado: ");
-    Serial.println(buffer);
-    int length_ = client.write(buffer, len);
+    //    Serial.println("buffer enviado: ");
+    //    Serial.println(buffer);
+    int length_ = 0;
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+        length_ = clientTCP.write(buffer, len);
+    else
+    {
+        memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+        IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+        uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+
+        clientUDP.beginPacket(serverIP, serverPort);
+        length_ = clientUDP.write((const uint8_t *)buffer, len);
+        clientUDP.endPacket();
+    }
     Serial.print("Bytes enviados: ");
     Serial.println(length_);
     Serial.println("--------------------------------------------------------------------");
@@ -84,14 +93,6 @@ void Transmite_Confirmacion(char High, char Low)
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
         Transmite_A_Servidor(res, len);
-        // Serial.print("Tamaño a enviar: ");
-        // Serial.println(len);
-        // Serial.println("buffer enviado: ");
-        // Serial.println(res);
-        // int length_ = client.write(res, len);
-        // Serial.print("Bytes enviados: ");
-        // Serial.println(length_);
-        // Serial.println("--------------------------------------------------------------------");
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -105,7 +106,7 @@ void Transmite_Contadores_Accounting(void)
 {
     if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC))
     {
-        if (flag_serie_trama_contadores)
+        if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
         {
             contadores.Incrementa_Serie_Trama();
         }
@@ -114,14 +115,7 @@ void Transmite_Contadores_Accounting(void)
         memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -140,14 +134,7 @@ void Transmite_Contadores_Cashless(void)
         memcpy(res, Buffer.Get_buffer_contadores_CASH(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -166,14 +153,7 @@ void Transmite_Billetes(void)
         memcpy(res, Buffer.Get_buffer_billetes(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -212,14 +192,7 @@ void Transmite_ID_Maquina(void)
         memcpy(res, Buffer.Get_buffer_id_maq(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -238,14 +211,7 @@ void Transmite_Eventos(void)
         memcpy(res, Buffer.Get_buffer_eventos(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -264,14 +230,7 @@ void Transmite_ROM_Signature(void)
         memcpy(res, Buffer.Get_buffer_ROM_Singnature(), 258);
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
         Serial.println("Set buffer general ERROR");
@@ -298,8 +257,17 @@ void Transmite_Eco_Broadcast(void)
 
     // Socket de conexion
     Serial.print("Socket: ");
-    Serial.println(client.remotePort());
-    string socket = std::to_string(client.remotePort());
+    string socket;
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+    {
+        Serial.println(clientTCP.remotePort());
+        socket = std::to_string(clientTCP.remotePort());
+    }
+    else
+    {
+        Serial.println(clientUDP.remotePort());
+        socket = std::to_string(clientUDP.remotePort());
+    }
 
     // Mascara subred ESP32
     Serial.print("Mascara Subred: ");
@@ -473,14 +441,8 @@ void Transmite_Eco_Broadcast(void)
 
     Serial.println("Set buffer general OK");
     int len = sizeof(res);
-    Serial.print("Tamaño a enviar: ");
-    Serial.println(len);
-    Serial.println("buffer enviado: ");
-    Serial.println(res);
-    int length_ = client.write(res, len);
-    Serial.print("Bytes enviados: ");
-    Serial.println(length_);
-    Serial.println("--------------------------------------------------------------------");
+    Transmite_A_Servidor(res, len);
+    ;
 }
 
 /*****************************************************************************************/
@@ -515,14 +477,7 @@ void Guarda_Configuracion_ESP32(void)
 
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = client.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
     }
     else
     {
@@ -550,7 +505,7 @@ void Guarda_Configuracion_ESP32(void)
         Serial.println(len);
         Serial.println("buffer enviado: ");
         Serial.println(res);
-        int length_ = client.write(res, len);
+        int length_ = clientTCP.write(res, len);
         Serial.print("Bytes enviados: ");
         Serial.println(length_);
         Serial.println("--------------------------------------------------------------------");
@@ -568,8 +523,8 @@ void Guarda_Configuracion_ESP32(void)
 
     //     // Socket de conexion
     //     Serial.print("Socket: ");
-    //     Serial.println(client.remotePort());
-    //     string socket = std::to_string(client.remotePort());
+    //     Serial.println(clientTCP.remotePort());
+    //     string socket = std::to_string(clientTCP.remotePort());
 
     //     // Mascara subred ESP32
     //     Serial.print("Mascara Subred: ");
@@ -747,7 +702,7 @@ void Guarda_Configuracion_ESP32(void)
     //     Serial.println(len);
     //     Serial.println("buffer enviado: ");
     //     Serial.println(res);
-    //     int length_ = client.write(res, len);
+    //     int length_ = clientTCP.write(res, len);
     //     Serial.print("Bytes enviados: ");
     //     Serial.println(length_);
     //     Serial.println("--------------------------------------------------------------------");
@@ -785,9 +740,10 @@ void Task_Procesa_Comandos(void *parameter)
 {
     for (;;)
     {
-        if (flag_dato_valido_recibido)
+        if (Variables_globales.Get_Variable_Global(Dato_Entrante_Valido))
         {
-            flag_dato_valido_recibido = false;
+            Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, false);
+            //            flag_dato_valido_recibido = false;
 
             char res[258] = {};
             bzero(res, 258); // Pone el buffer en 0
@@ -797,7 +753,7 @@ void Task_Procesa_Comandos(void *parameter)
             {
             case 3:
                 Serial.println("Solicitud de contadores SAS");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_Contadores_Accounting();
                 else
                     Transmite_Confirmacion('A', '0');
@@ -805,7 +761,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 4:
                 Serial.println("Solicitud de billetes SAS");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_Billetes();
                 else
                     Transmite_Confirmacion('A', '0');
@@ -819,7 +775,7 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Sincroniza reloj RTC");
                 if (Sincroniza_Reloj_RTC(res))
                 {
-                    flag_sincronizacion_RTC = true;
+                    Variables_globales.Set_Variable_Global(Sincronizacion_RTC, true);
                     Transmite_Confirmacion('A', '4');
                 }
                 else
@@ -828,7 +784,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 11:
                 Serial.println("Solicitud de informacion MAQ");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_ID_Maquina();
                 else
                     Transmite_Confirmacion('A', '0');
@@ -836,7 +792,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 12:
                 Serial.println("Solicitud de ROM Signature Maq");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_ROM_Signature();
                 else
                     Transmite_Confirmacion('A', '0');
@@ -849,7 +805,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 15:
                 Serial.println("Solicitud de inactivar maquina");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
                     if (Inactiva_Maquina())
                         Transmite_Confirmacion('A', 'B');
@@ -862,7 +818,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 18:
                 Serial.println("Solicitud de activar maquina");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
                     if (Activa_Maquina())
                         Transmite_Confirmacion('A', '9');
@@ -879,11 +835,11 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 190:
                 Serial.println("Serializa trama de contadores");
-                if (!flag_serie_trama_contadores)
+                if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
                 {
                     if (contadores.Incrementa_Serie_Trama())
                     {
-                        flag_serie_trama_contadores = true;
+                        Variables_globales.Set_Variable_Global(Serializacion_Serie_Trama, true);
                         Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
                     }
                 }
@@ -893,7 +849,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 308:
                 Serial.println("Solicitud de contadores Cashless");
-                if (flag_comunicacion_maquina_Ok)
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_Contadores_Cashless();
                 else
                     Transmite_Confirmacion('A', '0');
@@ -910,9 +866,9 @@ void Task_Procesa_Comandos(void *parameter)
             }
             Serial.println("--------------------------------------------------------------------------");
         }
-        else if (flag_dato_no_valido_recibido)
+        else if (Variables_globales.Get_Variable_Global(Dato_Entrante_No_Valido))
         {
-            flag_dato_no_valido_recibido = false;
+            Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, false);
 
             char res[258] = {};
             bzero(res, 258); // Pone el buffer en 0
@@ -945,10 +901,10 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println();
             }
         }
-        else if (flag_evento_valido_recibido)
+        else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
         {
             Transmite_Eventos();
-            flag_evento_valido_recibido = false;
+            Variables_globales.Set_Variable_Global(Dato_Evento_Valido, false);
 
             char evento = eventos.Get_evento();
             Serial.print("Evento enviado....... ");
@@ -986,7 +942,7 @@ void Task_Maneja_Transmision(void *parameter)
 
 void Verifica_Cambio_Contadores(void)
 {
-    if (flag_ultimo_contador_Ok && flag_comunicacion_maquina_Ok)
+    if (flag_ultimo_contador_Ok && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
         // DETECTA CAMBIO COIN IN - MAQUINA EN JUEGO
         Contador_Coin_In_Act = contadores.Get_Contadores_Int(Coin_In);
@@ -1025,17 +981,17 @@ void Transmite_Configuracion(void)
     switch (Contador_Transmision)
     {
     case 10:
-        if (!flag_sincronizacion_RTC)
+        if (!Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
             Transmite_Confirmacion('A', '3');
         break;
 
     case 20:
-        if (!flag_comunicacion_maquina_Ok)
+        if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
             Transmite_Confirmacion('A', '0');
         break;
 
     case 30:
-        if (!flag_serie_trama_contadores)
+        if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
         {
             Transmite_Confirmacion('B', 'C');
             Contador_Transmision = 0;
@@ -1048,7 +1004,7 @@ void Transmision_Controlada_Contadores(void)
 {
     Contador_Transmision_Contadores++;
 
-    if (flag_comunicacion_maquina_Ok) // Si hay comunicacion con la maquina...
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq)) // Si hay comunicacion con la maquina...
     {
         // Si la maquina NO esta en juego, transmite cada 2 minutos, si el valor es 120
         if (!flag_maquina_en_juego && !flag_premio_pagado_cashout && !flag_billete_insertado)
