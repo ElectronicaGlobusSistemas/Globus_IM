@@ -154,7 +154,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 152};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
@@ -214,6 +214,20 @@ void Init_Configuracion_Inicial(void)
         // Conexion TCP = true
         bool Conexion_Server = false;
         NVS.putBool("TYPE_CONNECT", Conexion_Server);
+    }
+
+    if (!NVS.isKey("TYPE_MAQ"))
+    {
+        Serial.println("Guardando tipo de maquina");
+        // 0 = Por defecto,
+        // 1 = Cashless AFT (Contadores en creditos)
+        // 2 = Cashless EFT
+        // 3 = Cashless AFT Single (contadores netos)
+        // 4 = IRT
+        // 5 = Generica (Encuesta simple)
+        // 6 = Poker
+        uint16_t tipo_maq = 5;
+        NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -318,6 +332,38 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Tipo de conexion a servidor: TCP");
     else
         Serial.println("Tipo de conexion a servidor: UDP");
+    /*--------------------------------------------------------------------------------------------------------------------------*/
+
+    // Inicializa configuracion tipo de maquina
+    uint16_t tipo_maq = NVS.getUInt("TYPE_MAQ", 0);
+    Configuracion.Set_Configuracion_ESP32(Tipo_Maquina, tipo_maq);
+    Serial.print("Configuracion tipo de maquina: ");
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        Serial.println("Defecto");
+        break;
+    case 1:
+        Serial.println("Cashless AFT");
+        break;
+    case 2:
+        Serial.println("Cashless EFT");
+        break;
+    case 3:
+        Serial.println("Cashless AFT Single");
+        break;
+    case 4:
+        Serial.println("IRT");
+        break;
+    case 5:
+        Serial.println("Generica");
+        break;
+    case 6:
+        Serial.println("Poker");
+        break;
+    default:
+        break;
+    }
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     Serial.println("\n");

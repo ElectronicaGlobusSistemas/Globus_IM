@@ -35,6 +35,10 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, uint16_t dato)
         Puerto_Server_ = dato;
         return true;
         break;
+    case 10:
+        Tipo_Maquina_ = dato;
+        return true;
+        break;
 
     default:
         return false;
@@ -109,6 +113,9 @@ uint16_t Configuracion_ESP32::Get_Configuracion(int expression, int)
     {
     case 5:
         return Puerto_Server_;
+        break;
+    case 10:
+        return Tipo_Maquina_;
         break;
 
     default:

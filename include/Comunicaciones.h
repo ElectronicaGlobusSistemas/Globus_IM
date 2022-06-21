@@ -176,7 +176,13 @@ bool Sincroniza_Reloj_RTC(char res[])
     year = year + 2000;
 
     RTC.setTime(seconds, minutes, hour, day, month, year);
-    return true;
+    if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
+    {
+        Serial.println("RTC sincronizado con exito!");
+        return true;
+    }
+    else
+        return false;
 }
 
 /*****************************************************************************************/
@@ -234,6 +240,37 @@ void Transmite_ROM_Signature(void)
     }
     else
         Serial.println("Set buffer general ERROR");
+}
+
+/*****************************************************************************************/
+/******************************* TRANSMITE ROM SIGNATURE *********************************/
+/*****************************************************************************************/
+
+bool Configura_Tipo_Maquina(char res[])
+{
+    uint16_t ID_Maq = Configuracion.Get_Configuracion(Tipo_Maquina, 0);
+    uint16_t ID_Maq_Server = res[4] - 48;
+
+    if (ID_Maq != ID_Maq_Server)
+    {
+        Serial.println("Tipo de maquina diferente");
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TYPE_MAQ", ID_Maq_Server);
+        uint16_t tipo_maq = NVS.getUInt("TYPE_MAQ", 0);
+        NVS.end();
+        if (tipo_maq == ID_Maq_Server)
+        {
+            Configuracion.Set_Configuracion_ESP32(Tipo_Maquina, tipo_maq);
+            return true;
+        }
+        else
+            return false;
+    }
+    else
+    {
+        Serial.println("Tipo de maquina igual");
+        return true;
+    }
 }
 
 /*****************************************************************************************/
@@ -458,12 +495,14 @@ void Guarda_Configuracion_ESP32(void)
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
 
-    if (req[97] != 0x0A || req[98] != 0x0D)
+    bool cambios = false;
+
+    if (req[91] != 0x0A || req[92] != 0x0D)
     {
         Serial.println();
         Serial.println("Error de Set All...");
-        Serial.println(req[97], HEX);
-        Serial.println(req[98], HEX);
+        Serial.println(req[91], HEX);
+        Serial.println(req[92], HEX);
         res[0] = 'E';
         res[1] = '0';
         res[2] = '0';
@@ -481,7 +520,281 @@ void Guarda_Configuracion_ESP32(void)
     }
     else
     {
-        Serial.println("ESet all Ok...");
+        int j = 0;
+        bool diferencia = false;
+
+        Serial.println();
+        Serial.println("Set all Ok...");
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica Puerto de conexion
+        for (int i = 21; i < 26; i++)
+        {
+            Serial.print(req[i]);
+        }
+        Serial.println();
+        uint16_t puerto = Configuracion.Get_Configuracion(Puerto_Server, 0);
+        uint16_t puerto_server;
+        puerto_server = ((int)req[22] - 48) * 1000;
+        puerto_server += ((int)req[23] - 48) * 100;
+        puerto_server += ((int)req[24] - 48) * 10;
+        puerto_server += ((int)req[25] - 48);
+
+        if (puerto != puerto_server)
+        {
+            NVS.begin("Config_ESP32", false);
+            Serial.println("Si hay diferencias en Puerto de conexion...");
+            NVS.putUInt("Socket", puerto_server);
+            uint16_t port_server = NVS.getUInt("Socket", 0);
+            Configuracion.Set_Configuracion_ESP32(Puerto_Server, port_server);
+            cambios = true;
+            NVS.end();
+        }
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica direccion IP Local
+        for (int i = 27; i < 42; i++)
+        {
+            Serial.print(req[i]);
+        }
+        Serial.println();
+        char IP[4];
+        bzero(IP, 4);
+        memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
+        char dir_ip[12] = {};
+        char dir_ip_server[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP[i];
+            dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            dir_ip[j] = (resultado % 10) + '0';
+            j++;
+        }
+        j = 0;
+        for (int i = 27; i < 42; i++)
+        {
+            if (req[i] != '.')
+            {
+                dir_ip_server[j] = req[i];
+                j++;
+            }
+        }
+        for (int i = 0; i < 12; i++)
+        {
+            if (dir_ip[i] != dir_ip_server[i])
+                diferencia = true;
+        }
+        if (diferencia)
+        {
+            NVS.begin("Config_ESP32", false);
+            Serial.println("Si hay diferencias en IP...");
+            uint8_t ip[4] = {};
+            j = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                int numero = (dir_ip_server[j] - 48);
+                int octeto = numero * 100;
+                j++;
+                numero = (dir_ip_server[j] - 48);
+                octeto += (numero * 10);
+                j++;
+                numero = (dir_ip_server[j] - 48);
+                octeto += numero;
+                j++;
+                ip[i] = octeto;
+            }
+            if (NVS.putBytes("Dir_IP", ip, sizeof(ip)) == 4)
+            {
+                size_t ip_len = NVS.getBytesLength("Dir_IP");
+                char IP[ip_len];
+                NVS.getBytes("Dir_IP", IP, ip_len);
+                Configuracion.Set_Configuracion_ESP32(Direccion_IP, IP);
+            }
+            NVS.end();
+            diferencia = false;
+            cambios = true;
+        }
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica MASK_SUBRED
+        for (int i = 43; i < 58; i++)
+        {
+            Serial.print(req[i]);
+        }
+        Serial.println();
+        char SN_MASK[4];
+        bzero(SN_MASK, 4);
+        memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+        char sn_mask[12] = {};
+        char sn_mask_server[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)SN_MASK[i];
+            sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            sn_mask[j] = (resultado % 10) + '0';
+            j++;
+        }
+        j = 0;
+        for (int i = 43; i < 58; i++)
+        {
+            if (req[i] != '.')
+            {
+                sn_mask_server[j] = req[i];
+                j++;
+            }
+        }
+        for (int i = 0; i < 12; i++)
+        {
+            if (sn_mask[i] != sn_mask_server[i])
+                diferencia = true;
+        }
+        if (diferencia)
+        {
+            NVS.begin("Config_ESP32", false);
+            Serial.println("Si hay diferencias en SN_MASK...");
+            uint8_t sn_mask[4] = {};
+            j = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                int numero = (sn_mask_server[j] - 48);
+                int octeto = numero * 100;
+                j++;
+                numero = (sn_mask_server[j] - 48);
+                octeto += (numero * 10);
+                j++;
+                numero = (sn_mask_server[j] - 48);
+                octeto += numero;
+                j++;
+                sn_mask[i] = octeto;
+            }
+            if (NVS.putBytes("Dir_SN_MASK", sn_mask, sizeof(sn_mask)) == 4)
+            {
+                size_t sn_mask_len = NVS.getBytesLength("Dir_SN_MASK");
+                char SN_MASK[sn_mask_len];
+                NVS.getBytes("Dir_SN_MASK", SN_MASK, sn_mask_len);
+                Configuracion.Set_Configuracion_ESP32(Direccion_SN_MASK, SN_MASK);
+            }
+            NVS.end();
+            diferencia = false;
+            cambios = true;
+        }
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica IP_GW
+        for (int i = 59; i < 74; i++)
+        {
+            Serial.print(req[i]);
+        }
+        Serial.println();
+        char IP_GW[4];
+        bzero(IP_GW, 4);
+        memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+        char ip_gw[12] = {};
+        char ip_gw_server[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP_GW[i];
+            ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            ip_gw[j] = (resultado % 10) + '0';
+            j++;
+        }
+        j = 0;
+        for (int i = 59; i < 74; i++)
+        {
+            if (req[i] != '.')
+            {
+                ip_gw_server[j] = req[i];
+                j++;
+            }
+        }
+        for (int i = 0; i < 12; i++)
+        {
+            if (ip_gw[i] != ip_gw_server[i])
+                diferencia = true;
+        }
+        if (diferencia)
+        {
+            NVS.begin("Config_ESP32", false);
+            Serial.println("Si hay diferencias en IP_Enlace...");
+            uint8_t ip_gw[4] = {};
+            j = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                int numero = (ip_gw_server[j] - 48);
+                int octeto = numero * 100;
+                j++;
+                numero = (ip_gw_server[j] - 48);
+                octeto += (numero * 10);
+                j++;
+                numero = (ip_gw_server[j] - 48);
+                octeto += numero;
+                j++;
+                ip_gw[i] = octeto;
+            }
+            if (NVS.putBytes("Dir_IP_GW", ip_gw, sizeof(ip_gw)) == 4)
+            {
+                size_t ip_gw_len = NVS.getBytesLength("Dir_IP_GW");
+                char IP_GW[ip_gw_len];
+                NVS.getBytes("Dir_IP_GW", IP_GW, ip_gw_len);
+                Configuracion.Set_Configuracion_ESP32(Direccion_IP_GW, IP_GW);
+            }
+            NVS.end();
+            diferencia = false;
+            cambios = true;
+        }
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica Nombre de MAQ
+        char Nombre_Maq[16];
+        bzero(Nombre_Maq, 16);
+        char Nombre_Maq_Server[17];
+        bzero(Nombre_Maq_Server, 17);
+        diferencia = false;
+        strcpy(Nombre_Maq, Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq").c_str());
+        j = 0;
+        for (int i = 75; i < 91; i++)
+        {
+            Nombre_Maq_Server[j] = req[i];
+            if (Nombre_Maq[j] != req[i])
+                diferencia = true;
+            j++;
+        }
+        if (diferencia)
+        {
+            NVS.begin("Config_ESP32", false);
+            Serial.println("Si hay diferencias en NOMBRE_MAQ...");
+            if (NVS.putString("Name_Maq", Nombre_Maq_Server) == 16)
+            {
+                String name = NVS.getString("Name_Maq");
+                Configuracion.Set_Configuracion_ESP32(Nombre_Maquina, name);
+            }
+            NVS.end();
+            diferencia = false;
+            cambios = true;
+        }
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
 
         res[0] = 'L';
         res[1] = '|';
@@ -501,212 +814,10 @@ void Guarda_Configuracion_ESP32(void)
 
         Serial.println("Set buffer general OK");
         int len = sizeof(res);
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        Serial.println("buffer enviado: ");
-        Serial.println(res);
-        int length_ = clientTCP.write(res, len);
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
+        Transmite_A_Servidor(res, len);
+        if (cambios)
+            ESP.restart();
     }
-
-    //     // Direccion MAC ESP32
-    //     Serial.print("Direccion MAC: ");
-    //     Serial.println(WiFi.macAddress());
-    //     String mac = WiFi.macAddress();
-
-    //     // Direccion IP ESP32
-    //     Serial.print("Direccion IP Local: ");
-    //     uint32_t ip = WiFi.localIP();
-    //     Serial.println(WiFi.localIP());
-
-    //     // Socket de conexion
-    //     Serial.print("Socket: ");
-    //     Serial.println(clientTCP.remotePort());
-    //     string socket = std::to_string(clientTCP.remotePort());
-
-    //     // Mascara subred ESP32
-    //     Serial.print("Mascara Subred: ");
-    //     Serial.println(WiFi.subnetMask());
-
-    //     // Puerta de enlace ESP32
-    //     Serial.print("Puerta de enlace: ");
-    //     Serial.println(WiFi.gatewayIP());
-
-    //     // Nombre de la maquina
-    //     Serial.print("Nombre de MAQ: ");
-    //     String Name = NVS.getString("Name_Maq");
-    //     Serial.println(Name);
-
-    //     Serial.print("****************************************************");
-    //     Serial.println();
-
-    //     size_t ip_len = NVS.getBytesLength("Dir_IP");
-    //     char IP[ip_len];
-    //     NVS.getBytes("Dir_IP", IP, ip_len);
-
-    //     char dir_ip[12] = {};
-    //     int j = 0;
-    //     for (int i = 0; i < 4; i++)
-    //     {
-    //         int octeto = (int)IP[i];
-    //         dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
-    //         j++;
-    //         int resultado = octeto % 100;
-    //         dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
-    //         j++;
-    //         dir_ip[j] = (resultado % 10) + '0';
-    //         j++;
-    //     }
-
-    //     size_t ip_len_gw = NVS.getBytesLength("Dir_IP_GW");
-    //     char IP_GW[ip_len_gw];
-    //     NVS.getBytes("Dir_IP_GW", IP_GW, ip_len_gw);
-
-    //     char dir_ip_gw[12] = {};
-    //     j = 0;
-    //     for (int i = 0; i < 4; i++)
-    //     {
-    //         int octeto = (int)IP_GW[i];
-    //         dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
-    //         j++;
-    //         int resultado = octeto % 100;
-    //         dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
-    //         j++;
-    //         dir_ip_gw[j] = (resultado % 10) + '0';
-    //         j++;
-    //     }
-
-    //     size_t sn_mask_len = NVS.getBytesLength("Dir_SN_MASK");
-    //     char SN_MASK[sn_mask_len];
-    //     NVS.getBytes("Dir_SN_MASK", SN_MASK, sn_mask_len);
-
-    //     char sn_mask[12] = {};
-    //     j = 0;
-    //     for (int i = 0; i < 4; i++)
-    //     {
-    //         int octeto = (int)SN_MASK[i];
-    //         sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
-    //         j++;
-    //         int resultado = octeto % 100;
-    //         sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
-    //         j++;
-    //         sn_mask[j] = (resultado % 10) + '0';
-    //         j++;
-    //     }
-
-    //     res[0] = 'L';
-    //     res[1] = '|';
-    //     res[2] = '0';
-    //     res[3] = '1';
-    //     res[4] = '|';
-    //     // MAC
-    //     res[5] = mac[0];
-    //     res[6] = mac[1];
-    //     res[7] = mac[2];
-    //     res[8] = mac[3];
-    //     res[9] = mac[4];
-    //     res[10] = mac[5];
-    //     res[11] = mac[6];
-    //     res[12] = mac[7];
-    //     res[13] = mac[8];
-    //     res[14] = mac[9];
-    //     res[15] = mac[10];
-    //     res[16] = mac[11];
-    //     res[17] = mac[12];
-    //     res[18] = mac[13];
-    //     res[19] = mac[14];
-    //     res[20] = mac[15];
-    //     res[21] = mac[16];
-    //     res[22] = '|';
-    //     // PORT
-    //     res[23] = '0';
-    //     res[24] = socket[0];
-    //     res[25] = socket[1];
-    //     res[26] = socket[2];
-    //     res[27] = socket[3];
-    //     res[28] = '|';
-    //     // IP
-    //     res[29] = dir_ip[0];
-    //     res[30] = dir_ip[1];
-    //     res[31] = dir_ip[2];
-    //     res[32] = '.';
-    //     res[33] = dir_ip[3];
-    //     res[34] = dir_ip[4];
-    //     res[35] = dir_ip[5];
-    //     res[36] = '.';
-    //     res[37] = dir_ip[6];
-    //     res[38] = dir_ip[7];
-    //     res[39] = dir_ip[8];
-    //     res[40] = '.';
-    //     res[41] = dir_ip[9];
-    //     res[42] = dir_ip[10];
-    //     res[43] = dir_ip[11];
-    //     res[44] = '|';
-    //     // MASCARA
-    //     res[45] = sn_mask[0];
-    //     res[46] = sn_mask[1];
-    //     res[47] = sn_mask[2];
-    //     res[48] = '.';
-    //     res[49] = sn_mask[3];
-    //     res[50] = sn_mask[4];
-    //     res[51] = sn_mask[5];
-    //     res[52] = '.';
-    //     res[53] = sn_mask[6];
-    //     res[54] = sn_mask[7];
-    //     res[55] = sn_mask[8];
-    //     res[56] = '.';
-    //     res[57] = sn_mask[9];
-    //     res[58] = sn_mask[10];
-    //     res[59] = sn_mask[11];
-    //     res[60] = '|';
-    //     // IP Enlace
-    //     res[61] = dir_ip_gw[0];
-    //     res[62] = dir_ip_gw[1];
-    //     res[63] = dir_ip_gw[2];
-    //     res[64] = '.';
-    //     res[65] = dir_ip_gw[3];
-    //     res[66] = dir_ip_gw[4];
-    //     res[67] = dir_ip_gw[5];
-    //     res[68] = '.';
-    //     res[69] = dir_ip_gw[6];
-    //     res[70] = dir_ip_gw[7];
-    //     res[71] = dir_ip_gw[8];
-    //     res[72] = '.';
-    //     res[73] = dir_ip_gw[9];
-    //     res[74] = dir_ip_gw[10];
-    //     res[75] = dir_ip_gw[11];
-    //     res[76] = '|';
-    //     // Nombre MAQ
-    //     res[77] = Name[0];
-    //     res[78] = Name[1];
-    //     res[79] = Name[2];
-    //     res[80] = Name[3];
-    //     res[81] = Name[4];
-    //     res[82] = Name[5];
-    //     res[83] = Name[6];
-    //     res[84] = Name[7];
-    //     res[85] = Name[8];
-    //     res[86] = Name[9];
-    //     res[87] = Name[10];
-    //     res[88] = Name[11];
-    //     res[89] = Name[12];
-    //     res[90] = Name[13];
-    //     res[91] = Name[14];
-    //     res[92] = Name[15];
-
-    //     Serial.println("Set buffer general OK");
-    //     int len = sizeof(res);
-    //     Serial.print("Tamaño a enviar: ");
-    //     Serial.println(len);
-    //     Serial.println("buffer enviado: ");
-    //     Serial.println(res);
-    //     int length_ = clientTCP.write(res, len);
-    //     Serial.print("Bytes enviados: ");
-    //     Serial.println(length_);
-    //     Serial.println("--------------------------------------------------------------------");
-    //    }
 }
 
 /*****************************************************************************************/
@@ -847,6 +958,14 @@ void Task_Procesa_Comandos(void *parameter)
                     Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
                 break;
 
+            case 200:
+                Serial.println("Solicitud de configuracion maquina");
+                if ((res[4] < 7) && Configura_Tipo_Maquina(res))
+                    Transmite_Confirmacion('C', '9');
+                else
+                    Transmite_Confirmacion('C', 'A');
+                break;
+
             case 308:
                 Serial.println("Solicitud de contadores Cashless");
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
@@ -899,6 +1018,7 @@ void Task_Procesa_Comandos(void *parameter)
                     Serial.print(res[i]);
                 }
                 Serial.println();
+                Transmite_Confirmacion('C', 'R');
             }
         }
         else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
