@@ -523,6 +523,23 @@ void Guarda_Configuracion_ESP32(void)
         int j = 0;
         bool diferencia = false;
 
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica MAC
+        Serial.println();
+        for (int i = 3; i < 20; i++)
+        {
+            Serial.print(req[i]);
+        }
+        String MAC = WiFi.macAddress();
+        j = 0;
+        for (int i = 3; i < 20; i++)
+        {
+            if (req[i] != MAC[j])
+                return;
+            j++;
+        }
+
         Serial.println();
         Serial.println("Set all Ok...");
 

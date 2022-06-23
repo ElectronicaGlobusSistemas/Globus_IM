@@ -131,7 +131,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
      // vTaskSuspend(SD_CHECK);        // Duerme Tarea Hasta Proxima desconexión 
     }
-    vTaskDelay(10000); // Pausa Tarea 10000ms
+    vTaskDelay(30000); // Pausa Tarea 10000ms
   }
   vTaskDelete(NULL); // Elimina  Tarea.
 }

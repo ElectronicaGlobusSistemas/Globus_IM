@@ -120,21 +120,21 @@ bool MCU_State=LOW;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
-        /*
-        if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
-        {
-            if (eTaskGetState(SD_CHECK) == eRunning)
-            {
-                Serial.println("------->>>>> Rum Task   SD CHECK");
-                continue;
-            }
-            else if (eTaskGetState(SD_CHECK) == eSuspended)
-            {
-                Serial.println("------->>>>> Resume Task  SD CHECK");
-                vTaskResume(SD_CHECK); // Inicia Tarea SD.
-            }
-        }
-        */
+        
+        // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
+        // {
+        //     if (eTaskGetState(SD_CHECK) == eRunning)
+        //     {
+        //         Serial.println("------->>>>> Rum Task   SD CHECK");
+        //         continue;
+        //     }
+        //     else if (eTaskGetState(SD_CHECK) == eSuspended)
+        //     {
+        //         Serial.println("------->>>>> Resume Task  SD CHECK");
+        //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
+        //     }
+        // }
+        
         if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
@@ -216,7 +216,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 152};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
@@ -237,7 +237,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 200};
+        uint8_t ip_server[] = {192, 168, 5, 208};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
