@@ -384,6 +384,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           else if (buffer[1] == 0x1C)
           {
+          //c
             char contador[7] = {};
             bzero(contador, 7);
             int j = 26;
