@@ -44,8 +44,6 @@ void Setup_Bootloader(void)
   }
 }
 
-
-
 void  Init_Bootloader()
 {
   xTaskCreatePinnedToCore(

@@ -821,6 +821,38 @@ void Guarda_Configuracion_ESP32(void)
 }
 
 /*****************************************************************************************/
+/*************************** INICIALIZA MODO BOOTLOADER **********************************/
+/*****************************************************************************************/
+
+bool Inicializa_modo_bootloader(void)
+{
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+
+    Variables_globales.Set_Variable_Global(Bootloader_Mode, true);
+    if (Variables_globales.Get_Variable_Global(Bootloader_Mode))
+    {
+        res[0] = 'L';
+        res[1] = '|';
+        res[2] = 'S';
+        res[3] = 'B';
+        res[4] = '|';
+        res[5] = 'O';
+        res[6] = 'K';
+
+        for (int i = 7; i < 256; i++)
+        {
+            res[i] = '0';
+        }
+
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Transmite_A_Servidor(res, len);
+        return true;
+    }
+}
+
+/*****************************************************************************************/
 /******************************* PROCESA COMANDO RECIBIDO ********************************/
 /*****************************************************************************************/
 
@@ -996,6 +1028,7 @@ void Task_Procesa_Comandos(void *parameter)
             if (res[0] == 'S' && res[1] == 'B')
             {
                 Serial.println("Solicitud de Bootloader");
+                Inicializa_modo_bootloader();
             }
             else if (res[0] == 'E' && res[1] == 'B')
             {

@@ -26,7 +26,7 @@ void Init_Tasks();
 void Init_Indicadores_LED(void);
 void Init_Configuracion_Inicial(void);
 void TaskManager();
-static void RumTask(void *parameter);
+static void ManagerTasks(void *parameter);
 
 void Init_Config(void)
 {
@@ -60,9 +60,16 @@ void Init_Config(void)
     init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
-    // TaskManager();
     //---------------------------------------------------------------
+    // int dia = 21;
+    // int mes = 6;
+    // char dia_char[] = (char)dia;
+    // char mes_char[] = (char)mes;
+    // char nombre[12] = {};
+    // strcpy(nombre,dia_char);
 
+    // Serial.println("****************************************");
+    // Serial.println(nombre);
     Archivo_Format = "25062022.csv"; // Crea Archivo Si no Existe.
     Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
     Init_Wifi();
@@ -73,6 +80,7 @@ void Init_Config(void)
     //-------------------->  Update  <-------------------------------
     Init_Bootloader();
     //---------------------------------------------------------------
+    TaskManager();
 }
 
 void Init_Tasks(void)
@@ -86,53 +94,96 @@ void Init_Tasks(void)
         &Task1,   //  Manejador de la tarea
         0);       //  Core donde se ejecutara la tarea
 }
-/*
+
 void TaskManager()
 {
     xTaskCreatePinnedToCore(
-        RumTask,    //  Funcion a implementar la tarea
-        "TASK MANAGER", //  Nombre de la tarea
-        10000,    //  Tamaño de stack en palabras (memoria)
-        NULL,     //  Entrada de parametros
-        configMAX_PRIORITIES-10,        //  Prioridad de la tarea
-        &Task1,   //  Manejador de la tarea
-        0);       //  Core donde se ejecutara la tarea
+        ManagerTasks,              //  Funcion a implementar la tarea
+        "TASK MANAGER",            //  Nombre de la tarea
+        10000,                     //  Tamaño de stack en palabras (memoria)
+        NULL,                      //  Entrada de parametros
+        configMAX_PRIORITIES - 10, //  Prioridad de la tarea
+        &Task1,                    //  Manejador de la tarea
+        0);                        //  Core donde se ejecutara la tarea
 }
-/*
-/*
-bool FTP_MODE=false;
-bool Bootloader_MODE=false;
 
-static void RumTask(void *parameter)
+static void ManagerTasks(void *parameter)
 {
     for (;;)
     {
-        if (!card.init(SPI_FULL_SPEED))
+        if (!card.init(SPI_FULL_SPEED, SD_ChipSelect) && !SD.begin(SD_ChipSelect, MOSI, MISO, CLK))
         {
-            vTaskResume(SD_CHECK); // Inicia Tarea SD.
+            if (eTaskGetState(SD_CHECK) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   SD CHECK");
+                continue;
+            }
+            else if (eTaskGetState(SD_CHECK) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  SD CHECK");
+                vTaskResume(SD_CHECK); // Inicia Tarea SD.
+            }
         }
-        if (FTP_MODE == true)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
-            vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
+            if (eTaskGetState(Ftp_SERVER) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   Ftp SERVER ");
+                continue;
+            }
+            else if (eTaskGetState(Ftp_SERVER) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Ftp SERVER");
+                vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
+            }
         }
         if (!WiFi.status() == WL_CONNECTED)
         {
+            if (eTaskGetState(Status_WIFI) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   Status WIFI");
+                continue;
+            }
+            else if (eTaskGetState(Status_WIFI) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Status WIFI");
+                vTaskResume(Status_WIFI); // Inicia Modo Bootlader.
+            }
+
             vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
-        if(!clientTCP.connected())
+        if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion))
         {
-            vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
+            if (eTaskGetState(Status_SERVER) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   SERVER TCP");
+                continue;
+            }
+            else if (eTaskGetState(Status_SERVER) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  SERVER TCP");
+                vTaskResume(Status_SERVER); // Inicia Tarea  TCP.
+            }
         }
-        if (Bootloader_MODE == true && WiFi.status() == WL_CONNECTED)
+        if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED)
         {
-            vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader.
+            if (eTaskGetState(Modo_Bootloader) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   Modo Bootloader");
+                continue;
+            }
+            else if (eTaskGetState(Modo_Bootloader) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Modo Bootloader");
+                vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
+            }
         }
-        delay(10);
+        delay(5);
         vTaskDelay(1000);
     }
+    vTaskDelete(NULL);
     vTaskDelay(10);
 }
-*/
 
 void Init_Indicadores_LED(void)
 {
@@ -175,7 +226,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 208};
+        uint8_t ip_server[] = {192, 168, 5, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -196,6 +247,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
+//        String ssid = "GLOBUS_ONLINEW";
         String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
@@ -203,6 +255,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
+//        String password = "Globus#OnlineW324";
         String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
