@@ -103,39 +103,23 @@ void TaskManager()
         0);                     //  Core donde se ejecutara la tarea
 }
 
-
 static void ManagerTasks(void *parameter)
 {
-
-unsigned long Tiempo_Actual=0;
-unsigned long Tiempo_Previo=0;
-bool MCU_State=LOW;
+    unsigned long Tiempo_Actual = 0;
+    unsigned long Tiempo_Previo = 0;
+    bool MCU_State = LOW;
     for (;;)
     {
-        Tiempo_Actual=millis();
+        Tiempo_Actual = millis();
 
-        if((Tiempo_Actual-Tiempo_Previo)>100)
+        if ((Tiempo_Actual - Tiempo_Previo) > 100)
         {
             Tiempo_Previo = Tiempo_Actual;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
-        /*
-        if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
-        {
-            if (eTaskGetState(SD_CHECK) == eRunning)
-            {
-                Serial.println("------->>>>> Rum Task   SD CHECK");
-                continue;
-            }
-            else if (eTaskGetState(SD_CHECK) == eSuspended)
-            {
-                Serial.println("------->>>>> Resume Task  SD CHECK");
-                vTaskResume(SD_CHECK); // Inicia Tarea SD.
-            }
-        }
-        */
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
+
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
@@ -146,7 +130,8 @@ bool MCU_State=LOW;
             {
                 Serial.println("------->>>>> Resume Task  Ftp SERVER");
                 vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
-            }  
+                continue;
+            }
         }
         if (!WiFi.status() == WL_CONNECTED)
         {
@@ -159,9 +144,8 @@ bool MCU_State=LOW;
             {
                 Serial.println("------->>>>> Resume Task  Status WIFI");
                 vTaskResume(Status_WIFI); // Inicia Modo Bootlader.
+                continue;
             }
-        
-            vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
         if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion))
         {
@@ -174,6 +158,7 @@ bool MCU_State=LOW;
             {
                 Serial.println("------->>>>> Resume Task  SERVER TCP");
                 vTaskResume(Status_SERVER); // Inicia Tarea  TCP.
+                continue;
             }
         }
         if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED)
@@ -186,13 +171,13 @@ bool MCU_State=LOW;
             else if (eTaskGetState(Modo_Bootloader) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  Modo Bootloader");
-                vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+                vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
+                continue;
             }
         }
-        delay(50);
+        delay(100);
         vTaskDelay(1000);
     }
-    vTaskDelete(NULL);
     vTaskDelay(10);
 }
 

@@ -694,8 +694,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
       break;
     }
   }
+  vTaskDelay(10);
   free(UART2_data);
-  vTaskDelete(NULL);
 }
 //---------------------------- Tarea Para Consulta de Contadores y General Poll-----------------------------------------------
 
@@ -993,7 +993,7 @@ void Encuestas_Maquina(void *pvParameters)
     // Ejecuta   Taraea Encuestas_Maquina Cada 100ms
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
-  vTaskDelete(NULL);
+  vTaskDelay(10);
 }
 void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable)
 {

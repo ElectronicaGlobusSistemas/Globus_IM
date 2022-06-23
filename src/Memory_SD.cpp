@@ -101,13 +101,13 @@ static void Rum_FTP_SERVER(void *parameter)
     ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
     vTaskDelay(10);
   }
-  vTaskDelete(NULL);
+  vTaskDelay(10);
 }
 
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea para Verifcar Conexión de SD <--------------------------
 static void Task_Verifica_Conexion_SD(void *parameter)
-{
+{ int Contador=0;
   Serial.println("Verificador de Memoria SD Activado");
   int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
   for (;;)
@@ -117,11 +117,14 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       Serial.println("Memoria SD Desconectada..");
       digitalWrite(SD_Status, LOW);           // Apaga  Indicador LED SD Status.
       Enable_Status = false;// Desactiva Parpadeo de LED SD Status en Modo FTP Server
-      card.init(SPI_FULL_SPEED,SD_ChipSelect);// Intenta Conectar Despues de Fallo.
+      if(!card.init(SPI_FULL_SPEED,SD_ChipSelect))
+      {
+        // Intenta Conectar Despues de Fallo.
       Serial.print("Fallo en Conexión SD");   // Mensaje de Fallo.
       Serial.print(" Intento #: ");           // Mensaje de Fallo.
       Serial.println(Intento_Connect_SD);     // Imprime conteo de Fallos.
-      Intento_Connect_SD++;                   // Aaumento de Contador.
+      Intento_Connect_SD++;
+      }
     }
     else 
     {
@@ -129,11 +132,10 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       Serial.println("SD OK");       // Mensaje de Conexión SD.
       digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
       Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
-     // vTaskSuspend(SD_CHECK);        // Duerme Tarea Hasta Proxima desconexión 
     }
-    vTaskDelay(10000); // Pausa Tarea 10000ms
+    vTaskDelay(1000); // Pausa Tarea 10000ms
   }
-  vTaskDelete(NULL); // Elimina  Tarea.
+  vTaskDelay(10);
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------> Función Para Crear Archivos Txt sin Formato <---------------------------------
