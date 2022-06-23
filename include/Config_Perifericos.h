@@ -47,23 +47,34 @@ void Init_Config(void)
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj <----------------------------
-    RTC.setTime(0, 12, 10,9 , 6, 2022);
+    RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
-   
+
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
-   
+
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
-    
+
     //--------------------> Config  WIFI <---------------------------
-    CONNECT_WIFI();       // Inicializa  Modulo WIFI
-    CONNECT_SERVER_TCP(); // Inicializa Servidor TCP
-    init_Comunicaciones();// Inicializa Tareas TCP
+    CONNECT_WIFI();        // Inicializa  Modulo WIFI
+    CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
+    init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
+
+    //---------------------------------------------------------------
+    // int dia = 21;
+    // int mes = 6;
+    // char dia_char[] = (char)dia;
+    // char mes_char[] = (char)mes;
+    // char nombre[12] = {};
+    // strcpy(nombre,dia_char);
+
+    // Serial.println("****************************************");
+    // Serial.println(nombre);
     Init_FTP_SERVER(); // Inicializa SERVER
     //---------------------------------------------------------------
     Archivo_Format="37062022.csv"; // Crea Archivo Si no Existe.
@@ -152,20 +163,20 @@ bool MCU_State=LOW;
         
             vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
-        if(!client.connected())
+        if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion))
         {
-            if (eTaskGetState(Status_SERVER_TCP) == eRunning)
+            if (eTaskGetState(Status_SERVER) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   SERVER TCP");
                 continue;
             }
-            else if (eTaskGetState(Status_SERVER_TCP) == eSuspended)
+            else if (eTaskGetState(Status_SERVER) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  SERVER TCP");
-                 vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
+                vTaskResume(Status_SERVER); // Inicia Tarea  TCP.
             }
         }
-        if (Variables_globales.Get_Variable_Global(Bootloader_Mode)==true && WiFi.status() == WL_CONNECTED)
+        if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED)
         {
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
@@ -178,13 +189,12 @@ bool MCU_State=LOW;
                 vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
             }
         }
-        delay(5);
+        delay(50);
         vTaskDelay(1000);
     }
     vTaskDelete(NULL);
     vTaskDelay(10);
 }
-
 
 void Init_Indicadores_LED(void)
 {
@@ -206,7 +216,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 150};
+        uint8_t ip[] = {192, 168, 5, 152};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
@@ -227,7 +237,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 208};
+        uint8_t ip_server[] = {192, 168, 5, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -248,6 +258,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
+//        String ssid = "GLOBUS_ONLINEW";
         String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
@@ -255,8 +266,32 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
+//        String password = "Globus#OnlineW324";
         String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
+    }
+
+    if (!NVS.isKey("TYPE_CONNECT")) // Configura el tipo de conexion server
+    {
+        Serial.println("Guardando tipo de conexion por defecto UDP");
+        // Conexion UDP = false
+        // Conexion TCP = true
+        bool Conexion_Server = false;
+        NVS.putBool("TYPE_CONNECT", Conexion_Server);
+    }
+
+    if (!NVS.isKey("TYPE_MAQ"))
+    {
+        Serial.println("Guardando tipo de maquina");
+        // 0 = Por defecto,
+        // 1 = Cashless AFT (Contadores en creditos)
+        // 2 = Cashless EFT
+        // 3 = Cashless AFT Single (contadores netos)
+        // 4 = IRT
+        // 5 = Generica (Encuesta simple)
+        // 6 = Poker
+        uint16_t tipo_maq = 5;
+        NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -345,13 +380,54 @@ void Init_Configuracion_Inicial(void)
     Serial.println(Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq"));
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
-    // Inicializa NRed Wifi y Password
+    // Inicializa Red Wifi y Password
     String ssid = NVS.getString("SSID_DESA");
     Configuracion.Set_Configuracion_ESP32(SSID, ssid);
     String password = NVS.getString("PASS_DESA");
     Configuracion.Set_Configuracion_ESP32(Password, password);
     Serial.print("Conecta a Red: ");
     Serial.println(Configuracion.Get_Configuracion(SSID, "Nombre_Red"));
+    /*--------------------------------------------------------------------------------------------------------------------------*/
+
+    // Inicializa Tipo de conexion Servidor UDP o TCP
+    bool Conexion_Server = NVS.getBool("TYPE_CONNECT");
+    Configuracion.Set_Configuracion_ESP32(Tipo_Conexion, Conexion_Server);
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+        Serial.println("Tipo de conexion a servidor: TCP");
+    else
+        Serial.println("Tipo de conexion a servidor: UDP");
+    /*--------------------------------------------------------------------------------------------------------------------------*/
+
+    // Inicializa configuracion tipo de maquina
+    uint16_t tipo_maq = NVS.getUInt("TYPE_MAQ", 0);
+    Configuracion.Set_Configuracion_ESP32(Tipo_Maquina, tipo_maq);
+    Serial.print("Configuracion tipo de maquina: ");
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        Serial.println("Defecto");
+        break;
+    case 1:
+        Serial.println("Cashless AFT");
+        break;
+    case 2:
+        Serial.println("Cashless EFT");
+        break;
+    case 3:
+        Serial.println("Cashless AFT Single");
+        break;
+    case 4:
+        Serial.println("IRT");
+        break;
+    case 5:
+        Serial.println("Generica");
+        break;
+    case 6:
+        Serial.println("Poker");
+        break;
+    default:
+        break;
+    }
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     Serial.println("\n");

@@ -36,12 +36,12 @@ bool MetodoCRC::Verifica_CRC_Wifi(String str_CRC)
 
     if (CRC_Recibido == crcval)
     {
-        Serial.println("\nCRC OK...");
+//        Serial.println("\nCRC OK...");
         return true;
     }
     else
     {
-        Serial.println("\nCRC Failed...");
+//        Serial.println("\nCRC Failed...");
         return false;
     }
 }
@@ -81,12 +81,12 @@ bool MetodoCRC::Verifica_CRC_Maq(char str_CRC[], int len_CRC)
 
     if (CRC_Recibido == crcval)
     {
-        Serial.println("CRC OK...");
+//        Serial.println("CRC OK...");
         return true;
     }
     else
     {
-        Serial.println("\nCRC Failed...");
+//        Serial.println("\nCRC Failed...");
         return false;
     }
 }

@@ -41,13 +41,13 @@ private:
     char buffer_contadores_CASH_encriptado[258];
     char buffer_contadores_CASH_final[258];
 
-     /* Buffer de billetes */
+    /* Buffer de billetes */
     char buffer_billetes[258];
     char buffer_billetes_encriptado[258];
     char buffer_billetes_final[258];
 
     MetodoAES Metodo_AES;
-    MetodoCRC Metodo_CRC; 
+    MetodoCRC Metodo_CRC;
 
 public:
     /* Constructor inicializa las variables en cero */
@@ -67,10 +67,14 @@ public:
     /* Buffer de Maquina */
     bool Verifica_buffer_Maq(char[], int);
 
-    /* Buffer de Recepcion Servidor */
-    bool Set_buffer_recepcion(String);
+    /* Buffer de Recepcion Servidor TCP */
+    bool Set_buffer_recepcion_TCP(String);
     bool Set_buffer_recepcion_desencriptado(String);
     char *Get_buffer_recepcion(void);
+
+    /* Buffer de Recepcion Servidor UDP */
+    bool Set_buffer_recepcion_UDP(char[]);
+
 
     /* Buffer de contadores */
     bool Set_buffer_contadores_ACC(int, Contadores_SAS, ESP32Time);

@@ -35,6 +35,10 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, uint16_t dato)
         Puerto_Server_ = dato;
         return true;
         break;
+    case 10:
+        Tipo_Maquina_ = dato;
+        return true;
+        break;
 
     default:
         return false;
@@ -56,6 +60,21 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, String dato)
         break;
     case 8:
         Password_ = dato;
+        return true;
+        break;
+
+    default:
+        return false;
+        break;
+    }
+}
+
+bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, bool state)
+{
+    switch (expression)
+    {
+    case 9:
+        Tipo_Conexion_ = state;
         return true;
         break;
 
@@ -95,6 +114,9 @@ uint16_t Configuracion_ESP32::Get_Configuracion(int expression, int)
     case 5:
         return Puerto_Server_;
         break;
+    case 10:
+        return Tipo_Maquina_;
+        break;
 
     default:
         return 0;
@@ -118,6 +140,20 @@ String Configuracion_ESP32::Get_Configuracion(int expression, String)
 
     default:
         return "Hola Mundo";
+        break;
+    }
+}
+
+bool Configuracion_ESP32::Get_Configuracion(int expression)
+{
+    switch (expression)
+    {
+    case 9:
+        return Tipo_Conexion_;
+        break;
+
+    default:
+        return NULL;
         break;
     }
 }

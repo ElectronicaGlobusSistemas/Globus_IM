@@ -43,8 +43,6 @@ void Setup_Bootloader(void)
     ArduinoOTA.begin();
 }
 
-
-
 void  Init_Bootloader()
 {
   

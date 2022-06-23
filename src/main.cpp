@@ -34,19 +34,12 @@ Eventos_SAS eventos; // Objeto contiene eventos maquina
 unsigned long tiempo_inicial, tiempo_final = 0;
 int bandera2 = 0;
 
-/* Variables globales */
-bool flag_dato_valido_recibido = false;
-bool flag_dato_no_valido_recibido = false;
-bool flag_serie_trama_contadores = false;
-bool flag_sincronizacion_RTC = false;
-
 
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
   Init_Config(); // Config Perifericos
 }
-
 
 void loop()
 {

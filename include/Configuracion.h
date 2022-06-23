@@ -9,6 +9,8 @@
 #define Nombre_Maquina 6
 #define SSID 7
 #define Password 8
+#define Tipo_Conexion 9
+#define Tipo_Maquina 10
 
 class Configuracion_ESP32
 {
@@ -21,12 +23,16 @@ private:
     String Nombre_Maquina_;
     String SSID_;
     String Password_;
+    bool Tipo_Conexion_;
+    uint16_t Tipo_Maquina_;
 
 public:
     bool Set_Configuracion_ESP32(int, char[]);
     bool Set_Configuracion_ESP32(int, uint16_t);
     bool Set_Configuracion_ESP32(int, String);
+    bool Set_Configuracion_ESP32(int, bool);
     char *Get_Configuracion(int, char);
     uint16_t Get_Configuracion(int, int);
     String Get_Configuracion(int, String);
+    bool Get_Configuracion(int);
 };
