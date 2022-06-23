@@ -1,6 +1,6 @@
 #include <Arduino.h>
-
 #include "Bootloader.h"
+
 /* Definir las clases que haran uso de los metodos */
 #include "Preferences.h"
 Preferences NVS;
@@ -14,14 +14,17 @@ ESP32Time RTC; // Objeto contiene hora y fecha
 
 #include "Buffers.h"
 Buffers Buffer; // Objeto de buffer de mensajes servidor
-
-//#include "Contadores.h"
 Contadores_SAS contadores; // Objeto contiene contadores maquina
 
-//#include "Eventos.h"
-Eventos_SAS eventos; // Objeto contiene eventos maquina
+#include "Clase_Variables_Globales.h"
+Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
+Eventos_SAS eventos; // Objeto contiene eventos maquina
 /* Definir los metodos que haran uso de las clases */
+
+
+
+
 #include "RS232.h"
 #include "Comunicaciones.h"
 
@@ -40,59 +43,13 @@ bool flag_sincronizacion_RTC = false;
 
 void setup()
 {
-  Init_Config();
-
-  pinMode(2, OUTPUT);
-
-  
+  Variables_globales.Init_Variables_Globales();
+  Init_Config(); // Config Perifericos
 }
 
 
 void loop()
 {
   
-
-  tiempo_inicial = millis();
-
-  // unsigned char val1, val2;
-
-  if ((tiempo_inicial - tiempo_final) >= 5000)
-  {
-    tiempo_final = tiempo_inicial;
-
-    //    Transmite_Eco_Broadcast();
-    // char res[8] = {};
-    // bzero(res, 8);
-    // memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
-    // Serial.println(contadores.Get_Contadores_Char(Total_Cancel_Credit));
-    // Serial.println("Entero...");
-    // Serial.println(contadores.Get_Contadores_Int(Total_Cancel_Credit));
-    // Serial.println("Set buffer...");
-    // //    Buffer.Set_buffer_contadores(contadores);
-    // Serial.println("----------------------------------------");
-
-    if (bandera2 == 0)
-    {
-      //      Transmite_Contadores();
-      bandera2 = 1;
-    }
-    else
-    {
-      //      Transmite_Confirmacion('A', '3'); // Transmite ACK a Server
-      bandera2 = 0;
-    }
-  }
 }
 
-void loop2(void *parameter)
-{
- // vTaskSuspend(Task1);
-  for (;;)
-  {
-    digitalWrite(2, HIGH); // turn the LED on (HIGH is the voltage level)
-    delay(100);            // wait for a second
-    digitalWrite(2, LOW);  // turn the LED off by making the voltage LOW
-    delay(100);
-  }
-  vTaskDelay(10);
-}

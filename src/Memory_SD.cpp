@@ -3,6 +3,7 @@
  *  Libreria Manejo Storage SD  y Servidor FTP       *                                                   *                                                   *
 ******************************************************/
 
+
 //----------------------------------------> Variables Globales <----------------------------------------
 bool Enable_Status;
 unsigned long count=0;
@@ -15,12 +16,15 @@ unsigned long count=0;
 #include "Memory_SD.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include "Clase_Variables_Globales.h"
 //------------------------------------------------------------------------------------------------------
-//--------------------------------------------> Objetos <-----------------------------------------------
+//--------------------------------------------> Objetos Locales <-----------------------------------------------
 
 File myFile;                //  Manejo de Archivos.
-File file;                  //  Manejo de Archivos.
+File file;                  //  Manejo de Archivos En Ftp Mode.
 Sd2Card card;               //  Memoria SD.
+SdFile root;                //  Listado de Archivos
+SdVolume volume;
 TaskHandle_t SD_CHECK;      //  Manejador de tareas
 FtpServer ftpSrv;           //  Objeto servidor FTP
 TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
@@ -28,6 +32,11 @@ WiFiServer ftpServer( FTP_CTRL_PORT );
 WiFiServer dataServer( FTP_DATA_PORT_PASV );
 //------------------------------------------------------------------------------------------------------
 
+//------------------------------------------> Objetos Extern <------------------------------------------
+extern Variables_Globales Variables_globales;
+extern char* Archivo_Format;
+//------------------------------------------------------------------------------------------------------
+extern String Encabezado_Contadores;
 //--------------------------------------> Encabezado Contadores <---------------------------------------
 String Encabezado_Contadores2="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out,Games Played,Coin In Fisico,Coin Out Fisico,Total Coin Drop,Machine Paid Progresive Payout,Machine Paid External Bonus Payout,Attendant Paid Progresive Payout,Attendant Paid External Payout,Ticket In,Ticket Out,Current Credits,Contador 1C - Door Open Metter,Contador 18 - Games Since Last Power Up,ID Machine";
 //------------------------------------------------------------------------------------------------------
@@ -35,8 +44,9 @@ String Encabezado_Contadores2="Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot
 //---------------------------------------> Inicializa SD <----------------------------------------------
 void Init_SD(void)
 {
-  SD.begin();
-  Init_FTP_SERVER();
+  //Variables_globales.Set_Variable_Global(Ftp_Mode,true);
+  //Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
+  SD.begin(SD_ChipSelect,MOSI,MISO,CLK); // Intento Conectar SD 
   xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_SD, //  Función a implementar la tarea.
       "SD_Check",                //  Nombre de la tarea
@@ -45,7 +55,6 @@ void Init_SD(void)
       5,                         //  Prioridad de la tarea.
       &SD_CHECK,                 //  Manejador de la tarea.
       1);                        //  Core donde se ejecutara.
-    
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------------> Inicializa Servidor FTP <------------------------------------
@@ -59,12 +68,13 @@ void Init_FTP_SERVER()
       configMAX_PRIORITIES - 10,  //  Prioridad de la tarea.
       &Ftp_SERVER,                //  Manejador de la tarea.
       0);                         //  Core donde se ejecutara.
-    vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
 static void Rum_FTP_SERVER(void *parameter)
 {
+  vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
+  RESET_SD(); //Reset SD Para Modo FTP
   ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
   unsigned long InicialTime = 0;
   unsigned long FinalTime = 0;
@@ -103,23 +113,24 @@ static void Task_Verifica_Conexion_SD(void *parameter)
   int Intento_Connect_SD = 0;                 // Variable Contadora de Intentos de Conexión SD.
   for (;;)
   {
-    if (!card.init(SPI_FULL_SPEED))           // SD Desconectada...
+    if (!card.init(SPI_FULL_SPEED,SD_ChipSelect))          // SD Desconectada...
     {
       Serial.println("Memoria SD Desconectada..");
       digitalWrite(SD_Status, LOW);           // Apaga  Indicador LED SD Status.
-      Enable_Status = false;                  // Desactiva Parpadeo de LED SD Status en Modo FTP Server
-      card.init(SPI_FULL_SPEED);              // Intenta Conectar Despues de Fallo.
+      Enable_Status = false;// Desactiva Parpadeo de LED SD Status en Modo FTP Server
+      card.init(SPI_FULL_SPEED,SD_ChipSelect);// Intenta Conectar Despues de Fallo.
       Serial.print("Fallo en Conexión SD");   // Mensaje de Fallo.
       Serial.print(" Intento #: ");           // Mensaje de Fallo.
       Serial.println(Intento_Connect_SD);     // Imprime conteo de Fallos.
       Intento_Connect_SD++;                   // Aaumento de Contador.
     }
-    else // SD OK
+    else 
     {
       Intento_Connect_SD = 0;        // Reset Contador de Fallos.
       Serial.println("SD OK");       // Mensaje de Conexión SD.
       digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
       Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
+     // vTaskSuspend(SD_CHECK);        // Duerme Tarea Hasta Proxima desconexión 
     }
     vTaskDelay(10000); // Pausa Tarea 10000ms
   }
@@ -139,36 +150,36 @@ void Create_ARCHIVE_Txt( char* ARCHIVO)
 //-----------------------------> Función Para escribir en Archivo Txt <----------------------------------
 void Write_Data_File_Txt(String Datos, char* ARCHIVO)
 {
-  Create_ARCHIVE_Txt(ARCHIVO); // Crea Archivo si no Existe.
-  delay(3);
-  myFile = SD.open(ARCHIVO, FILE_WRITE);
-  if (!myFile)
+  if (card.init(SPI_FULL_SPEED, SD_ChipSelect))
   {
-    Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
-  }
-  else
+    myFile = SD.open(ARCHIVO, FILE_WRITE);
+    if (!myFile)
+    {
+      Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+    }
+    else
+    {
+      myFile.println(Datos);
+      Serial.println("Dato: " + Datos + " Guardado en SD");
+      
+    }
+    myFile.close();
+  }else
   {
-    myFile.println(Datos);
-    Serial.println("Dato: " + Datos + " Guardado en SD");
+    Serial.println(" Memoria SD Desconectada.");
   }
-  myFile.close();
 }
 //-------------------------------------------------------------------------------------------------------
 //---------------------------> Función Para Crear Archivos CSV <-----------------------------------------
 void Create_ARCHIVE_Excel(char* ARCHIVO, String  Encabezado)
 {
+  
   if (!SD.exists(ARCHIVO)) // Si el archivo no existe lo Crea con encabezado para Excel!!
   {
     myFile = SD.open(ARCHIVO, FILE_WRITE);
     myFile.println(Encabezado);
     myFile.close();
     Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
-    RESET_SD();
-  }
-  else
-  {
-    delay(1);
-    RESET_SD();
   }
 }
 //--------------------------------------------------------------------------------------------------------
@@ -209,41 +220,24 @@ void Write_Data_File(String Datos,char *ARCHIVO,bool select)
 void Write_Data_File2(String Datos,char *archivo,bool select, String Encabezado)
 {
   myFile = SD.open(archivo, FILE_WRITE);
-  if (select == false)
+  if (!myFile)
   {
-    if (!myFile)
-    {
-      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
-    }
-    else if(myFile) // else por else if
-    {
-      myFile.print(Datos);
-      myFile.print(",");
-      Serial.println("Dato: " + (String)Datos + " Guardado en SD");
-      myFile.close();
-    }
+    Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
   }
-  else
+  else if (myFile) //  else por else if
   {
-    if (!myFile)
-    {
-      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
-    }
-    else if(myFile)//  else por else if
-    {
-      myFile.println(Datos);
-      Serial.println("Dato: " + (String)Datos + " Guardado en SD");
-      myFile.close();
-    }
+    myFile.print(Datos);
+    myFile.println();
+    Serial.println("Dato: " + (String)Datos + " Guardado en SD");
   }
-  myFile.close(); //->>>> Add
+  myFile.close();
 }
 //--------------------------------------------------------------------------------------------------------
 //-----------------------------------> Función Para Reset SD <--------------------------------------------
 void RESET_SD(void)
 {
   SD.end();
-  SD.begin();
+  SD.begin(SD_ChipSelect,MOSI,MISO,CLK); // Intento Conectar SD
 }
 //--------------------------------------------------------------------------------------------------------
 
@@ -290,6 +284,21 @@ void Nueva_Carpeta(char* Carpeta)
   SD.mkdir(Carpeta);
 }
 //--------------------------------------------------------------------------------------------------------
+
+
+void  Select_Encabezado(int Type_Machine)
+{
+
+  if(Type_Machine)
+  {
+    // POKER
+  }
+  else if(Type_Machine)
+  {
+  // GENERICA
+  }
+
+}
 FtpServer::FtpServer()
 {
 
@@ -449,6 +458,18 @@ void FtpServer::disconnectClient()
   abortTransfer();
   client.println("221 Goodbye");
   client.stop();
+
+  //---->>> add 
+  Variables_globales.Set_Variable_Global(Ftp_Mode,false);
+  delay(10);
+  if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+    Variables_globales.Set_Variable_Global(Enable_Storage,true);
+    RESET_SD(); // Reset SD para Modo Storage Data
+    vTaskSuspend(Ftp_SERVER); //  Suspende Modo FTP
+    vTaskResume(SD_CHECK); //  Verifica Estado de Memoria.
+  }
+  
 }
 
 boolean FtpServer::userIdentity()
@@ -1343,3 +1364,5 @@ char * FtpServer::makeDateTimeStr( char * tstr, uint16_t date, uint16_t time )
            ( time & 0xF800 ) >> 11, ( time & 0x07E0 ) >> 5, ( time & 0x001F ) << 1 );            
   return tstr;
 }
+
+

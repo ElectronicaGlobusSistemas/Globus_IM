@@ -13,21 +13,24 @@
 extern TaskHandle_t SD_CHECK;      //  Manejador de tareas
 extern Sd2Card card;               //  Memoria SD.
 extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
-extern TaskHandle_t Status_WIFI;
-extern TaskHandle_t Status_SERVER_TCP;
-extern TaskHandle_t Modo_Bootloader;
+extern TaskHandle_t Status_WIFI;   //  Manejador de  Tarea Wifi
+extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
+extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader 
 extern WiFiClient client; // Declara un objeto cliente para conectarse al servidor
 //------------------------------------------------------------------
 
+//----------------------> TaskHandle_t <----------------------------
 TaskHandle_t Task1;
+TaskHandle_t ManagerTask;
+//------------------------------------------------------------------
 
+//-----------------------> Prototipo de Funciones <-----------------
 void loop2(void *parameter);
-void Init_Tasks();
 void Init_Indicadores_LED(void);
 void Init_Configuracion_Inicial(void);
 void TaskManager();
-static void RumTask(void *parameter);
-
+static void ManagerTasks(void *parameter);
+//------------------------------------------------------------------
 
 void Init_Config(void)
 {
@@ -61,79 +64,127 @@ void Init_Config(void)
     init_Comunicaciones();// Inicializa Tareas TCP
     //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
-    //TaskManager();
+    Init_FTP_SERVER(); // Inicializa SERVER
     //---------------------------------------------------------------
-   
-    Archivo_Format="25062022.csv"; // Crea Archivo Si no Existe.
-    Create_ARCHIVE_Excel(Archivo_Format,Encabezado_Contadores);
+    Archivo_Format="37062022.csv"; // Crea Archivo Si no Existe.
+    Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
+  //  Create_ARCHIVE_Excel("37062022.csv",Encabezado_Contadores);
     Init_Wifi();
-    //---------------------------------------------------------------
-    //--------------------> Run Tareas <-----------------------------
-    Init_Tasks();
     //---------------------------------------------------------------
     //-------------------->  Update  <-------------------------------
     Init_Bootloader();
+     
     //---------------------------------------------------------------
+
+    TaskManager(); // Inicia Manejador de Tareas de Verificación
+   
 }
 
-void Init_Tasks(void)
-{
-    xTaskCreatePinnedToCore(
-        loop2,    //  Funcion a implementar la tarea
-        "Task_1", //  Nombre de la tarea
-        10000,    //  Tamaño de stack en palabras (memoria)
-        NULL,     //  Entrada de parametros
-        1,        //  Prioridad de la tarea
-        &Task1,   //  Manejador de la tarea
-        0);       //  Core donde se ejecutara la tarea
-}
-/*
 void TaskManager()
 {
     xTaskCreatePinnedToCore(
-        RumTask,    //  Funcion a implementar la tarea
-        "TASK MANAGER", //  Nombre de la tarea
-        10000,    //  Tamaño de stack en palabras (memoria)
-        NULL,     //  Entrada de parametros
-        configMAX_PRIORITIES-10,        //  Prioridad de la tarea
-        &Task1,   //  Manejador de la tarea
-        0);       //  Core donde se ejecutara la tarea
+        ManagerTasks,                //  Funcion a implementar la tarea
+        "TASK MANAGER",         //  Nombre de la tarea
+        10000,                  //  Tamaño de stack en palabras (memoria)
+        NULL,                   //  Entrada de parametros
+        configMAX_PRIORITIES-10,//  Prioridad de la tarea
+        &ManagerTask,           //  Manejador de la tarea
+        0);                     //  Core donde se ejecutara la tarea
 }
-/*
-/*
-bool FTP_MODE=false;
-bool Bootloader_MODE=false;
 
-static void RumTask(void *parameter)
+
+static void ManagerTasks(void *parameter)
 {
+
+unsigned long Tiempo_Actual=0;
+unsigned long Tiempo_Previo=0;
+bool MCU_State=LOW;
     for (;;)
     {
-        if (!card.init(SPI_FULL_SPEED))
+        Tiempo_Actual=millis();
+
+        if((Tiempo_Actual-Tiempo_Previo)>100)
         {
-            vTaskResume(SD_CHECK); // Inicia Tarea SD.
+            Tiempo_Previo = Tiempo_Actual;
+            MCU_State = !MCU_State;
+            digitalWrite(MCU_Status, !MCU_State);
         }
-        if (FTP_MODE == true)
+        /*
+        if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
         {
-            vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
+            if (eTaskGetState(SD_CHECK) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   SD CHECK");
+                continue;
+            }
+            else if (eTaskGetState(SD_CHECK) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  SD CHECK");
+                vTaskResume(SD_CHECK); // Inicia Tarea SD.
+            }
+        }
+        */
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
+        {
+            if (eTaskGetState(Ftp_SERVER) == eRunning)
+            {
+                Serial.println("------->>>>> Run Task   Ftp SERVER ");
+                continue;
+            }
+            else if (eTaskGetState(Ftp_SERVER) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Ftp SERVER");
+                vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
+            }  
         }
         if (!WiFi.status() == WL_CONNECTED)
         {
+            if (eTaskGetState(Status_WIFI) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   Status WIFI");
+                continue;
+            }
+            else if (eTaskGetState(Status_WIFI) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Status WIFI");
+                vTaskResume(Status_WIFI); // Inicia Modo Bootlader.
+            }
+        
             vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
         if(!client.connected())
         {
-            vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
+            if (eTaskGetState(Status_SERVER_TCP) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   SERVER TCP");
+                continue;
+            }
+            else if (eTaskGetState(Status_SERVER_TCP) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  SERVER TCP");
+                 vTaskResume(Status_SERVER_TCP); // Inicia Tarea  TCP.
+            }
         }
-        if (Bootloader_MODE == true && WiFi.status() == WL_CONNECTED)
+        if (Variables_globales.Get_Variable_Global(Bootloader_Mode)==true && WiFi.status() == WL_CONNECTED)
         {
-            vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+            if (eTaskGetState(Modo_Bootloader) == eRunning)
+            {
+                Serial.println("------->>>>> Rum Task   Modo Bootloader");
+                continue;
+            }
+            else if (eTaskGetState(Modo_Bootloader) == eSuspended)
+            {
+                Serial.println("------->>>>> Resume Task  Modo Bootloader");
+                vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+            }
         }
-        delay(10);
+        delay(5);
         vTaskDelay(1000);
     }
+    vTaskDelete(NULL);
     vTaskDelay(10);
 }
-*/
+
 
 void Init_Indicadores_LED(void)
 {
@@ -155,7 +206,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 152};
+        uint8_t ip[] = {192, 168, 5, 150};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 

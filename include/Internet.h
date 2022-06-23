@@ -41,7 +41,7 @@ void Init_Wifi()
       configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
       &Status_WIFI,                        //  Manejador de la tarea
       0);                          //  Core donde se ejecutara la tarea
-    //  vTaskSuspend(Status_WIFI);
+    
       
 
   xTaskCreatePinnedToCore(
@@ -52,7 +52,7 @@ void Init_Wifi()
       configMAX_PRIORITIES - 20,
       &Status_SERVER_TCP,
       0); // Core donde se ejecutara la tarea
-     // vTaskSuspend(Status_SERVER_TCP);
+     
       
 
   xTaskCreatePinnedToCore(
@@ -145,6 +145,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
     {
       digitalWrite(WIFI_Status, HIGH);
       Serial.println("Wifi conectado");
+      vTaskSuspend(Status_WIFI);
       vTaskDelay(60000 / portTICK_PERIOD_MS);
       continue;
     }
@@ -176,7 +177,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.println(WiFi.localIP());
         Serial.print("ESP Mac Address: ");
         Serial.println(WiFi.macAddress());
-        
+        vTaskSuspend(Status_WIFI);
       }
     }
   }
@@ -229,6 +230,7 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
       {
         Serial.println("Servidor conectado");
         vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskSuspend(Status_SERVER_TCP);
         continue;
       }
 
@@ -257,6 +259,7 @@ void Task_Verifica_Conexion_Servidor_TCP(void *parameter)
         Serial.println(serverIP);
         Serial.print("Conectado a Server PORT: ");
         Serial.println(serverPort);
+        vTaskSuspend(Status_SERVER_TCP);
         
       }
     }
