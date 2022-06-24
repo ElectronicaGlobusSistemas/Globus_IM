@@ -995,6 +995,7 @@ void Encuestas_Maquina(void *pvParameters)
   }
   vTaskDelete(NULL);
 }
+
 void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int LimMin, int LimMax,bool Enable)
 {
   if (Enable == true)
@@ -1019,6 +1020,7 @@ void Storage_Contadores_SD(String stringD,char* ARCHIVO,String Encabezado1, int 
     }
   }
 }
+
 void Add_String(char *contador, String stringDT, bool Separador)
 {
   if (Separador == true)
@@ -1031,6 +1033,7 @@ void Add_String(char *contador, String stringDT, bool Separador)
     SD_Cont += String(contador); // Delete Separador
   }
 }
+
 void Add_String_Hora(String Horario)
 {
   SD_Cont += String(Horario);

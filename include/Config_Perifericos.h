@@ -7,27 +7,27 @@
 #define Clock_frequency 240
 #define MCU_Status 2
 #define WIFI_Status 15
+#define Reset_Config 21
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
-extern TaskHandle_t SD_CHECK;      //  Manejador de tareas
-extern Sd2Card card;               //  Memoria SD.
-extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
-extern TaskHandle_t Status_WIFI;   //  Manejador de  Tarea Wifi
+extern TaskHandle_t SD_CHECK;          //  Manejador de tareas
+extern Sd2Card card;                   //  Memoria SD.
+extern TaskHandle_t Ftp_SERVER;        //  Manejador de tareas
+extern TaskHandle_t Status_WIFI;       //  Manejador de  Tarea Wifi
 extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
-extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader 
-extern WiFiClient client; // Declara un objeto cliente para conectarse al servidor
+extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader
+extern WiFiClient client;              // Declara un objeto cliente para conectarse al servidor
 //------------------------------------------------------------------
 
 //----------------------> TaskHandle_t <----------------------------
-TaskHandle_t Task1;
 TaskHandle_t ManagerTask;
 //------------------------------------------------------------------
 
 //-----------------------> Prototipo de Funciones <-----------------
-void loop2(void *parameter);
 void Init_Indicadores_LED(void);
 void Init_Configuracion_Inicial(void);
+void Reset_Configuracion_Inicial(void);
 void TaskManager();
 static void ManagerTasks(void *parameter);
 //------------------------------------------------------------------
@@ -43,13 +43,15 @@ void Init_Config(void)
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
+    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj <----------------------------
     RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
-
+    //-------------------> Reset valores NVS <-----------------------
+    Reset_Configuracion_Inicial();
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
@@ -64,7 +66,6 @@ void Init_Config(void)
     init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Módulos <--------------------------------
     Init_SD(); // Inicializa Memoria SD.
-
     //---------------------------------------------------------------
     // int dia = 21;
     // int mes = 6;
@@ -77,50 +78,48 @@ void Init_Config(void)
     // Serial.println(nombre);
     Init_FTP_SERVER(); // Inicializa SERVER
     //---------------------------------------------------------------
-    Archivo_Format="37062022.csv"; // Crea Archivo Si no Existe.
+    Archivo_Format = "37062022.csv"; // Crea Archivo Si no Existe.
     Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
-  //  Create_ARCHIVE_Excel("37062022.csv",Encabezado_Contadores);
+    //  Create_ARCHIVE_Excel("37062022.csv",Encabezado_Contadores);
     Init_Wifi();
     //---------------------------------------------------------------
     //-------------------->  Update  <-------------------------------
     Init_Bootloader();
-     
+
     //---------------------------------------------------------------
 
     TaskManager(); // Inicia Manejador de Tareas de Verificación
-   
 }
 
 void TaskManager()
 {
     xTaskCreatePinnedToCore(
-        ManagerTasks,                //  Funcion a implementar la tarea
-        "TASK MANAGER",         //  Nombre de la tarea
-        10000,                  //  Tamaño de stack en palabras (memoria)
-        NULL,                   //  Entrada de parametros
-        configMAX_PRIORITIES-10,//  Prioridad de la tarea
-        &ManagerTask,           //  Manejador de la tarea
-        0);                     //  Core donde se ejecutara la tarea
+        ManagerTasks,              //  Funcion a implementar la tarea
+        "TASK MANAGER",            //  Nombre de la tarea
+        10000,                     //  Tamaño de stack en palabras (memoria)
+        NULL,                      //  Entrada de parametros
+        configMAX_PRIORITIES - 10, //  Prioridad de la tarea
+        &ManagerTask,              //  Manejador de la tarea
+        0);                        //  Core donde se ejecutara la tarea
 }
-
 
 static void ManagerTasks(void *parameter)
 {
 
-unsigned long Tiempo_Actual=0;
-unsigned long Tiempo_Previo=0;
-bool MCU_State=LOW;
+    unsigned long Tiempo_Actual = 0;
+    unsigned long Tiempo_Previo = 0;
+    bool MCU_State = LOW;
     for (;;)
     {
-        Tiempo_Actual=millis();
+        Tiempo_Actual = millis();
 
-        if((Tiempo_Actual-Tiempo_Previo)>100)
+        if ((Tiempo_Actual - Tiempo_Previo) > 100)
         {
             Tiempo_Previo = Tiempo_Actual;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
-        
+
         // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
         // {
         //     if (eTaskGetState(SD_CHECK) == eRunning)
@@ -134,8 +133,8 @@ bool MCU_State=LOW;
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-        
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
+
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
@@ -146,9 +145,9 @@ bool MCU_State=LOW;
             {
                 Serial.println("------->>>>> Resume Task  Ftp SERVER");
                 vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
-            }  
+            }
         }
-        if (!WiFi.status() == WL_CONNECTED)
+        if (WiFi.status() != WL_CONNECTED)
         {
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
@@ -160,7 +159,7 @@ bool MCU_State=LOW;
                 Serial.println("------->>>>> Resume Task  Status WIFI");
                 vTaskResume(Status_WIFI); // Inicia Modo Bootlader.
             }
-        
+
             vTaskResume(Status_WIFI); // Inicia Tarea  WIFI.
         }
         if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion))
@@ -186,7 +185,7 @@ bool MCU_State=LOW;
             else if (eTaskGetState(Modo_Bootloader) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  Modo Bootloader");
-                vTaskResume(Modo_Bootloader); //Inicia Modo Bootlader. 
+                vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
             }
         }
         delay(50);
@@ -258,7 +257,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
-//        String ssid = "GLOBUS_ONLINEW";
+        //        String ssid = "GLOBUS_ONLINEW";
         String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
@@ -266,7 +265,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-//        String password = "Globus#OnlineW324";
+        //        String password = "Globus#OnlineW324";
         String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
@@ -432,4 +431,40 @@ void Init_Configuracion_Inicial(void)
 
     Serial.println("\n");
     NVS.end();
+}
+
+void Reset_Configuracion_Inicial(void)
+{
+    bool MCU_State = LOW;
+    while (digitalRead(Reset_Config) == HIGH)
+    {
+        if (millis() > 10000)
+        {
+            Serial.println("Reset activado............................");
+            for (int i = 0; i < 50; i++)
+            {
+                MCU_State = !MCU_State;
+                digitalWrite(MCU_Status, !MCU_State);
+                delay(100);
+            }
+
+            NVS.begin("Config_ESP32", false);
+
+            // Inicializa Direccion IP
+            Serial.println("Reset IP por defecto...");
+            size_t ip_len = NVS.getBytesLength("Dir_IP");
+            char IP[ip_len];
+            NVS.getBytes("Dir_IP", IP, ip_len);
+            IP[3] = 250;
+            NVS.putBytes("Dir_IP", IP, sizeof(IP));
+
+            // Reset Nombre MAQ
+            Serial.println("Reset Nombre MAQ por defecto...");
+            char name[17] = {'M', 'a', 'q', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
+            NVS.putString("Name_Maq", name);
+            NVS.end();
+            ESP.restart();
+        }
+    }
+    return;
 }
