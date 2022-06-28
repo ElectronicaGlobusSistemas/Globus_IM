@@ -142,7 +142,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       Serial.println("Wifi conectado");
       Serial.println("Termina verifica conexion WIFI...");
       vTaskSuspend(Status_WIFI);
-      vTaskDelay(60000 / portTICK_PERIOD_MS);
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
       continue;
     }
     else
@@ -161,7 +161,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(SSID_Wifi);
         digitalWrite(WIFI_Status, LOW);
-        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         continue;
       }
       else
@@ -175,7 +175,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.println(WiFi.macAddress());
         Serial.println("Termina verifica conexion WIFI...");
         vTaskSuspend(Status_WIFI);
-        vTaskDelay(60000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         continue;
       }
     }
