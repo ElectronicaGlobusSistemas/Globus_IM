@@ -7,7 +7,8 @@
 #define Clock_frequency 240
 #define MCU_Status 2
 #define WIFI_Status 15
-#define Reset_Config 21
+#define Reset_Config 22
+#define Hopper_Enable 21
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
@@ -44,6 +45,7 @@ void Init_Config(void)
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
+    pinMode(Hopper_Enable, INPUT);   // Reset_Config como Entrada.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
@@ -51,7 +53,7 @@ void Init_Config(void)
     RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
     //-------------------> Reset valores NVS <-----------------------
-    Reset_Configuracion_Inicial();
+//    Reset_Configuracion_Inicial();
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------

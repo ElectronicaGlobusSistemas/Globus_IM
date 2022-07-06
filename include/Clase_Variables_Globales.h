@@ -15,7 +15,8 @@ using namespace std;
 #define Comunicacion_Maq            9
 #define Archivo_CSV_OK              10
 #define Archivo_LOG_OK              11
-
+#define Primer_Cancel_Credit        12
+#define Flag_Hopper_Enable          13
 
 
 class Variables_Globales
@@ -32,6 +33,8 @@ private:
     bool Archivo_LOG_OK_;
     bool Archivo_CSV_OK_;
     bool Enable_Storage_;
+    bool Primer_Cancel_Credit_;
+    bool Flag_Hopper_Enable_;
 
 public:
     void Init_Variables_Globales();

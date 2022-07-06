@@ -27,9 +27,11 @@ extern bool flag_ultimo_contador_Ok;
 
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
+void Task_Verifica_Hopper(void *parameter);
 void Verifica_Cambio_Contadores(void);
 void Transmite_Configuracion(void);
 void Transmision_Controlada_Contadores(void);
+bool Calcula_Cancel_Credit(bool);
 
 void init_Comunicaciones()
 {
@@ -49,6 +51,14 @@ void init_Comunicaciones()
         configMAX_PRIORITIES - 15,
         NULL,
         0); // Core donde se ejecutara la tarea
+    xTaskCreatePinnedToCore(
+        Task_Verifica_Hopper,
+        "Verifica en estado del Hopper - Poker",
+        5000,
+        NULL,
+        configMAX_PRIORITIES - 15,
+        NULL,
+        0); // Core donde se ejecutara la tarea
 }
 
 /*****************************************************************************************/
@@ -57,26 +67,31 @@ void init_Comunicaciones()
 
 void Transmite_A_Servidor(char buffer[], int len)
 {
-    Serial.print("Tamaño a enviar: ");
-    Serial.println(len);
-    //    Serial.println("buffer enviado: ");
-    //    Serial.println(buffer);
-    int length_ = 0;
-    if (Configuracion.Get_Configuracion(Tipo_Conexion))
-        length_ = clientTCP.write(buffer, len);
-    else
+    if (WiFi.status() == WL_CONNECTED)
     {
-        memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
-        IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
-        uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+        Serial.print("Tamaño a enviar: ");
+        Serial.println(len);
+        //    Serial.println("buffer enviado: ");
+        //    Serial.println(buffer);
+        int length_ = 0;
+        if (Configuracion.Get_Configuracion(Tipo_Conexion))
+            length_ = clientTCP.write(buffer, len);
+        else
+        {
+            memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+            IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+            uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
 
-        clientUDP.beginPacket(serverIP, serverPort);
-        length_ = clientUDP.write((const uint8_t *)buffer, len);
-        clientUDP.endPacket();
+            clientUDP.beginPacket(serverIP, serverPort);
+            length_ = clientUDP.write((const uint8_t *)buffer, len);
+            clientUDP.endPacket();
+        }
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
     }
-    Serial.print("Bytes enviados: ");
-    Serial.println(length_);
-    Serial.println("--------------------------------------------------------------------");
+    else
+        Serial.println("No se puede enviar mensaje, no conexion a WIFI");
 }
 
 /*****************************************************************************************/
@@ -1009,7 +1024,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 200:
                 Serial.println("Solicitud de configuracion maquina");
-                if ((res[4] < 7) && Configura_Tipo_Maquina(res))
+                if (((res[4] - 48) < 7) && Configura_Tipo_Maquina(res))
                     Transmite_Confirmacion('C', '9');
                 else
                     Transmite_Confirmacion('C', 'A');
@@ -1162,10 +1177,17 @@ void Transmite_Configuracion(void)
 
     case 30:
         if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
-        {
             Transmite_Confirmacion('B', 'C');
-            Contador_Transmision = 0;
+        break;
+
+    case 40:
+        if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+        {
+            if (Calcula_Cancel_Credit(true))
+                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
         }
+        Contador_Transmision = 0;
+        break;
     }
     Contador_Transmision++;
 }
@@ -1222,5 +1244,88 @@ void Transmision_Controlada_Contadores(void)
             Contador_Transmision_Contadores = 0;
             Transmite_Confirmacion('A', '0');
         }
+    }
+}
+
+bool Calcula_Cancel_Credit(bool Calcula_Contador)
+{
+    int Cancel_Credit_Poker, Coin_In_Poker, Coin_Out_Poker, Drop_Poker, Residuo;
+    int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
+    char Contador_Cancel_Credit_Poker[9];
+    bzero(Contador_Cancel_Credit_Poker, 9);
+
+    if (Calcula_Contador)
+    {
+        Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
+        Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+        Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
+
+        Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker);
+        if (Cancel_Credit_Poker <= 0)
+            return false;
+    }
+    Serial.print("contador cancel credit int poker es: ");
+    Serial.println(Cancel_Credit_Poker);
+
+    decmill = Cancel_Credit_Poker / 10000000;
+    Contador_Cancel_Credit_Poker[0] = decmill + 48;
+    Residuo = Cancel_Credit_Poker % 10000000;
+
+    unimill = Residuo / 1000000;
+    Contador_Cancel_Credit_Poker[1] = unimill + 48;
+    Residuo = Cancel_Credit_Poker % 1000000;
+
+    centmil = Residuo / 100000;
+    Contador_Cancel_Credit_Poker[2] = centmil + 48;
+    Residuo = Cancel_Credit_Poker % 100000;
+
+    decmil = Residuo / 10000;
+    Contador_Cancel_Credit_Poker[3] = decmil + 48;
+    Residuo = Cancel_Credit_Poker % 10000;
+
+    unimil = Residuo / 1000;
+    Contador_Cancel_Credit_Poker[4] = unimil + 48;
+    Residuo = Cancel_Credit_Poker % 1000;
+
+    cen = Residuo / 100;
+    Contador_Cancel_Credit_Poker[5] = cen + 48;
+    Residuo = Cancel_Credit_Poker % 100;
+
+    dec = Residuo / 10;
+    Contador_Cancel_Credit_Poker[6] = dec + 48;
+    Residuo = Cancel_Credit_Poker % 10;
+
+    uni = Residuo;
+    Contador_Cancel_Credit_Poker[7] = uni + 48;
+
+    Serial.print("contador cancel credit char poker es: ");
+    Serial.println(Contador_Cancel_Credit_Poker);
+    if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
+        return true;
+    else
+        return false;
+}
+
+void Task_Verifica_Hopper(void *parameter)
+{
+    int Conta_Poll_Cancel_Poker = 0;
+    for (;;)
+    {
+        if (digitalRead(21) == HIGH)
+            Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, true);
+        else if (digitalRead(21) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+        {
+            Conta_Poll_Cancel_Poker++;
+            if (Conta_Poll_Cancel_Poker > 25)
+            {
+                Serial.println("Premio Pagado Poker *************************************");
+                Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
+                Calcula_Cancel_Credit(true);
+                Transmite_Confirmacion('D', '1');
+                Conta_Poll_Cancel_Poker = 0;
+            }
+        }
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        continue;
     }
 }
