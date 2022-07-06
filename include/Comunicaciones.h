@@ -51,14 +51,18 @@ void init_Comunicaciones()
         configMAX_PRIORITIES - 15,
         NULL,
         0); // Core donde se ejecutara la tarea
-    xTaskCreatePinnedToCore(
-        Task_Verifica_Hopper,
-        "Verifica en estado del Hopper - Poker",
-        5000,
-        NULL,
-        configMAX_PRIORITIES - 15,
-        NULL,
-        0); // Core donde se ejecutara la tarea
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+    {
+        xTaskCreatePinnedToCore(
+            Task_Verifica_Hopper,
+            "Verifica en estado del Hopper - Poker",
+            5000,
+            NULL,
+            configMAX_PRIORITIES - 15,
+            NULL,
+            0); // Core donde se ejecutara la tarea
+    }
 }
 
 /*****************************************************************************************/

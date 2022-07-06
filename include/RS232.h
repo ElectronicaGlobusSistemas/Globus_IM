@@ -284,7 +284,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            //Serial.println(contador);
+            // Serial.println(contador);
 
             switch (buffer_contadores[1])
             {
@@ -307,6 +307,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+                contadores.Set_Contadores(Bill_Amount, contador);
               Add_String(contador, SD_Cont, true);
               Contador_Encuestas++;
               break;
