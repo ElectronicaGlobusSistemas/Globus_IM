@@ -54,6 +54,7 @@ void Add_String(char *contador, String stringDT, bool Separador);
 void Add_String_Hora(String Horario);
 void Encuestas_Maquinas_Genericas(void);
 void Encuestas_Maquinas_Poker(void);
+void Encuestas_Maquinas_IRT(void);
 void Encuesta_Billetes(void);
 bool Inactiva_Maquina(void);
 void Transmite_Inactiva_Maquina(void);
@@ -63,6 +64,7 @@ bool Verifica_Premio_1B(void);
 void Encuesta_contador_1B(void);
 void Selector_Modo_SD(void);
 void Delete_Trama();
+void Calcula_Cancel_Credit_IRT(void);
 //---------------------------------------------------------------------------------------------------------------
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -289,7 +291,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             switch (buffer_contadores[1])
             {
             case 10:
-              contadores.Set_Contadores(Total_Cancel_Credit, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              contadores.Set_Contadores(Total_Cancel_Credit, contador);
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                Calcula_Cancel_Credit_IRT();
               Contador_Encuestas++;
               Add_String_Hora(RTC.getTime());      // Add Hora a Cadena.
               Add_String(contador, SD_Cont, true); // Add Contador a Cadena.
@@ -363,6 +367,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 0x2B:
               contadores.Set_Contadores(Physical_Coin_Out, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                Calcula_Cancel_Credit_IRT();
               Add_String(contador, SD_Cont, true);
               Contador_Encuestas++;
               break;
@@ -722,7 +728,15 @@ void Encuestas_Maquina(void *pvParameters)
       Serial.println("Cashless AFT Single");
       break;
     case 4:
-      Serial.println("IRT");
+      if (numero_encuesta > 20) // Numero de encuestas realizadas a la maquina
+      {
+        if (numero_contador < 15) // Numero de respuestas recibidas por la maquina
+          Variables_globales.Set_Variable_Global(Comunicacion_Maq, false);
+        else
+          Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+        numero_encuesta = 0;
+        numero_contador = 0;
+      }
       break;
     case 5:
       if (numero_encuesta > 20) // Numero de encuestas realizadas a la maquina
@@ -812,7 +826,7 @@ void Encuestas_Maquina(void *pvParameters)
           Serial.println("Cashless AFT Single");
           break;
         case 4:
-          Serial.println("IRT");
+          Encuestas_Maquinas_IRT();
           break;
         case 5:
           Encuestas_Maquinas_Genericas();
@@ -1386,6 +1400,227 @@ void Encuestas_Maquinas_Poker(void)
 // Encuestas Maquinas IRT
 void Encuestas_Maquinas_IRT(void)
 {
+  Conta_Encuestas++;
+  switch (Conta_Encuestas)
+  {
+  case 1:
+    //    Serial.println("Total Cancel Credit"); // total cancel credit
+    Transmite_Poll(0x10);
+    break;
+  case 2:
+    //    Serial.println("Coin In"); // Coin in
+    Transmite_Poll(0x11);
+    break;
+  case 3:
+    //    Serial.println("Coin Out"); // Coin out
+    Transmite_Poll(0x12);
+    break;
+  case 4:
+    //    Serial.println("Jackpot"); // Jackpot
+    Transmite_Poll(0x14);
+    break;
+  case 5:
+    //    Serial.println("Total Drop"); // total drop
+    Transmite_Poll(0x13);
+    break;
+  case 6:
+    //    Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2D);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0xFF);
+    Transmite_Poll_Long(0xE0);
+    break;
+  case 7:
+    //    Serial.println("Bill amount");
+    Transmite_Poll(0x46); // Bill amount
+    break;
+  case 8:
+    //    Serial.println("Casheable In"); // Casheable in
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x2E);
+    Transmite_Poll_Long(0xF7);
+    Transmite_Poll_Long(0xE3);
+    break;
+  case 9:
+    //    Serial.println("Casheable Restricted In"); // Casheable restricted in
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x7E);
+    Transmite_Poll_Long(0xF2);
+    break;
+  case 10:
+    //    Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x30);
+    Transmite_Poll_Long(0x08);
+    Transmite_Poll_Long(0x1A);
+    break;
+  case 11:
+    //    Serial.println("Casheable Out"); // Casheable out
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x32);
+    Transmite_Poll_Long(0x1A);
+    Transmite_Poll_Long(0x39);
+    break;
+  case 12:
+    //    Serial.println("Casheable Restricted Out"); // Casheable restricted out
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x33);
+    Transmite_Poll_Long(0x93);
+    Transmite_Poll_Long(0x28);
+    break;
+  case 13:
+    //    Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x34);
+    Transmite_Poll_Long(0x2C);
+    Transmite_Poll_Long(0x5C);
+    break;
+  case 14:
+    //    Serial.println("Games Played"); // Games played
+    Transmite_Poll(0x15);
+    break;
+  case 15:
+    //    Serial.println("Coin In Fisico"); // Physical coin in
+    Transmite_Poll(0x2A);
+    break;
+  case 16:
+    //    Serial.println("Coin Out Fisico"); // Physical coin out
+    Transmite_Poll(0x2B);
+    break;
+  case 17:
+    //    Serial.println("Total Coin Drop");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x24);
+    Transmite_Poll_Long(0xAD);
+    Transmite_Poll_Long(0x4C);
+    break;
+  case 18:
+    //    Serial.println("Machine Paid Progresive Payout");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1D);
+    Transmite_Poll_Long(0xEF);
+    Transmite_Poll_Long(0xE0);
+    break;
+  case 19:
+    //    Serial.println("Machine Paid External Bonus Payout");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1E);
+    Transmite_Poll_Long(0x74);
+    Transmite_Poll_Long(0xD2);
+    break;
+  case 20:
+    //    Serial.println("Attendant Paid Progresive Payout");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x20);
+    Transmite_Poll_Long(0x89);
+    Transmite_Poll_Long(0x0A);
+    break;
+  case 21:
+    //    Serial.println("Attendant Paid External Payout");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1B);
+    break;
+  case 22:
+    //    Serial.println("Ticket In");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x0D);
+    Transmite_Poll_Long(0x6E);
+    Transmite_Poll_Long(0xF0);
+    break;
+  case 23:
+    //    Serial.println("Ticket Out");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x0E);
+    Transmite_Poll_Long(0xF5);
+    Transmite_Poll_Long(0xC2);
+    break;
+  case 24:
+    //    Serial.println("Current Credits");
+    Transmite_Poll(0x1A);
+    break;
+  case 25:
+    //    Serial.println("Contador 1C - Door Open Metter");
+    Transmite_Poll(0x1C);
+    break;
+  case 26:
+    //    Serial.println("Contador 18 - Games Since Last Power Up");
+    Transmite_Poll(0x18);
+    break;
+  case 27:
+    //    Serial.println("ID Machine");
+    Transmite_Poll(0x1F);
+    break;
+  case 28:
+    //    Serial.println("ROM Signature");
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
+    break;
+  case 29:
+    Encuesta_Billetes();
+    Conta_Encuestas = 0;
+    flag_ultimo_contador_Ok = true;
+  }
 }
 
 //---------------------------- Funcion para encuestar Billetes  ----------------------------------------------
@@ -1510,4 +1745,56 @@ void Delete_Trama()
   {
     SD_Cont.remove(i);
   }
+}
+
+void Calcula_Cancel_Credit_IRT(void)
+{
+  int Total_Cancel_Credit_IRT, Cancel_Credit_IRT, Coin_Out_IRT, Residuo;
+  int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
+  char Contador_Cancel_Credit_IRT[9];
+  bzero(Contador_Cancel_Credit_IRT, 9);
+
+  Cancel_Credit_IRT = contadores.Get_Contadores_Int(Total_Cancel_Credit);
+  Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
+
+  Total_Cancel_Credit_IRT = Cancel_Credit_IRT + Coin_Out_IRT;
+
+  Serial.print("contador cancel credit int IRT es: ");
+  Serial.println(Total_Cancel_Credit_IRT);
+
+  decmill = Total_Cancel_Credit_IRT / 10000000;
+  Contador_Cancel_Credit_IRT[0] = decmill + 48;
+  Residuo = Total_Cancel_Credit_IRT % 10000000;
+
+  unimill = Residuo / 1000000;
+  Contador_Cancel_Credit_IRT[1] = unimill + 48;
+  Residuo = Total_Cancel_Credit_IRT % 1000000;
+
+  centmil = Residuo / 100000;
+  Contador_Cancel_Credit_IRT[2] = centmil + 48;
+  Residuo = Total_Cancel_Credit_IRT % 100000;
+
+  decmil = Residuo / 10000;
+  Contador_Cancel_Credit_IRT[3] = decmil + 48;
+  Residuo = Total_Cancel_Credit_IRT % 10000;
+
+  unimil = Residuo / 1000;
+  Contador_Cancel_Credit_IRT[4] = unimil + 48;
+  Residuo = Total_Cancel_Credit_IRT % 1000;
+
+  cen = Residuo / 100;
+  Contador_Cancel_Credit_IRT[5] = cen + 48;
+  Residuo = Total_Cancel_Credit_IRT % 100;
+
+  dec = Residuo / 10;
+  Contador_Cancel_Credit_IRT[6] = dec + 48;
+  Residuo = Total_Cancel_Credit_IRT % 10;
+
+  uni = Residuo;
+  Contador_Cancel_Credit_IRT[7] = uni + 48;
+
+  Serial.print("contador cancel credit char IRT es: ");
+  Serial.println(Contador_Cancel_Credit_IRT);
+  contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
+  contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
 }

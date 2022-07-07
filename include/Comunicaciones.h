@@ -10,6 +10,7 @@
 
 int Contador_Transmision = 0;
 int Contador_Transmision_Contadores = 0;
+int Contador_Maquina_En_Juego = 0;
 
 int Contador_Cancel_Credit_Ant = 0;
 int Contador_Cancel_Credit_Act = 0;
@@ -21,7 +22,7 @@ bool flag_billete_insertado = false;
 
 int Contador_Coin_In_Ant = 0;
 int Contador_Coin_In_Act = 0;
-bool flag_maquina_en_juego = false;
+// bool flag_maquina_en_juego = false;
 
 extern bool flag_ultimo_contador_Ok;
 
@@ -123,7 +124,7 @@ void Transmite_Confirmacion(char High, char Low)
 
 void Transmite_Contadores_Accounting(void)
 {
-    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC))
+    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
     {
         if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
         {
@@ -1029,7 +1030,10 @@ void Task_Procesa_Comandos(void *parameter)
             case 200:
                 Serial.println("Solicitud de configuracion maquina");
                 if (((res[4] - 48) < 7) && Configura_Tipo_Maquina(res))
+                {
                     Transmite_Confirmacion('C', '9');
+                    ESP.restart();
+                }
                 else
                     Transmite_Confirmacion('C', 'A');
                 break;
@@ -1121,6 +1125,13 @@ void Task_Maneja_Transmision(void *parameter)
 {
     for (;;)
     {
+        if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego < 60)
+            Contador_Maquina_En_Juego++;
+        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego >= 60)
+        {
+            Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+            Contador_Maquina_En_Juego = 0;
+        }
         Verifica_Cambio_Contadores();
         Transmite_Configuracion();
         Transmision_Controlada_Contadores();
@@ -1140,7 +1151,8 @@ void Verifica_Cambio_Contadores(void)
         else if (Contador_Coin_In_Act > Contador_Coin_In_Ant)
         {
             Contador_Coin_In_Ant = Contador_Coin_In_Act;
-            flag_maquina_en_juego = true;
+            Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, true);
+            //            flag_maquina_en_juego = true;
         }
 
         // DETECTA CAMBIO CANCEL CREDIT - PREMIO PAGADO
@@ -1203,7 +1215,7 @@ void Transmision_Controlada_Contadores(void)
     if (Variables_globales.Get_Variable_Global(Comunicacion_Maq)) // Si hay comunicacion con la maquina...
     {
         // Si la maquina NO esta en juego, transmite cada 2 minutos, si el valor es 120
-        if (!flag_maquina_en_juego && !flag_premio_pagado_cashout && !flag_billete_insertado)
+        if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado)
         {
             if (Contador_Transmision_Contadores >= 120)
             {
@@ -1214,14 +1226,15 @@ void Transmision_Controlada_Contadores(void)
         }
 
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
-        else if (flag_maquina_en_juego && !flag_premio_pagado_cashout && !flag_billete_insertado)
+        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado)
         {
             if (Contador_Transmision_Contadores >= 30)
             {
                 Serial.println("Contadores, maquina SI juego....");
-                flag_maquina_en_juego = false;
-                Contador_Transmision_Contadores = 0;
                 Transmite_Contadores_Accounting();
+                //                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+                //                flag_maquina_en_juego = false;
+                Contador_Transmision_Contadores = 0;
             }
         }
 
@@ -1231,6 +1244,7 @@ void Transmision_Controlada_Contadores(void)
             Serial.println("Contadores, premio pagado....");
             Transmite_Contadores_Accounting();
             flag_premio_pagado_cashout = false;
+            Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
         }
 
         // Si cambio el billetero, porque se ingreso un nuevo billete

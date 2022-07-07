@@ -16,7 +16,7 @@ ESP32Time RTC; // Objeto contiene hora y fecha
 Buffers Buffer;            // Objeto de buffer de mensajes servidor
 Contadores_SAS contadores; // Objeto contiene contadores maquina
 
-#include "Clase_Variables_Globales.h"
+//#include "Clase_Variables_Globales.h"
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
 Eventos_SAS eventos; // Objeto contiene eventos maquina

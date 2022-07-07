@@ -129,7 +129,7 @@ bool Buffers::Set_buffer_recepcion_UDP(char buffer[])
 /*                       BUFFER DE CONTADORES ACCOUTING                           */
 /**********************************************************************************/
 
-bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC)
+bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
 {
     int pos;
     char req[258] = {};
@@ -530,7 +530,12 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[241] = Fecha[14];
     req[242] = Fecha[15];
     req[243] = '|'; // 243
-    req[244] = '0';
+
+    if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego))
+        req[244] = '1';
+    else
+        req[244] = '0';
+        
     req[245] = '|'; // 245
     req[246] = '0';
     req[247] = '|'; // 247
@@ -923,14 +928,14 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 
     memcpy(res, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
-//    Serial.println(res[0], HEX);
+    //    Serial.println(res[0], HEX);
 
     String string_dato = String(res[0], HEX);
 
     (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
     (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
 
-//    Serial.println(res[1], HEX);
+    //    Serial.println(res[1], HEX);
 
     String string_dato1 = String(res[1], HEX);
 

@@ -43,6 +43,9 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Hopper_Enable:
         return Flag_Hopper_Enable_;
         break;
+    case Flag_Maquina_En_Juego:
+        return Flag_Maquina_En_Juego_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -89,6 +92,9 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Hopper_Enable:
         Flag_Hopper_Enable_ = Change_estado;
         break;
+    case Flag_Maquina_En_Juego:
+        Flag_Maquina_En_Juego_ = Change_estado;
+        break;
     }
 }
 
@@ -107,4 +113,5 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Comunicacion_Maq_ = false;
     Primer_Cancel_Credit_ = false;
     Flag_Hopper_Enable_ = false;
+    Flag_Maquina_En_Juego_ = false;
 }
