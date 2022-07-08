@@ -16,8 +16,11 @@ extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
 extern TaskHandle_t Status_WIFI;   //  Manejador de  Tarea Wifi
 extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
 extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader 
-extern WiFiClient client; // Declara un objeto cliente para conectarse al servidor
+
 //------------------------------------------------------------------
+
+extern char Archivo_CSV[100];
+
 
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t Task1;
@@ -46,7 +49,7 @@ void Init_Config(void)
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
-    //--------------------> Setup Reloj <----------------------------
+    //--------------------> Setup Reloj Default <--------------------
     RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
 
@@ -57,38 +60,24 @@ void Init_Config(void)
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
-
+    //------------------> Init Memoria SD <--------------------------
+    Init_SD(); // Inicializa Memoria SD.
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
     CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
     init_Comunicaciones(); // Inicializa Tareas TCP
-    //--------------------> Módulos <--------------------------------
-    Init_SD(); // Inicializa Memoria SD.
-
+    //--------------------> Task  SERVER <---------------------------
+    Init_FTP_SERVER(); 
     //---------------------------------------------------------------
-    // int dia = 21;
-    // int mes = 6;
-    // char dia_char[] = (char)dia;
-    // char mes_char[] = (char)mes;
-    // char nombre[12] = {};
-    // strcpy(nombre,dia_char);
-
-    // Serial.println("****************************************");
-    // Serial.println(nombre);
-    Init_FTP_SERVER(); // Inicializa SERVER
-    //---------------------------------------------------------------
-    Archivo_Format="37062022.csv"; // Crea Archivo Si no Existe.
-    Create_ARCHIVE_Excel(Archivo_Format, Encabezado_Contadores);
-  //  Create_ARCHIVE_Excel("37062022.csv",Encabezado_Contadores);
+    //--------------------> Task Wifi <------------------------------
     Init_Wifi();
     //---------------------------------------------------------------
-    //-------------------->  Update  <-------------------------------
+    //--------------------> Task Update  <---------------------------
     Init_Bootloader();
-     
     //---------------------------------------------------------------
-
+    //--------------------> Task Manager <---------------------------
     TaskManager(); // Inicia Manejador de Tareas de Verificación
-   
+    //---------------------------------------------------------------
 }
 
 void TaskManager()
@@ -108,17 +97,16 @@ static void ManagerTasks(void *parameter)
     unsigned long Tiempo_Actual = 0;
     unsigned long Tiempo_Previo = 0;
     bool MCU_State = LOW;
+    long conta =0;
     for (;;)
     {
         Tiempo_Actual = millis();
-
-        if ((Tiempo_Actual - Tiempo_Previo) > 100)
+        if ((Tiempo_Actual - Tiempo_Previo) > 50)
         {
             Tiempo_Previo = Tiempo_Actual;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
-
         if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
@@ -133,12 +121,14 @@ static void ManagerTasks(void *parameter)
                 continue;
             }
         }
-        if (!WiFi.status() == WL_CONNECTED)
+        if (WiFi.status() != WL_CONNECTED)
         {
+                
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Status WIFI");
                 continue;
+                
             }
             else if (eTaskGetState(Status_WIFI) == eSuspended)
             {
@@ -196,6 +186,7 @@ void Init_Configuracion_Inicial(void)
     // Borrar particiones creadas en NVS
     // nvs_flash_erase();
     // nvs_flash_init();
+    
     NVS.begin("Config_ESP32", false);
 
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
@@ -222,7 +213,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 200};
+        uint8_t ip_server[] = {192, 168, 5, 208};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 

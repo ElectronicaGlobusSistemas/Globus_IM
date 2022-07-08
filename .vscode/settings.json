@@ -57,6 +57,7 @@
         "queue": "cpp",
         "cstdbool": "cpp",
         "bitset": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "esp32-hal.h": "c"
     }
 }

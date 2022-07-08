@@ -17,6 +17,10 @@ using namespace std;
 #define Archivo_LOG_OK              11
 
 
+#define Encabezado_Maquina_Generica 12
+#define Encabezado_Maquina_Eventos  13
+#define Estado_Escritura            14
+#define Libera_Memoria_OK           15
 
 class Variables_Globales
 {
@@ -32,9 +36,15 @@ private:
     bool Archivo_LOG_OK_;
     bool Archivo_CSV_OK_;
     bool Enable_Storage_;
+    String Encabezado_Maquina_Generica_;
+    String Encabezado_Maquina_Eventos_;
+    bool Estado_Escritura_;
+    bool Libera_Memoria_OK_;
 
 public:
     void Init_Variables_Globales();
     void Set_Variable_Global(int Filtro, bool Change_estado);
     bool Get_Variable_Global(int Filtro);
+    String Get_Encabezado_Maquina(int Filtro);
+  
 };

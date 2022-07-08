@@ -132,6 +132,7 @@ void CONNECT_WIFI(void)
 
 void Task_Verifica_Conexion_Wifi(void *parameter)
 {
+  Serial.println(" Verificador WIFI Activado");
   unsigned long tiempo_inicial, tiempo_final = 0;
 
   for (;;)

@@ -22,8 +22,19 @@ bool flag_billete_insertado = false;
 int Contador_Coin_In_Ant = 0;
 int Contador_Coin_In_Act = 0;
 bool flag_maquina_en_juego = false;
-
 extern bool flag_ultimo_contador_Ok;
+
+char Archivo_CSV_Contadores[100];
+char Archivo_CSV_Eventos[100];
+char Archivo_LOG[100];
+
+String string_Fecha;
+String string_Fecha_LOG;
+String string_Fecha_Eventos;
+int day_copy;
+int month_copy;
+int year_copy;
+
 
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
@@ -176,13 +187,33 @@ bool Sincroniza_Reloj_RTC(char res[])
     year = year + 2000;
 
     RTC.setTime(seconds, minutes, hour, day, month, year);
+    
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
         Serial.println("RTC sincronizado con exito!");
+
+        //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
+        string_Fecha=String(day)+String(month)+String(year)+".CSV";
+        string_Fecha_LOG=String(day)+String(month)+String(year)+".TXT";
+        string_Fecha_Eventos=String(day)+String(month)+String(year)+"1"+".CSV";
+        
+        strcpy(Archivo_CSV_Contadores,string_Fecha.c_str());
+        strcpy(Archivo_LOG,string_Fecha_LOG.c_str());
+        strcpy(Archivo_CSV_Eventos,string_Fecha_Eventos.c_str());
+        day_copy=day ;
+        month_copy=month;
+        year_copy=year;
+        // Crea 3 Archivos Por Dia.
+        Create_ARCHIVE_Excel(Archivo_CSV_Contadores,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+        Create_ARCHIVE_Excel(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+        Create_ARCHIVE_Txt(Archivo_LOG);
+        //---------------------------------------------------------------------------------------------------------
         return true;
     }
     else
+    {
         return false;
+    }
 }
 
 /*****************************************************************************************/
@@ -522,6 +553,23 @@ void Guarda_Configuracion_ESP32(void)
     {
         int j = 0;
         bool diferencia = false;
+
+        /*******************************************************************************************************/
+        /*******************************************************************************************************/
+        // Verifica MAC
+        Serial.println();
+        for (int i = 3; i < 20; i++)
+        {
+            Serial.print(req[i]);
+        }
+        String MAC = WiFi.macAddress();
+        j = 0;
+        for (int i = 3; i < 20; i++)
+        {
+            if (req[i] != MAC[j])
+                return;
+            j++;
+        }
 
         Serial.println();
         Serial.println("Set all Ok...");

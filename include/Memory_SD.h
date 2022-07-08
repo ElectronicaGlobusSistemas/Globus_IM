@@ -47,6 +47,9 @@ void Init_FTP_SERVER();
 void RESET_SD(void);
 static void Rum_FTP_SERVER(void *parameter);
 void SD_Status_Rum(void);
+void FreeSpace_SD(void);
+void LOG_ESP(char *ARCHIVO,bool Enable);
+void Libera_Memoria(float Total_Memoria_MB, float Free_Space);
 
 //------------------------------------------------------------------------------------------
 
