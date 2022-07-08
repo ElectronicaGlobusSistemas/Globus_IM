@@ -36,7 +36,7 @@ void Init_Wifi()
 {
   xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_Wifi, //  Funcion a implementar la tarea
-      "Verifica conewxion wifi",   //  Nombre de la tarea
+      "Verifica conexion wifi",    //  Nombre de la tarea
       10000,                       //  Tamaño de stack en palabras (memoria)
       NULL,                        //  Entrada de parametros
       configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
@@ -110,7 +110,7 @@ void CONNECT_WIFI(void)
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("\nWiFi connected!");
+    Serial.println("Wifi conectado");
     Serial.print("Conectado a: ");
     Serial.println(SSID_Wifi);
     Serial.print("IP address: ");
@@ -134,15 +134,16 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
 {
   Serial.println(" Verificador WIFI Activado");
   unsigned long tiempo_inicial, tiempo_final = 0;
-
+  Serial.println("Inicia verifica conexion WIFI...");
   for (;;)
   {
     if (WiFi.status() == WL_CONNECTED)
     {
       digitalWrite(WIFI_Status, HIGH);
       Serial.println("Wifi conectado");
+      Serial.println("Termina verifica conexion WIFI...");
       vTaskSuspend(Status_WIFI);
-      vTaskDelay(60000 / portTICK_PERIOD_MS);
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
       continue;
     }
     else
@@ -161,7 +162,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(SSID_Wifi);
         digitalWrite(WIFI_Status, LOW);
-        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         continue;
       }
       else
@@ -173,7 +174,10 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.println(WiFi.localIP());
         Serial.print("ESP Mac Address: ");
         Serial.println(WiFi.macAddress());
+        Serial.println("Termina verifica conexion WIFI...");
         vTaskSuspend(Status_WIFI);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        continue;
       }
     }
   }

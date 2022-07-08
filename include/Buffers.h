@@ -4,6 +4,7 @@
 #include "ESP32Time.h"
 #include "Contadores.h"
 #include "Eventos.h"
+#include "Clase_Variables_Globales.h"
 
 class Buffers
 {
@@ -77,7 +78,7 @@ public:
 
 
     /* Buffer de contadores */
-    bool Set_buffer_contadores_ACC(int, Contadores_SAS, ESP32Time);
+    bool Set_buffer_contadores_ACC(int, Contadores_SAS, ESP32Time, Variables_Globales);
     bool Set_buffer_contadores_ACC_encriptado(void);
     bool Set_buffer_contadores_ACC_CRC(void);
     char *Get_buffer_contadores_ACC(void);

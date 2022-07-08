@@ -15,17 +15,14 @@ Configuracion_ESP32 Configuracion;
 ESP32Time RTC; // Objeto contiene hora y fecha
 
 #include "Buffers.h"
-Buffers Buffer; // Objeto de buffer de mensajes servidor
+Buffers Buffer;            // Objeto de buffer de mensajes servidor
 Contadores_SAS contadores; // Objeto contiene contadores maquina
 
-#include "Clase_Variables_Globales.h"
+//#include "Clase_Variables_Globales.h"
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
 Eventos_SAS eventos; // Objeto contiene eventos maquina
 /* Definir los metodos que haran uso de las clases */
-
-
-
 
 #include "RS232.h"
 #include "Comunicaciones.h"
@@ -35,7 +32,6 @@ Eventos_SAS eventos; // Objeto contiene eventos maquina
 #include "Config_Perifericos.h"
 unsigned long tiempo_inicial, tiempo_final = 0;
 int bandera2 = 0;
-
 
 void setup()
 {
@@ -48,4 +44,3 @@ void setup()
 void loop()
 {
 }
-

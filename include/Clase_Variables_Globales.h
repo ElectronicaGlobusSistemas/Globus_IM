@@ -15,12 +15,14 @@ using namespace std;
 #define Comunicacion_Maq            9
 #define Archivo_CSV_OK              10
 #define Archivo_LOG_OK              11
+#define Primer_Cancel_Credit        12
+#define Flag_Hopper_Enable          13
+#define Flag_Maquina_En_Juego       14
 
-
-#define Encabezado_Maquina_Generica 12
-#define Encabezado_Maquina_Eventos  13
-#define Estado_Escritura            14
-#define Libera_Memoria_OK           15
+#define Encabezado_Maquina_Generica 15
+#define Encabezado_Maquina_Eventos  16
+#define Estado_Escritura            17
+#define Libera_Memoria_OK           18
 
 class Variables_Globales
 {
@@ -40,6 +42,9 @@ private:
     String Encabezado_Maquina_Eventos_;
     bool Estado_Escritura_;
     bool Libera_Memoria_OK_;
+    bool Primer_Cancel_Credit_;
+    bool Flag_Hopper_Enable_;
+    bool Flag_Maquina_En_Juego_;
 
 public:
     void Init_Variables_Globales();
