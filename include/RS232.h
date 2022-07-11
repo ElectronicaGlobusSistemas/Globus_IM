@@ -324,7 +324,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador);
-              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
                 contadores.Set_Contadores(Bill_Amount, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Add_Contador(contador,Total_Drop,false);
               break;
@@ -711,9 +711,9 @@ void Encuestas_Maquina(void *pvParameters)
       Serial.println("Cashless AFT Single");
       break;
     case 4:
-      if (numero_encuesta > 20) // Numero de encuestas realizadas a la maquina
+      if (numero_encuesta > 10) // Numero de encuestas realizadas a la maquina
       {
-        if (numero_contador < 15) // Numero de respuestas recibidas por la maquina
+        if (numero_contador < 8) // Numero de respuestas recibidas por la maquina
           Variables_globales.Set_Variable_Global(Comunicacion_Maq, false);
         else
           Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
@@ -820,228 +820,6 @@ void Encuestas_Maquina(void *pvParameters)
         default:
           break;
         }
-
-        // Conta_Encuestas++;
-        // switch (Conta_Encuestas)
-        // {
-        // case 1:
-        //   //    Serial.println("Total Cancel Credit"); // total cancel credit
-        //   Transmite_Poll(0x10);
-        //   break;
-        // case 2:
-        //   //    Serial.println("Coin In"); // Coin in
-        //   Transmite_Poll(0x11);
-        //   break;
-        // case 3:
-        //   //    Serial.println("Coin Out"); // Coin out
-        //   Transmite_Poll(0x12);
-        //   break;
-        // case 4:
-        //   //    Serial.println("Jackpot"); // Jackpot
-        //   Transmite_Poll(0x14);
-        //   break;
-        // case 5:
-        //   //    Serial.println("Total Drop"); // total drop
-        //   Transmite_Poll(0x13);
-        //   break;
-        // case 6:
-        //   //    Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2D);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0xFF);
-        //   Transmite_Poll_Long(0xE0);
-        //   break;
-        // case 7:
-        //   //    Serial.println("Bill amount");
-        //   Transmite_Poll(0x46); // Bill amount
-        //   break;
-        // case 8:
-        //   //    Serial.println("Casheable In"); // Casheable in
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x2E);
-        //   Transmite_Poll_Long(0xF7);
-        //   Transmite_Poll_Long(0xE3);
-        //   break;
-        // case 9:
-        //   //    Serial.println("Casheable Restricted In"); // Casheable restricted in
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x7E);
-        //   Transmite_Poll_Long(0xF2);
-        //   break;
-        // case 10:
-        //   //    Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x30);
-        //   Transmite_Poll_Long(0x08);
-        //   Transmite_Poll_Long(0x1A);
-        //   break;
-        // case 11:
-        //   //    Serial.println("Casheable Out"); // Casheable out
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x32);
-        //   Transmite_Poll_Long(0x1A);
-        //   Transmite_Poll_Long(0x39);
-        //   break;
-        // case 12:
-        //   //    Serial.println("Casheable Restricted Out"); // Casheable restricted out
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x33);
-        //   Transmite_Poll_Long(0x93);
-        //   Transmite_Poll_Long(0x28);
-        //   break;
-        // case 13:
-        //   //    Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x34);
-        //   Transmite_Poll_Long(0x2C);
-        //   Transmite_Poll_Long(0x5C);
-        //   break;
-        // case 14:
-        //   //    Serial.println("Games Played"); // Games played
-        //   Transmite_Poll(0x15);
-        //   break;
-        // case 15:
-        //   //    Serial.println("Coin In Fisico"); // Physical coin in
-        //   Transmite_Poll(0x2A);
-        //   break;
-        // case 16:
-        //   //    Serial.println("Coin Out Fisico"); // Physical coin out
-        //   Transmite_Poll(0x2B);
-        //   break;
-        // case 17:
-        //   //    Serial.println("Total Coin Drop");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x24);
-        //   Transmite_Poll_Long(0xAD);
-        //   Transmite_Poll_Long(0x4C);
-        //   break;
-        // case 18:
-        //   //    Serial.println("Machine Paid Progresive Payout");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x1D);
-        //   Transmite_Poll_Long(0xEF);
-        //   Transmite_Poll_Long(0xE0);
-        //   break;
-        // case 19:
-        //   //    Serial.println("Machine Paid External Bonus Payout");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x1E);
-        //   Transmite_Poll_Long(0x74);
-        //   Transmite_Poll_Long(0xD2);
-        //   break;
-        // case 20:
-        //   //    Serial.println("Attendant Paid Progresive Payout");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x20);
-        //   Transmite_Poll_Long(0x89);
-        //   Transmite_Poll_Long(0x0A);
-        //   break;
-        // case 21:
-        //   //    Serial.println("Attendant Paid External Payout");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x21);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x1B);
-        //   break;
-        // case 22:
-        //   //    Serial.println("Ticket In");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x0D);
-        //   Transmite_Poll_Long(0x6E);
-        //   Transmite_Poll_Long(0xF0);
-        //   break;
-        // case 23:
-        //   //    Serial.println("Ticket Out");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x2F);
-        //   Transmite_Poll_Long(0x03);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x0E);
-        //   Transmite_Poll_Long(0xF5);
-        //   Transmite_Poll_Long(0xC2);
-        //   break;
-        // case 24:
-        //   //    Serial.println("Current Credits");
-        //   Transmite_Poll(0x1A);
-        //   break;
-        // case 25:
-        //   //    Serial.println("Contador 1C - Door Open Metter");
-        //   Transmite_Poll(0x1C);
-        //   break;
-        // case 26:
-        //   //    Serial.println("Contador 18 - Games Since Last Power Up");
-        //   Transmite_Poll(0x18);
-        //   break;
-        // case 27:
-        //   //    Serial.println("ID Machine");
-        //   Transmite_Poll(0x1F);
-        //   break;
-        // case 28:
-        //   //    Serial.println("ROM Signature");
-        //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        //   Transmite_Poll_Long(0x21);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x00);
-        //   Transmite_Poll_Long(0x5C);
-        //   Transmite_Poll_Long(0x45);
-        //   break;
-        // case 29:
-        //   Encuesta_Billetes();
-        //   Conta_Encuestas = 0;
-        //   flag_ultimo_contador_Ok = true;
-        // }
       }
       //  Serial.print("Contador de encuestas realizadas --> ");
       //  Serial.println(numero_encuesta);
@@ -1051,6 +829,7 @@ void Encuestas_Maquina(void *pvParameters)
   }
   vTaskDelay(10);
 }
+
 void Storage_Contadores_SD(char* ARCHIVO,String Encabezado1,bool Enable)
 {
   if (Enable == true)
@@ -1440,124 +1219,34 @@ void Encuestas_Maquinas_IRT(void)
     Transmite_Poll(0x13);
     break;
   case 6:
-    Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
-    sendDataa(dat4, sizeof(dat4));             // Transmite DIR
-    Transmite_Poll_Long(0x2D);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0xFF);
-    Transmite_Poll_Long(0xE0);
-    break;
-  case 7:
-    Serial.println("Bill amount");
-    Transmite_Poll(0x46); // Bill amount
-    break;
-  case 8:
     Serial.println("Games Played"); // Games played
     Transmite_Poll(0x15);
     break;
-  case 9:
+  case 7:
     Serial.println("Coin In Fisico"); // Physical coin in
     Transmite_Poll(0x2A);
     break;
-  case 10:
+  case 8:
     Serial.println("Coin Out Fisico"); // Physical coin out
     Transmite_Poll(0x2B);
     break;
-  case 11:
-    Serial.println("Total Coin Drop");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x24);
-    Transmite_Poll_Long(0xAD);
-    Transmite_Poll_Long(0x4C);
-    break;
-  case 12:
-    Serial.println("Machine Paid Progresive Payout");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x1D);
-    Transmite_Poll_Long(0xEF);
-    Transmite_Poll_Long(0xE0);
-    break;
-  case 13:
-    Serial.println("Machine Paid External Bonus Payout");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x1E);
-    Transmite_Poll_Long(0x74);
-    Transmite_Poll_Long(0xD2);
-    break;
-  case 14:
-    Serial.println("Attendant Paid Progresive Payout");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x20);
-    Transmite_Poll_Long(0x89);
-    Transmite_Poll_Long(0x0A);
-    break;
-  case 15:
-    Serial.println("Attendant Paid External Payout");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x21);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x1B);
-    break;
-  case 16:
-    Serial.println("Ticket In");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x0D);
-    Transmite_Poll_Long(0x6E);
-    Transmite_Poll_Long(0xF0);
-    break;
-  case 17:
-    Serial.println("Ticket Out");
-    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    Transmite_Poll_Long(0x2F);
-    Transmite_Poll_Long(0x03);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x0E);
-    Transmite_Poll_Long(0xF5);
-    Transmite_Poll_Long(0xC2);
-    break;
-  case 18:
+  case 9:
     Serial.println("Current Credits");
     Transmite_Poll(0x1A);
     break;
-  case 19:
+  case 10:
     Serial.println("Contador 1C - Door Open Metter");
     Transmite_Poll(0x1C);
     break;
-  case 20:
+  case 11:
     Serial.println("Contador 18 - Games Since Last Power Up");
     Transmite_Poll(0x18);
     break;
-  case 21:
+  case 12:
     Serial.println("ID Machine");
     Transmite_Poll(0x1F);
     break;
-  case 22:
+  case 13:
     Serial.println("ROM Signature");
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x21);
@@ -1566,7 +1255,7 @@ void Encuestas_Maquinas_IRT(void)
     Transmite_Poll_Long(0x5C);
     Transmite_Poll_Long(0x45);
     break;
-  case 23:
+  case 14:
     Serial.println("Encuesta Billetes");
     Encuesta_Billetes();
     Conta_Encuestas = 0;
