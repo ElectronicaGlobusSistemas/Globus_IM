@@ -37,6 +37,7 @@ int day_copy;
 int month_copy;
 int year_copy;
 
+#define Hopper_Enable 14
 
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
@@ -1361,9 +1362,9 @@ void Task_Verifica_Hopper(void *parameter)
     int Conta_Poll_Cancel_Poker = 0;
     for (;;)
     {
-        if (digitalRead(21) == HIGH)
+        if (digitalRead(Hopper_Enable) == HIGH)
             Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, true);
-        else if (digitalRead(21) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+        else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
             Conta_Poll_Cancel_Poker++;
             if (Conta_Poll_Cancel_Poker > 25)

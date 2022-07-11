@@ -302,7 +302,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
 
             switch (buffer_contadores[1])
             {
@@ -364,7 +364,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
 
             switch (buffer[1])
             {
@@ -415,7 +415,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
 
             contadores.Set_Contadores(Door_Open, contador);// ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
             Add_Contador(contador,Door_Open,false);
@@ -482,7 +482,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
             contadores.Set_Contadores(Informacion_Maquina, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
           }
 
@@ -493,8 +493,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             contador[0] = buffer[2];
             contador[1] = buffer[3];
 
-            Serial.print(contador[0], HEX);
-            Serial.println(contador[1], HEX);
+//            Serial.print(contador[0], HEX);
+//            Serial.println(contador[1], HEX);
 
             contadores.Set_Contadores(ROM_Signature, contador);
           }
@@ -532,7 +532,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               }
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
             switch (buffer[5])
             {
             case 0x0D:
@@ -606,7 +606,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               j++;
             }
 
-            Serial.println(contador);
+//            Serial.println(contador);
 
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
             Add_Contador(contador,Cancel_Credit_Hand_Pay,false);
