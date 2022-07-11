@@ -23,7 +23,7 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 
 extern char Archivo_CSV[100];
 
-
+bool Archivos_Ready;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
 //------------------------------------------------------------------
@@ -183,6 +183,30 @@ static void ManagerTasks(void *parameter)
                 vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
                 continue;
             }
+        }
+
+        if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true && Archivos_Ready==false)
+        {
+            Serial.println("Preparando Archivos...");
+            if(Variables_globales.Get_Variable_Global(Fallo_Archivo_COM)==false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN)==false&&Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG)==false)
+            {
+                Serial.println("OK Archivos Listos..");
+                Archivos_Ready=true;
+            }
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
+            {
+                Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+            }
+
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
+            {
+                Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+            }
+
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG)==true)
+            {
+                Create_ARCHIVE_Txt(Archivo_LOG);
+            } 
         }
         delay(100);
         vTaskDelay(1000);

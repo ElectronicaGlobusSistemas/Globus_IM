@@ -25,7 +25,7 @@ int Contador_Coin_In_Act = 0;
 // bool flag_maquina_en_juego = false;
 
 extern bool flag_ultimo_contador_Ok;
-
+extern bool Archivos_Ready;
 char Archivo_CSV_Contadores[100];
 char Archivo_CSV_Eventos[100];
 char Archivo_LOG[100];
@@ -224,10 +224,19 @@ bool Sincroniza_Reloj_RTC(char res[])
         day_copy=day ;
         month_copy=month;
         year_copy=year;
-        // Crea 3 Archivos Por Dia.
         Create_ARCHIVE_Excel(Archivo_CSV_Contadores,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        Create_ARCHIVE_Excel(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+        Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
         Create_ARCHIVE_Txt(Archivo_LOG);
+
+        if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+        {
+            Serial.println("OK Archivos Listos..");
+            Archivos_Ready = true;
+        }
+        else
+        {
+            Serial.println("No se Creo Uno o Mas Archivos...");
+        }
         //---------------------------------------------------------------------------------------------------------
         return true;
     }

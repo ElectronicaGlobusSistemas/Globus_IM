@@ -10,10 +10,10 @@
             "includePath": [
                 "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/include",
                 "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/src",
-                "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/lib/CRC",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
+                "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/lib/CRC",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/.pio/libdeps/esp32dev/ESP32Time",
@@ -223,10 +223,10 @@
                 "path": [
                     "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/include",
                     "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/src",
-                    "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/lib/CRC",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
+                    "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/lib/CRC",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/.pio/libdeps/esp32dev/ESP32Time",
@@ -433,7 +433,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=60002",
+                "PLATFORMIO=60101",
                 "ARDUINO_ESP32_DEV",
                 "HAVE_CONFIG_H",
                 "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",

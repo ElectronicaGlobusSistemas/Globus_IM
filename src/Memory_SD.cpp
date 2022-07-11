@@ -247,17 +247,20 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
     if (!myFile)
     {
       Serial.println("No se pudo Crear Archivo LOG");
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,true);
     }
     else
     {
       Serial.println("Archivo LOG Creado: " + String(ARCHIVO));
       myFile.close();
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
       Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
     }
   }
   else if (SD.exists(ARCHIVO))
   {
     Serial.println("El Archivo Existia.. Continua Guardando en: " + String(ARCHIVO));
+    Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
     Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }
@@ -317,18 +320,48 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
     if (!myFile)
     {
       Serial.println("No Fue Posible Crear el Archivo");
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,true);
     }
     else
     {
       myFile.println(Encabezado);
       myFile.close();
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
       Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
     }
   }
   else if (SD.exists(ARCHIVO))
   {
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO + ".csv");
+     Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
+    Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+  }
+}
+void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
+{
+  if (!SD.exists(ARCHIVO)) // Si el archivo no existe lo Crea con encabezado para Excel!!
+  {
+    myFile = SD.open(ARCHIVO, FILE_WRITE);
+
+    if (!myFile)
+    {
+      Serial.println("No Fue Posible Crear el Archivo");
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,true);
+    }
+    else
+    {
+      myFile.println(Encabezado);
+      myFile.close();
+      Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
+      Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
+      Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+    }
+  }
+  else if (SD.exists(ARCHIVO))
+  {
+    Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO + ".csv");
+    Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
     Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }

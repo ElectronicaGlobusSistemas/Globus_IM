@@ -310,12 +310,19 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               contadores.Set_Contadores(Total_Cancel_Credit, contador);
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 Calcula_Cancel_Credit_IRT();
-               //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-              Estructura_CSV[0]=RTC.getTime()+",";
+              //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
+              {
+                Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ Generica
+              }
               Add_Contador(contador,Total_Cancel_Credit,false);
               break;
             case 11:
-              contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              contadores.Set_Contadores(Coin_In, contador);//? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+              {
+                Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora Poker
+              }
               Add_Contador(contador,Coin_In,false);
               break;
             case 12:
@@ -419,6 +426,35 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             contadores.Set_Contadores(Door_Open, contador);// ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
             Add_Contador(contador,Door_Open,false);
+
+            if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
+            {
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+              {
+                Selector_Modo_SD(); // Ftp o Storage
+                for (int i = 0; i < Max_Encuestas; i++)
+                {
+                  SD_Cont = SD_Cont + Estructura_CSV[i];
+                }
+                if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
+                {
+                  Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                }
+                for (int i = 0; i < Max_Encuestas; i++)
+                {
+                  if (i == Max_Encuestas - 1)
+                  {
+                    Estructura_CSV[i] = "n/a";
+                  }
+                  else
+                  {
+                    Estructura_CSV[i] = "n/a,";
+                  }
+                }
+                Delete_Trama();
+              }
+            }
+            
           }
 
           else if (buffer[1] == 0x18)
@@ -448,28 +484,32 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             contadores.Set_Contadores(Games_Since_Last_Power_Up, contador);// ? Serial.println("Guardado con exito") : Serial.println("No se pudo guardar");
             Add_Contador(contador,Games_Since_Last_Power_Up,true);
             Selector_Modo_SD(); // Ftp o Storage
-
-            for(int i=0;i<Max_Encuestas;i++)
+            if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
             {
-              SD_Cont=SD_Cont+Estructura_CSV[i];
-            }
-            if(Variables_globales.Get_Variable_Global(Ftp_Mode)==false)
-            {
-              Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores,Variables_globales.Get_Variable_Global(Enable_Storage));
-            }
-            for(int i=0;i<Max_Encuestas;i++)
-            {
-              if(i==Max_Encuestas-1)
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
               {
-                Estructura_CSV[i]="n/a";
-              }
-              else
-              {
-                Estructura_CSV[i]="n/a,";
+                for (int i = 0; i < Max_Encuestas; i++)
+                {
+                  SD_Cont = SD_Cont + Estructura_CSV[i];
+                }
+                if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
+                {
+                  Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                }
+                for (int i = 0; i < Max_Encuestas; i++)
+                {
+                  if (i == Max_Encuestas - 1)
+                  {
+                    Estructura_CSV[i] = "n/a";
+                  }
+                  else
+                  {
+                    Estructura_CSV[i] = "n/a,";
+                  }
+                }
+                Delete_Trama();
               }
             }
-            Delete_Trama();
-
           }
           else if (buffer[1] == 0x1F)
           {
@@ -652,23 +692,25 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Serial.println("Es un evento");
           Serial.println("--------------------------------------------------");
           Serial.println();
-
-          try
+          Selector_Modo_SD(); // Ftp o Storage
+          if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN))
           {
-            // Guarda Evento En Memoria SD.
-            int Evento = buffer[0];
-            Add_String_Hora_EVEN(RTC.getTime());                                                           // Agrega Hora a String
-            Add_String_EVEN(String(Evento), true);                                                         // Agrega Evento a String
-            Add_String_EVEN("evento", false);                                                              // Agrega Descripción a String
-            Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
-            Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
+            try
+            {
+              // Guarda Evento En Memoria SD.
+              int Evento = buffer[0];
+              Add_String_Hora_EVEN(RTC.getTime());                                                           // Agrega Hora a String
+              Add_String_EVEN(String(Evento), true);                                                         // Agrega Evento a String
+              Add_String_EVEN("evento", false);                                                              // Agrega Descripción a String
+              Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
+              Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
+            }
+            catch (const std::exception &e)
+            {
+              Serial.println(e.what());
+              // std::cerr << e.what() << '\n';
+            }
           }
-          catch(const std::exception& e)
-          {
-            Serial.println(e.what());
-           // std::cerr << e.what() << '\n';
-          }
-          
         }
       }
       bzero(buffer, 128); // Pone el buffer en 0
@@ -1692,7 +1734,7 @@ void Selector_Modo_SD(void)
   else
   {
     if (Variables_globales.Get_Variable_Global(Archivo_CSV_OK))
-    {
+    { 
       Variables_globales.Set_Variable_Global(Enable_Storage, true);
     }
   }
