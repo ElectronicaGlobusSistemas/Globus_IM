@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include "Bootloader.h"
 
-
-
 /* Definir las clases que haran uso de los metodos */
 #include "Preferences.h"
 Preferences NVS;
