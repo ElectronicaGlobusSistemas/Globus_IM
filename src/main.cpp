@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "Errores.h"
 #include "Bootloader.h"
 
 

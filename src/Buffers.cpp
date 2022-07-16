@@ -1304,3 +1304,24 @@ char *Buffers::Get_buffer_billetes(void)
 {
     return buffer_billetes_final;
 }
+
+
+bool Buffers ::Set_buffer_info_MicroSD(char* buffer)
+{
+    memcpy(buffer_info_MicroSD, buffer, 258);
+    return true;
+}
+bool Buffers ::Set_buffer_info_MCU(char* buffer)
+{
+    memcpy(buffer_info_MCU, buffer, 258);
+    return true;
+}
+
+char*Buffers ::Get_buffer_info_MicroSD(void)
+{
+    return buffer_info_MicroSD;
+}
+char*Buffers ::Get_buffer_info_MCU(void)
+{
+    return buffer_info_MicroSD;
+}

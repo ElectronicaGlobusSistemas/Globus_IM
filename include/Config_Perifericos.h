@@ -7,8 +7,8 @@
 #define Clock_frequency 240
 #define MCU_Status 2
 #define WIFI_Status 15
-#define Reset_Config 22
-#define Hopper_Enable 21
+#define Reset_Config 27
+#define Hopper_Enable 14
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
@@ -22,7 +22,7 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 //------------------------------------------------------------------
 
 extern char Archivo_CSV[100];
-
+extern int Sd_Mont;
 bool Archivos_Ready;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
@@ -48,7 +48,7 @@ void Init_Config(void)
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
-    pinMode(Hopper_Enable, INPUT);   // Reset_Config como Entrada.
+    pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
@@ -56,7 +56,7 @@ void Init_Config(void)
     RTC.setTime(0, 12, 10, 9, 6, 2022);
     //---------------------------------------------------------------
     //-------------------> Reset valores NVS <-----------------------
-//    Reset_Configuracion_Inicial();
+    Reset_Configuracion_Inicial();
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
@@ -71,7 +71,7 @@ void Init_Config(void)
     CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
     init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Task  SERVER <---------------------------
-    Init_FTP_SERVER(); 
+    Init_FTP_SERVER();
     //---------------------------------------------------------------
     //--------------------> Task Wifi <------------------------------
     Init_Wifi();
@@ -101,7 +101,7 @@ static void ManagerTasks(void *parameter)
     unsigned long Tiempo_Actual = 0;
     unsigned long Tiempo_Previo = 0;
     bool MCU_State = LOW;
-    long conta =0;
+    long conta = 0;
     for (;;)
     {
         Tiempo_Actual = millis();
@@ -125,7 +125,6 @@ static void ManagerTasks(void *parameter)
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-
         if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
@@ -142,12 +141,11 @@ static void ManagerTasks(void *parameter)
         }
         if (WiFi.status() != WL_CONNECTED)
         {
-                
+
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Status WIFI");
                 continue;
-                
             }
             else if (eTaskGetState(Status_WIFI) == eSuspended)
             {
@@ -184,29 +182,32 @@ static void ManagerTasks(void *parameter)
                 continue;
             }
         }
-
         if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true && Archivos_Ready==false)
         {
-            Serial.println("Preparando Archivos...");
+           // Serial.println("Preparando Archivos...");
             if(Variables_globales.Get_Variable_Global(Fallo_Archivo_COM)==false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN)==false&&Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG)==false)
             {
-                Serial.println("OK Archivos Listos..");
                 Archivos_Ready=true;
+                Serial.println("OK Archivos Listos..");
+                
             }
-            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
+            if(Sd_Mont==1)
             {
-                Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-            }
+                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
+                {
+                    Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+                }
 
-            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
-            {
-                Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-            }
+                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
+                {
+                    Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+                }
 
-            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG)==true)
-            {
-                Create_ARCHIVE_Txt(Archivo_LOG);
-            } 
+                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == true)
+                {
+                    Create_ARCHIVE_Txt(Archivo_LOG);
+                }
+            }
         }
         delay(100);
         vTaskDelay(1000);
@@ -229,7 +230,7 @@ void Init_Configuracion_Inicial(void)
     // Borrar particiones creadas en NVS
     // nvs_flash_erase();
     // nvs_flash_init();
-    
+
     NVS.begin("Config_ESP32", false);
 
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
@@ -456,7 +457,7 @@ void Init_Configuracion_Inicial(void)
 void Reset_Configuracion_Inicial(void)
 {
     bool MCU_State = LOW;
-    while (digitalRead(Reset_Config) == HIGH)
+    while (digitalRead(Reset_Config) == LOW)
     {
         if (millis() > 10000)
         {

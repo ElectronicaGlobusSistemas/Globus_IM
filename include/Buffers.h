@@ -47,6 +47,10 @@ private:
     char buffer_billetes_encriptado[258];
     char buffer_billetes_final[258];
 
+    /* Buffer de Información */
+    char buffer_info_MicroSD[258];
+    char buffer_info_MCU[258];
+
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC;
 
@@ -112,4 +116,9 @@ public:
     bool Set_buffer_billetes_encriptado(void);
     bool Set_buffer_billetes_CRC(void);
     char *Get_buffer_billetes(void);
+
+    bool Set_buffer_info_MicroSD(char* buffer);
+    bool Set_buffer_info_MCU(char* buffer);
+    char*Get_buffer_info_MCU(void);
+    char*Get_buffer_info_MicroSD(void);
 };

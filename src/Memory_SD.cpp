@@ -17,10 +17,12 @@ extern char Archivo_LOG[100];
 #include "Memory_SD.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include "Clase_Variables_Globales.h"
+#include "Buffers.h"
+//#include "Clase_Variables_Globales.h"
 #include "Errores.h"
 #include "ESP32Time.h"
 #include "time.h"
+
 
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
@@ -40,6 +42,9 @@ int Contador_Dias=1;
 char Archivo_CSV_Contadores_copy[100];
 char Archivo_CSV_Eventos_copy[100];
 char Archivo_LOG_copy[100];
+int Sd_Mont=0;
+extern bool Archivos_Ready;
+int Valida_Archivos_Eliminados=1;
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Objetos Extern <------------------------------------------
@@ -52,7 +57,7 @@ extern char Fallo[64];
 extern int month_copy;
 extern int year_copy;
 //------------------------------------------------------------------------------------------------------
-
+extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
 void Init_SD(void)
 {
@@ -88,7 +93,6 @@ void Init_FTP_SERVER()
 static void Rum_FTP_SERVER(void *parameter)
 {
   vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
-  RESET_SD(); //Reset SD Para Modo FTP
   ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
   unsigned long InicialTime = 0;
   unsigned long FinalTime = 0;
@@ -132,15 +136,15 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       State_volume++;
   //  state_= SD.begin(SD_ChipSelect);
     //Serial.println(state_);
-  //  bool state_2=card.init(SPI_FULL_SPEED,SD_ChipSelect);
     bool state_2=volume.init(card);
   //  Serial.println(state_2);
     if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin())          // SD Desconectada...
     {
       SD.end();
       Serial.println("Memoria SD Desconectada..");
-      digitalWrite(SD_Status, LOW);           // Apaga  Indicador LED SD Status.
+                 // Apaga  Indicador LED SD Status.
       Enable_Status = false;// Desactiva Parpadeo de LED SD Status en Modo FTP Server
+      Sd_Mont=false;
       if(!card.init(SPI_FULL_SPEED,SD_ChipSelect))
       {
         // Intenta Conectar Despues de Fallo.
@@ -152,6 +156,8 @@ static void Task_Verifica_Conexion_SD(void *parameter)
     }
     else 
     {
+      char info_MCU_Temp[258];
+      bzero(info_MCU_Temp, 258);
       card.readEnd();
       //SD.begin();
       SD.begin(SD_ChipSelect);
@@ -159,6 +165,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       Serial.println("SD OK");       // Mensaje de Conexión SD.
       digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
       Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
+      Sd_Mont=true;
      // log_e("Error Inicializando SD: ", ERROR_INICIALIZANDO_SD);
      // LOG_ESP(Archivo_LOG,Variables_globales.Get_Variable_Global(Enable_Storage));
       if(Contador_Escrituras>0 && Variables_globales.Get_Variable_Global(Enable_Storage)==true)
@@ -168,24 +175,30 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       {
         Variables_globales.Set_Variable_Global(Estado_Escritura,false);
       }
-      Serial.println("Memoria SD Conectada");
+     // Serial.println("Memoria SD Conectada");
      
       volume.init(card);
       FreeSpace_SD();
-  
+      
       uint8_t Temperatura_Procesador= temperatureRead();
-      Serial.print("Temperatura de Procesador: "+String(Temperatura_Procesador));
-      Serial.println(" C");
-
+      
+     // Serial.print("Temperatura de Procesador: "+String(Temperatura_Procesador));
+    //  Serial.println(" C");
+      
       for (int i = 0; i < 17; i = i + 8)
       {
         chipId |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
       }
-
-      Serial.printf("ESP32 Chip model = %s Rev %d\n", ESP.getChipModel(), ESP.getChipRevision());
-      Serial.printf("This chip has %d cores\n", ESP.getChipCores());
-      Serial.print("Chip ID: ");
-      Serial.println(chipId);
+      
+    //  Serial.printf("ESP32 Chip model = %s Rev %d\n", ESP.getChipModel(), ESP.getChipRevision());
+    //  Serial.printf("This chip has %d cores\n", ESP.getChipCores());
+    //  Serial.print("Chip ID: ");
+    //  Serial.println(chipId);
+      //info_MCU_Temp[0]=char(ESP.getChipModel());     //Modelo chip
+      info_MCU_Temp[1]=ESP.getChipCores();          // Cores de Procesador
+      info_MCU_Temp[2]=chipId;                     // ID chip
+      info_MCU_Temp[3]=Temperatura_Procesador;    //Temperatura °C
+      Buffer.Set_buffer_info_MCU(info_MCU_Temp); //Guarda Buffer de Datos;
 
     }
     vTaskDelay(10000); // Pausa Tarea 10000ms
@@ -196,8 +209,11 @@ static void Task_Verifica_Conexion_SD(void *parameter)
 //---------------------> Función Para Crear Archivos Txt sin Formato <---------------------------------
 void FreeSpace_SD(void)
 {
+  char info_MicroSD_Temp[258];
+  bzero(info_MicroSD_Temp, 258);
   Serial.println("Información de Memoria SD ");
   Serial.println();
+  /*
   Serial.print("Card type:         ");
   switch (card.type())
   {
@@ -213,6 +229,7 @@ void FreeSpace_SD(void)
   default:
     Serial.println("Unknown");
   }
+  */
   if (Variables_globales.Get_Variable_Global(Estado_Escritura))
   {
     Serial.println("Estado: Escritura");
@@ -228,15 +245,23 @@ void FreeSpace_SD(void)
       Serial.println("Estado: Deshabilitada");
     }
   }
-
+  
   // Serial.print(F("Card Size MB:   "));
   // Serial.println(0.000512 * card.cardSize()); // size Memory
   float clusterSize = 0.000512 * volume.blocksPerCluster();
+
   // Serial.print(F("Total space MB: ")); // size Total Memory
   // Serial.println(clusterSize * volume.clusterCount());
   // Serial.print(F("Free Space MB:  ")); // size Disponible.
   // Serial.println(clusterSize * volume.freeClusterCount());
   Libera_Memoria(clusterSize * volume.clusterCount(), clusterSize * volume.freeClusterCount());
+
+  info_MicroSD_Temp[0]=card.type(); // Tipo de Memoria
+  info_MicroSD_Temp[1]=clusterSize * volume.clusterCount(); // Total Memoria
+  info_MicroSD_Temp[2]=clusterSize * volume.freeClusterCount(); //  Espacio libre
+  info_MicroSD_Temp[3]=Variables_globales.Get_Variable_Global(Estado_Escritura); // Estado Escritura
+  info_MicroSD_Temp[4]=Variables_globales.Get_Variable_Global(Ftp_Mode); // Modo FTP
+  Buffer.Set_buffer_info_MicroSD(info_MicroSD_Temp); // Guarda Buffer.
 }
 
 void Create_ARCHIVE_Txt(char *ARCHIVO)
@@ -268,44 +293,49 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
 //-----------------------------> Función Para guardar Eventos En SD <-----------------------------------
 void Write_Data_File_Txt(String Datos, char *ARCHIVO)
 {
-  myFile = SD.open(ARCHIVO, FILE_WRITE);
-  if (!myFile)
-  {
-    Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
-    Contador_Escrituras=0;
-  }
-  else
-  {
-    myFile.println(Datos);
-
-    myFile.close();
-    Serial.println("Evento Guardado en SD");
-    Contador_Escrituras++;
-  }
-}
-
-void LOG_ESP(char *ARCHIVO,bool Enable)
-{
-  if (Enable == true)
+  if(Sd_Mont==1)
   {
     myFile = SD.open(ARCHIVO, FILE_WRITE);
     if (!myFile)
     {
       Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
-      Contador_Escrituras=0;
+      Contador_Escrituras = 0;
     }
     else
     {
-      String Datos = String(Fallo);
-      myFile.println(RTC.getTime() + " Error: " + Datos);
+      myFile.println(Datos);
       myFile.close();
-      Serial.println("LOG Guardado");
+      Serial.println("Evento Guardado en SD");
       Contador_Escrituras++;
     }
   }
-  else
+}
+
+void LOG_ESP(char *ARCHIVO,bool Enable)
+{
+  if(Sd_Mont==1)
   {
-    Serial.println("Guardado Deshabilitado");
+    if (Enable == true)
+    {
+      myFile = SD.open(ARCHIVO, FILE_WRITE);
+      if (!myFile)
+      {
+        Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+        Contador_Escrituras = 0;
+      }
+      else
+      {
+        String Datos = String(Fallo);
+        myFile.println(RTC.getTime() + " Error: " + Datos);
+        myFile.close();
+        Serial.println("LOG Guardado");
+        Contador_Escrituras++;
+      }
+    }
+    else
+    {
+      Serial.println("Guardado Deshabilitado");
+    }
   }
 }
 
@@ -402,22 +432,24 @@ void Write_Data_File(String Datos, char *ARCHIVO, bool select)
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
 void Write_Data_File2(String Datos, char *archivo, bool select, String Encabezado)
 {
-  myFile = SD.open(archivo, FILE_WRITE);
-  if (!myFile)
+  if(Sd_Mont==1)
   {
-    Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
-    Contador_Escrituras=0;
+    myFile = SD.open(archivo, FILE_WRITE);
+    if (!myFile)
+    {
+      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+      Contador_Escrituras = 0;
+    }
+    else if (myFile) //  else por else if
+    {
+      myFile.println(Datos);
+
+      // myFile.println();
+      myFile.close();
+      Serial.println("Contadores Guardados en SD");
+      Contador_Escrituras++;
+    }
   }
-  else if (myFile) //  else por else if
-  {
-    myFile.println(Datos);
-   
-    //myFile.println();
-    myFile.close();
-    Serial.println("Contadores Guardados en SD");
-    Contador_Escrituras++; 
-  }
-  
 }
 //--------------------------------------------------------------------------------------------------------
 //-----------------------------------> Función Para Reset SD <--------------------------------------------
@@ -504,6 +536,10 @@ void Libera_Memoria(float Total_Memoria_MB, float Free_Space)
           Serial.print("\nSe ha Eliminado ");
           Serial.print(Archivo_CSV_Contadores_copy);
           Serial.println(" Exitosamente.");
+          if(!SD.exists(Archivo_CSV_Contadores_copy))
+          {
+            Valida_Archivos_Eliminados++;
+          }
         }
         if (SD.exists(Archivo_CSV_Eventos_copy))
         {
@@ -511,6 +547,10 @@ void Libera_Memoria(float Total_Memoria_MB, float Free_Space)
           Serial.print("\nSe ha Eliminado ");
           Serial.print(Archivo_CSV_Eventos_copy);
           Serial.println(" Exitosamente.");
+          if(!SD.exists(Archivo_CSV_Eventos_copy))
+          {
+            Valida_Archivos_Eliminados++;
+          }
         }
         if (SD.exists(Archivo_LOG_copy))
         {
@@ -518,13 +558,21 @@ void Libera_Memoria(float Total_Memoria_MB, float Free_Space)
           Serial.print("\nSe ha Eliminado ");
           Serial.print(Archivo_LOG_copy);
           Serial.println(" Exitosamente.");
+          if(!SD.exists(Archivo_LOG_copy))
+          {
+            Valida_Archivos_Eliminados++;
+          }
         }
 
         if (Contador_Dias == 30)
         {
           Contador_Dias = 1;
-          Variables_globales.Set_Variable_Global(Libera_Memoria_OK, false);
-          Serial.println("Delete 30 Archivos");
+          if(Valida_Archivos_Eliminados==90)
+          {
+            Valida_Archivos_Eliminados=1;
+            Variables_globales.Set_Variable_Global(Libera_Memoria_OK, false);
+            Serial.println("Delete 30 Archivos");
+          }     
         }
       }
       else
@@ -702,15 +750,18 @@ void FtpServer::disconnectClient()
 
   //---->>> add 
   Variables_globales.Set_Variable_Global(Ftp_Mode,false);
-  delay(10);
   if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
-    Variables_globales.Set_Variable_Global(Enable_Storage,true);
-    RESET_SD(); // Reset SD para Modo Storage Data
     vTaskSuspend(Ftp_SERVER); //  Suspende Modo FTP
-    vTaskResume(SD_CHECK); //  Verifica Estado de Memoria.
+    RESET_SD(); // Reset SD para Modo Storage Data
+    if(Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false || Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN)== false || Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+    {
+      if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
+      {
+        Variables_globales.Set_Variable_Global(Enable_Storage, true);
+      }
+    }
   }
-  
 }
 
 boolean FtpServer::userIdentity()
