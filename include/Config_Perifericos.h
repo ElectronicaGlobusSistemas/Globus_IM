@@ -209,14 +209,14 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 0, 250};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
     if (!NVS.isKey("Dir_IP_GW")) // Configura la IP de enlace
     {
         Serial.println("Guardando IP_GW por defecto...");
-        uint8_t ip_gw[] = {192, 168, 0, 1};
+        uint8_t ip_gw[] = {192, 168, 5, 1};
         NVS.putBytes("Dir_IP_GW", ip_gw, sizeof(ip_gw));
     }
 
@@ -230,7 +230,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 0, 200};
+        uint8_t ip_server[] = {192, 168, 5, 208};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -251,16 +251,16 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
-        String ssid = "GLOBUS_ONLINEW";
-        //        String ssid = "GLOBUS-DESARROLLO";
+//        String ssid = "GLOBUS_ONLINEW";
+                String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
 
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-        String password = "Globus#OnlineW324";
-        //        String password = "Globus2020*";
+//        String password = "Globus#OnlineW324";
+                String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
 

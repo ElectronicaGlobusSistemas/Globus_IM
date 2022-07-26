@@ -95,6 +95,10 @@ int conta_poll_comunicacion_maquina = 0;
 bool flag_handle_maquina = false;
 int Handle_Maquina = 0;
 
+bool Act_Coin_in_Poker = false;
+bool Act_Coin_out_Poker = false;
+bool Act_Bill_Poker = false;
+
 #define flag_bloquea_Maquina 1
 #define flag_desbloquea_Maquina 2
 #define flag_encuesta_premio 3
@@ -316,16 +320,31 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               break;
             case 11:
               contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                Act_Coin_in_Poker = true;
               Add_Contador(contador, Coin_In, false);
               break;
             case 12:
               contadores.Set_Contadores(Coin_Out, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                Act_Coin_out_Poker = true;
               Add_Contador(contador, Coin_Out, false);
               break;
             case 13:
               contadores.Set_Contadores(Total_Drop, contador);
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
                 contadores.Set_Contadores(Bill_Amount, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+              {
+                Act_Bill_Poker = true;
+                if (Act_Coin_in_Poker && Act_Coin_out_Poker && Act_Bill_Poker)
+                {
+                  Act_Coin_in_Poker = false;
+                  Act_Coin_out_Poker = false;
+                  Act_Bill_Poker = false;
+                  Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, true);
+                }
+              }
               Add_Contador(contador, Total_Drop, false);
               break;
             case 14:

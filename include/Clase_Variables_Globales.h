@@ -24,6 +24,8 @@ using namespace std;
 #define Estado_Escritura            17
 #define Libera_Memoria_OK           18
 
+#define Calc_Cancel_Credit        19
+
 class Variables_Globales
 {
 private:
@@ -43,6 +45,7 @@ private:
     bool Estado_Escritura_;
     bool Libera_Memoria_OK_;
     bool Primer_Cancel_Credit_;
+    bool Calcula_Cancel_Credit_;
     bool Flag_Hopper_Enable_;
     bool Flag_Maquina_En_Juego_;
 

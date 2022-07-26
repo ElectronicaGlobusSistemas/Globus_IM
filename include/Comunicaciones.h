@@ -209,25 +209,25 @@ bool Sincroniza_Reloj_RTC(char res[])
     year = year + 2000;
 
     RTC.setTime(seconds, minutes, hour, day, month, year);
-    
+
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
         Serial.println("RTC sincronizado con exito!");
 
         //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
-        string_Fecha=String(day)+String(month)+String(year)+".CSV";
-        string_Fecha_LOG=String(day)+String(month)+String(year)+".TXT";
-        string_Fecha_Eventos=String(day)+String(month)+String(year)+"1"+".CSV";
-        
-        strcpy(Archivo_CSV_Contadores,string_Fecha.c_str());
-        strcpy(Archivo_LOG,string_Fecha_LOG.c_str());
-        strcpy(Archivo_CSV_Eventos,string_Fecha_Eventos.c_str());
-        day_copy=day ;
-        month_copy=month;
-        year_copy=year;
+        string_Fecha = String(day) + String(month) + String(year) + ".CSV";
+        string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
+        string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
+
+        strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
+        strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
+        strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
+        day_copy = day;
+        month_copy = month;
+        year_copy = year;
         // Crea 3 Archivos Por Dia.
-        Create_ARCHIVE_Excel(Archivo_CSV_Contadores,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        Create_ARCHIVE_Excel(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+        Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+        Create_ARCHIVE_Excel(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
         Create_ARCHIVE_Txt(Archivo_LOG);
         //---------------------------------------------------------------------------------------------------------
         return true;
@@ -1367,11 +1367,12 @@ void Task_Verifica_Hopper(void *parameter)
         else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
             Conta_Poll_Cancel_Poker++;
-            if (Conta_Poll_Cancel_Poker > 25)
+            if (Conta_Poll_Cancel_Poker > 60 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
             {
                 Serial.println("Premio Pagado Poker *************************************");
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
-                Calcula_Cancel_Credit(true);
+                if (Calcula_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
                 Transmite_Confirmacion('D', '1');
                 Conta_Poll_Cancel_Poker = 0;
             }
