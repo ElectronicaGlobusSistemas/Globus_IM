@@ -111,6 +111,7 @@ static void ManagerTasks(void *parameter)
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
+        
 
         // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
         // {
@@ -125,18 +126,18 @@ static void ManagerTasks(void *parameter)
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont==true)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
                 Serial.println("------->>>>> Run Task   Ftp SERVER ");
-                continue;
+                
             }
             else if (eTaskGetState(Ftp_SERVER) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  Ftp SERVER");
                 vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
-                continue;
+                
             }
         }
         if (WiFi.status() != WL_CONNECTED)
@@ -173,13 +174,13 @@ static void ManagerTasks(void *parameter)
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Modo Bootloader");
-                continue;
+                
             }
             else if (eTaskGetState(Modo_Bootloader) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  Modo Bootloader");
                 vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
-                continue;
+                
             }
         }
         if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true && Archivos_Ready==false)
@@ -209,6 +210,18 @@ static void ManagerTasks(void *parameter)
                 }
             }
         }
+        if(Sd_Mont==false && Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
+        {
+            if(eTaskGetState(Ftp_SERVER) == eRunning)
+            {
+                vTaskSuspend(Ftp_SERVER);
+            }
+        }
+        if(WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader)==eSuspended)
+        {
+            ArduinoOTA.handle2();
+        }
+        
         delay(100);
         vTaskDelay(1000);
     }
@@ -271,14 +284,14 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Name_Maq")) // Configura el nombre de la MAQ
     {
         Serial.println("Guardando Nombre MAQ por defecto...");
-        char name[17] = {'M', 'a', 'q', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
+        char name[17] = {'M', 'a', 'q', '_', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
         NVS.putString("Name_Maq", name);
     }
 
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
-        //        String ssid = "GLOBUS_ONLINEW";
+        //String ssid = "GLOBUS_ONLINEW";
         String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
@@ -286,7 +299,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-        //        String password = "Globus#OnlineW324";
+        //String password = "Globus#OnlineW324";
         String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }

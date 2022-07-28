@@ -59,9 +59,11 @@ extern int year_copy;
 //------------------------------------------------------------------------------------------------------
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
+
 void Init_SD(void)
 {
   //Variables_globales.Set_Variable_Global(Ftp_Mode,true);
+  //Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
   //Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
   SD.begin(SD_ChipSelect); // Intento Conectar SD 
   xTaskCreatePinnedToCore(
@@ -92,8 +94,11 @@ void Init_FTP_SERVER()
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
 static void Rum_FTP_SERVER(void *parameter)
 {
-  vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
+  //SD.open("./");
+  RESET_SD();
   ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
+  vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
+  //ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
   unsigned long InicialTime = 0;
   unsigned long FinalTime = 0;
   int Conteo = 0;
@@ -116,6 +121,7 @@ static void Rum_FTP_SERVER(void *parameter)
     {
       Conteo = 0;
     }
+    
     ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
     vTaskDelay(10);
   }
@@ -152,6 +158,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       Serial.print(" Intento #: ");           // Mensaje de Fallo.
       Serial.println(Intento_Connect_SD);     // Imprime conteo de Fallos.
       Intento_Connect_SD++;
+      digitalWrite(SD_Status, LOW); // Enciende Indicador LED SD Status.
       }
     }
     else 
@@ -176,9 +183,12 @@ static void Task_Verifica_Conexion_SD(void *parameter)
         Variables_globales.Set_Variable_Global(Estado_Escritura,false);
       }
      // Serial.println("Memoria SD Conectada");
-     
-      volume.init(card);
-      FreeSpace_SD();
+      if(Variables_globales.Get_Variable_Global(Ftp_Mode)==false)
+      {
+        volume.init(card);
+        FreeSpace_SD();
+      }
+      
       
       uint8_t Temperatura_Procesador= temperatureRead();
       
@@ -705,6 +715,20 @@ int FtpServer::handleFTP()
     cmdStatus = 1;
 #ifdef FTP_DEBUG
     Serial.println("client disconnected");
+    //---->>> add 
+  Variables_globales.Set_Variable_Global(Ftp_Mode,false);
+  if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+    vTaskSuspend(Ftp_SERVER); //  Suspende Modo FTP
+    RESET_SD(); // Reset SD para Modo Storage Data
+    if(Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false || Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN)== false || Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+    {
+      if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
+      {
+        Variables_globales.Set_Variable_Global(Enable_Storage, true);
+      }
+    }
+  }
 #endif
   }
 
@@ -732,9 +756,10 @@ void FtpServer::clientConnected()
 {
 #ifdef FTP_DEBUG
   Serial.println("Client connected!");
+  
 #endif
-  client.println("220--- Welcome to FTP for ESP32 ---");
-  client.println("220---   By David Paiva   ---");
+  client.println("FTP SERVER");
+  client.println("Globus IM ESP32");
   client.println("220 --   Version " + String(FTP_SERVER_VERSION) + "   --");
   iCL = 0;
 }
@@ -893,6 +918,7 @@ boolean FtpServer::processCommand()
   //
   //  PASV - Passive Connection management
   //
+  
   else if (!strcmp(command, "PASV"))
   {
     if (data.connected())

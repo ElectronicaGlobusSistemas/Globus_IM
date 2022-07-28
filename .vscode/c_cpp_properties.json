@@ -190,7 +190,6 @@
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/fb_gfx/include",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/.pio/libdeps/esp32dev/Unity/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",
                 "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/BluetoothSerial/src",
@@ -403,7 +402,6 @@
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/fb_gfx/include",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                    "c:/Users/Soporte/Desktop/HW-CE-05 - Electronica/GLOBUS-IM_ESP32+MODULO/Globus_IM/.pio/libdeps/esp32dev/Unity/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",
                     "C:/Users/Soporte/.platformio/packages/framework-arduinoespressif32/libraries/BluetoothSerial/src",
@@ -433,7 +431,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=60101",
+                "PLATFORMIO=60103",
                 "ARDUINO_ESP32_DEV",
                 "HAVE_CONFIG_H",
                 "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
