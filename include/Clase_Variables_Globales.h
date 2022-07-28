@@ -23,8 +23,11 @@ using namespace std;
 #define Encabezado_Maquina_Eventos  16
 #define Estado_Escritura            17
 #define Libera_Memoria_OK           18
+#define Fallo_Archivo_COM           19
+#define Fallo_Archivo_EVEN          20
+#define Fallo_Archivo_LOG           21
 
-#define Calc_Cancel_Credit        19
+#define Calc_Cancel_Credit        22
 
 class Variables_Globales
 {
@@ -39,6 +42,9 @@ private:
     bool Comunicacion_Maq_;
     bool Archivo_LOG_OK_;
     bool Archivo_CSV_OK_;
+    bool Fallo_Archivo_COM_;
+    bool Fallo_Archivo_EVEN_;
+    bool Fallo_Archivo_LOG_;
     bool Enable_Storage_;
     String Encabezado_Maquina_Generica_;
     String Encabezado_Maquina_Eventos_;

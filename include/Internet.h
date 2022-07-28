@@ -162,6 +162,17 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(SSID_Wifi);
         digitalWrite(WIFI_Status, LOW);
+
+        if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG))
+        {
+          if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
+          {
+            log_e("Error de Conexion a Red WIFI", 100);
+
+            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+          }
+        }
+
         vTaskDelay(10000 / portTICK_PERIOD_MS);
         continue;
       }
@@ -215,6 +226,7 @@ void CONNECT_SERVER_TCP(void)
       {
         Serial.println("Acceso denegado");
         clientTCP.stop(); // Cerrar el cliente
+
       }
     }
     else
@@ -259,6 +271,15 @@ void Task_Verifica_Conexion_Servidor(void *parameter)
         {
           Serial.println("Acceso denegado");
           clientTCP.stop(); // Cerrar el cliente
+
+          if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG))
+          {
+            if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
+            {
+              log_e("Error Conexión Servidor TCP", 102);
+              LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            }
+          }
           vTaskDelay(20000 / portTICK_PERIOD_MS);
           continue;
         }

@@ -54,6 +54,16 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Maquina_En_Juego:
         return Flag_Maquina_En_Juego_;
         break;
+
+    case Fallo_Archivo_COM:
+        return Fallo_Archivo_COM_;
+        break;
+    case Fallo_Archivo_EVEN:
+        return Fallo_Archivo_EVEN_;
+        break;
+    case Fallo_Archivo_LOG:
+        return Fallo_Archivo_LOG_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -111,6 +121,16 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Maquina_En_Juego:
         Flag_Maquina_En_Juego_ = Change_estado;
         break;
+
+    case Fallo_Archivo_COM:
+         Fallo_Archivo_COM_=Change_estado;
+        break;
+    case Fallo_Archivo_EVEN:
+        Fallo_Archivo_EVEN_=Change_estado;
+        break;
+    case Fallo_Archivo_LOG:
+        Fallo_Archivo_LOG_=Change_estado;
+        break;
     }
 }
 
@@ -121,6 +141,14 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Enable_Storage_ = false;
     Archivo_CSV_OK_ = false;
     Archivo_LOG_OK_ = false;
+    Enable_Storage_=false;
+    Archivo_CSV_OK_=false;
+    Archivo_LOG_OK_=false;
+
+    Fallo_Archivo_COM_=true;
+    Fallo_Archivo_EVEN_=true;
+    Fallo_Archivo_LOG_=true;
+    
     Dato_Entrante_Valido_ = false;
     Dato_Entrante_No_Valido_ = false;
     Dato_Evento_Valido_ = false;
@@ -135,6 +163,7 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Calcula_Cancel_Credit_ = false;
     Flag_Hopper_Enable_ = false;
     Flag_Maquina_En_Juego_ = false;
+
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

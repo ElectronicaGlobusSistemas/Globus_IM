@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "Errores.h"
 #include "Bootloader.h"
 
 /* Definir las clases que haran uso de los metodos */
@@ -20,6 +21,8 @@ Contadores_SAS contadores; // Objeto contiene contadores maquina
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
 Eventos_SAS eventos; // Objeto contiene eventos maquina
+#include "Tabla_Eventos.h"
+Tabla_Eventos Tabla_Evento;
 /* Definir los metodos que haran uso de las clases */
 
 #include "RS232.h"
@@ -34,6 +37,7 @@ int bandera2 = 0;
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
+  Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
 
  

@@ -25,7 +25,8 @@ int Contador_Coin_In_Act = 0;
 // bool flag_maquina_en_juego = false;
 
 extern bool flag_ultimo_contador_Ok;
-
+extern bool Archivos_Ready;
+extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
 char Archivo_CSV_Contadores[100];
 char Archivo_CSV_Eventos[100];
 char Archivo_LOG[100];
@@ -128,7 +129,18 @@ void Transmite_Confirmacion(char High, char Low)
         Transmite_A_Servidor(res, len);
     }
     else
+    {
         Serial.println("Set buffer general ERROR");
+        if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG))
+        {
+            if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
+            {
+                log_e("No se Pudo Guardar el Buffer General de datos", 101);
+                LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            }
+        }
+    }
+        
 }
 
 /*****************************************************************************************/
@@ -192,6 +204,25 @@ void Transmite_Billetes(void)
         Serial.println("Set buffer general ERROR");
 }
 
+void Transmite_Info_Memoria_SDCARD(void)
+{
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+    memcpy(res, Buffer.Get_buffer_info_MicroSD(), 258);
+    Serial.println("Set buffer general OK");
+    int len = sizeof(res);
+    Transmite_A_Servidor(res, len);
+}
+void Transmite_Info_Procesador_ESP32(void)
+{
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+    memcpy(res, Buffer.Get_buffer_info_MCU(), 258);
+    Serial.println("Set buffer general OK");
+    int len = sizeof(res);
+    Transmite_A_Servidor(res, len);
+}
+
 /*****************************************************************************************/
 /******************************* SINCRONIZA RELOJ RTC ************************************/
 /*****************************************************************************************/
@@ -215,20 +246,29 @@ bool Sincroniza_Reloj_RTC(char res[])
         Serial.println("RTC sincronizado con exito!");
 
         //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
-        string_Fecha = String(day) + String(month) + String(year) + ".CSV";
-        string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
-        string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
-
-        strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
-        strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
-        strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
-        day_copy = day;
-        month_copy = month;
-        year_copy = year;
-        // Crea 3 Archivos Por Dia.
-        Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        Create_ARCHIVE_Excel(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+        string_Fecha=String(day)+String(month)+String(year)+".CSV";
+        string_Fecha_LOG=String(day)+String(month)+String(year)+".TXT";
+        string_Fecha_Eventos=String(day)+String(month)+String(year)+"1"+".CSV";
+        
+        strcpy(Archivo_CSV_Contadores,string_Fecha.c_str());
+        strcpy(Archivo_LOG,string_Fecha_LOG.c_str());
+        strcpy(Archivo_CSV_Eventos,string_Fecha_Eventos.c_str());
+        day_copy=day ;
+        month_copy=month;
+        year_copy=year;
+        Create_ARCHIVE_Excel(Archivo_CSV_Contadores,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+        Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
         Create_ARCHIVE_Txt(Archivo_LOG);
+
+        if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+        {
+            Serial.println("OK Archivos Listos..");
+            Archivos_Ready = true;
+        }
+        else
+        {
+            Serial.println("Configurando Archivos...");
+        }
         //---------------------------------------------------------------------------------------------------------
         return true;
     }
@@ -921,6 +961,72 @@ bool Inicializa_modo_bootloader(void)
         return true;
     }
 }
+bool Enable_Disable_modo_Ftp_server(bool Enable_S)
+{
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+    if (Enable_S)
+    {
+        Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita Guardado de Datos.
+        if (!Variables_globales.Get_Variable_Global(Enable_Storage))
+        {
+            Variables_globales.Set_Variable_Global(Ftp_Mode, true); // Activa ftp
+            if (Variables_globales.Get_Variable_Global(Ftp_Mode))
+            {
+                RESET_SD(); // Reset SD Para Modo FTP
+                res[0] = 'F';
+                res[1] = '|';
+                res[2] = 'T';
+                res[3] = 'P';
+                res[4] = '|';
+                res[5] = 'O';
+                res[6] = 'K';
+
+                for (int i = 7; i < 256; i++)
+                {
+                    res[i] = '0';
+                }
+                Serial.println("Set buffer general OK");
+                int len = sizeof(res);
+                Transmite_A_Servidor(res, len);
+                return true;
+            }
+        }
+    }
+    else
+    {
+        Variables_globales.Set_Variable_Global(Ftp_Mode, false);
+        if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
+        {
+            vTaskSuspend(Ftp_SERVER); //  Suspende Modo FTP
+            RESET_SD();
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false || Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false || Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+            {
+                if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
+                {
+                    Variables_globales.Set_Variable_Global(Enable_Storage, true);
+                }
+            }
+            res[0] = 'F';
+            res[1] = '|';
+            res[2] = 'T';
+            res[3] = 'P';
+            res[4] = 'O';
+            res[5] = 'F';
+            res[6] = 'F';
+
+            for (int i = 7; i < 256; i++)
+            {
+                res[i] = '0';
+            }
+            Serial.println("Set buffer general OK");
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+            return true;
+        }
+    }
+    
+}
 
 /*****************************************************************************************/
 /******************************* PROCESA COMANDO RECIBIDO ********************************/
@@ -1079,6 +1185,37 @@ void Task_Procesa_Comandos(void *parameter)
                     Transmite_Confirmacion('A', '0');
                 break;
 
+            case 315:
+                Serial.println("Solicitud FTP Server INPUT");
+                if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
+                {
+                    Enable_Disable_modo_Ftp_server(true);
+                }
+                else
+                {
+                    Serial.println("Solicitud FTP Server INPUT Rechazada!");
+                } 
+                break;
+            case 316:
+                Serial.println("Solicitud FTP Server OUT");
+                if(Variables_globales.Get_Variable_Global(Ftp_Mode))
+                {
+                    Enable_Disable_modo_Ftp_server(false);
+                }
+                else
+                {
+                    Serial.println("Solicitud FTP Server OUT Rechazada!");
+                }
+                break;
+            case 317:
+                Serial.println("Solicitud Información de MicroSD");
+                Transmite_Info_Memoria_SDCARD();
+                break;
+            case 318:
+                Serial.println("Solicitud Información de Procesador");
+                Transmite_Info_Procesador_ESP32();
+                break;
+                
             default:
                 Serial.println(Comando_Recibido());
                 for (int i = 0; i < 256; i++)
@@ -1117,6 +1254,26 @@ void Task_Procesa_Comandos(void *parameter)
                 }
                 Guarda_Configuracion_ESP32();
             }
+            /*
+            else if(res[0]=='F' && res[1]=='P')
+            {
+                Serial.println("Solicitud FTP Server INPUT");
+                Enable_Disable_modo_Ftp_server(true);
+            }
+            else if(res[0]=='F' && res[1]=='O')
+            {
+                Serial.println("Solicitud FTP Server OUT");
+                Enable_Disable_modo_Ftp_server(false);
+            }
+            else if(res[0]=='M' && res[1]=='A')
+            {
+                Serial.println("Solicitud Información de MicroSD");
+            }
+            else if(res[0]=='P' && res[1]=='C')
+            {
+                Serial.println("Solicitud Información de Procesador");
+            }
+            */
             else
             {
                 for (int i = 0; i < 256; i++)

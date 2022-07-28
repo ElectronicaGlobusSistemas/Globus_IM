@@ -50,7 +50,7 @@ void SD_Status_Rum(void);
 void FreeSpace_SD(void);
 void LOG_ESP(char *ARCHIVO,bool Enable);
 void Libera_Memoria(float Total_Memoria_MB, float Free_Space);
-
+void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado);
 //------------------------------------------------------------------------------------------
 
 //-------------------------------> Clase  Server FTP <--------------------------------------

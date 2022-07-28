@@ -14,7 +14,7 @@ static void Rum_Bootloader(void*parameter);
 
 void Setup_Bootloader(void)
 {
-  
+    ArduinoOTA.setPassword("FEFE99098F1EAC0361BE7BBCC3342204");
     ArduinoOTA.onStart([]()
                       {
         String type;
@@ -41,6 +41,7 @@ void Setup_Bootloader(void)
         else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
 
     ArduinoOTA.begin();
+    ArduinoOTA.setPassword("admin");
 }
 
 void  Init_Bootloader()
@@ -58,16 +59,25 @@ void  Init_Bootloader()
 }
 static void Rum_Bootloader(void*parameter)
 {
-  vTaskSuspend(Modo_Bootloader);//  bootloader En Pausa.
   Setup_Bootloader(); // Setup
+  vTaskSuspend(Modo_Bootloader);//  bootloader En Pausa.
+  
   int Conteo = 0;
+  int Mensaje=1;
   Serial.println("Bootloader Activado..");
   for (;;)
   {
+    if(Mensaje==1)
+    {
+       Serial.println("Bootloader Activado..");
+    }
+    Mensaje=0;
+   
     Conteo++;
     ArduinoOTA.handle();
    // delay(100);
    delay(10);
+   
   }
   vTaskDelay(10);
   vTaskDelete(NULL);

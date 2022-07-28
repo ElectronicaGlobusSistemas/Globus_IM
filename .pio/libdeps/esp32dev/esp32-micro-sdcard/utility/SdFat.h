@@ -453,7 +453,6 @@ class SdVolume {
    */
   uint8_t init(Sd2Card* dev) { return init(dev, 1) ? true : init(dev, 0);}
   uint8_t init(Sd2Card* dev, uint8_t part);
-
   // inline functions that return volume info
   /** \return The volume's cluster size in blocks. */
   uint8_t blocksPerCluster(void) const {return blocksPerCluster_;}
@@ -471,7 +470,7 @@ class SdVolume {
   uint32_t fatStartBlock(void) const {return fatStartBlock_;}
   /** \return The FAT type of the volume. Values are 12, 16 or 32. */
   uint8_t fatType(void) const {return fatType_;}
-  uint32_t freeClusterCount(void);
+  uint32_t freeClusterCount();
   /** \return The number of entries in the root directory for FAT16 volumes. */
   uint32_t rootDirEntryCount(void) const {return rootDirEntryCount_;}
   /** \return The logical block number for the start of the root directory
@@ -479,8 +478,11 @@ class SdVolume {
   uint32_t rootDirStart(void) const {return rootDirStart_;}
   /** return a pointer to the Sd2Card object for this volume */
   static Sd2Card* sdCard(void) {return sdCard_;}
+  
+  
 //------------------------------------------------------------------------------
 #if ALLOW_DEPRECATED_FUNCTIONS
+  
   // Deprecated functions  - suppress cpplint warnings with NOLINT comment
   /** \deprecated Use: uint8_t SdVolume::init(Sd2Card* dev); */
   uint8_t init(Sd2Card& dev) {return init(&dev);}  // NOLINT
@@ -536,6 +538,7 @@ class SdVolume {
     return fatPut(cluster, 0x0FFFFFFF);
   }
   uint8_t freeChain(uint32_t cluster);
+  
   uint8_t isEOC(uint32_t cluster) const {
     return  cluster >= (fatType_ == 16 ? FAT16EOC_MIN : FAT32EOC_MIN);
   }
