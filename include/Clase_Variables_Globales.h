@@ -27,6 +27,8 @@ using namespace std;
 #define Fallo_Archivo_EVEN          20
 #define Fallo_Archivo_LOG           21
 
+#define Calc_Cancel_Credit        22
+
 class Variables_Globales
 {
 private:
@@ -49,6 +51,7 @@ private:
     bool Estado_Escritura_;
     bool Libera_Memoria_OK_;
     bool Primer_Cancel_Credit_;
+    bool Calcula_Cancel_Credit_;
     bool Flag_Hopper_Enable_;
     bool Flag_Maquina_En_Juego_;
 

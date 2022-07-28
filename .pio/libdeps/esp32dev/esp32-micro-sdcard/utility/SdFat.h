@@ -453,9 +453,6 @@ class SdVolume {
    */
   uint8_t init(Sd2Card* dev) { return init(dev, 1) ? true : init(dev, 0);}
   uint8_t init(Sd2Card* dev, uint8_t part);
- 
- 
-      
   // inline functions that return volume info
   /** \return The volume's cluster size in blocks. */
   uint8_t blocksPerCluster(void) const {return blocksPerCluster_;}
@@ -522,7 +519,6 @@ class SdVolume {
   uint8_t fatType_;             // volume type (12, 16, OR 32)
   uint16_t rootDirEntryCount_;  // number of entries in FAT16 root dir
   uint32_t rootDirStart_;       // root start block for FAT16, cluster for FAT32
-
   //----------------------------------------------------------------------------
   uint8_t allocContiguous(uint32_t count, uint32_t* curCluster);
   uint8_t blockOfCluster(uint32_t position) const {

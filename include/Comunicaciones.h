@@ -240,7 +240,7 @@ bool Sincroniza_Reloj_RTC(char res[])
     year = year + 2000;
 
     RTC.setTime(seconds, minutes, hour, day, month, year);
-    
+
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
         Serial.println("RTC sincronizado con exito!");
@@ -1524,11 +1524,12 @@ void Task_Verifica_Hopper(void *parameter)
         else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
             Conta_Poll_Cancel_Poker++;
-            if (Conta_Poll_Cancel_Poker > 25)
+            if (Conta_Poll_Cancel_Poker > 60 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
             {
                 Serial.println("Premio Pagado Poker *************************************");
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
-                Calcula_Cancel_Credit(true);
+                if (Calcula_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
                 Transmite_Confirmacion('D', '1');
                 Conta_Poll_Cancel_Poker = 0;
             }
