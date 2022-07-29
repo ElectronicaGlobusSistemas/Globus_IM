@@ -63,15 +63,14 @@ static void Rum_Bootloader(void*parameter)
   
   int Conteo = 0;
   int Mensaje=1;
-  Serial.println("Bootloader Activado..");
   for (;;)
   {
     if(Mensaje==1)
     {
        Serial.println("Bootloader Activado..");
+       Mensaje=0;
     }
-    Mensaje=0;
-   
+    
     Conteo++;
     ArduinoOTA.handle();
    // delay(100);
