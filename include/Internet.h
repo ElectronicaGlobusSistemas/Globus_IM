@@ -150,8 +150,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
     {
       Serial.print("Conectando a... ");
       Serial.println(SSID_Wifi);
-
-      WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
+      WiFi.disconnect();//desconecta red 
+      WiFi.reconnect(); // intenta reconectar
+      //WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
       tiempo_inicial = millis();
       while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
       {

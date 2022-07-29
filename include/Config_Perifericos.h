@@ -102,6 +102,9 @@ static void ManagerTasks(void *parameter)
     unsigned long Tiempo_Previo = 0;
     bool MCU_State = LOW;
     long conta = 0;
+
+    unsigned long Tiempo_Actual_Bootloader= 0;
+    unsigned long Tiempo_Previo_Bootloader=0;
     for (;;)
     {
         Tiempo_Actual = millis();
@@ -141,7 +144,7 @@ static void ManagerTasks(void *parameter)
             }
         }
         if (WiFi.status() != WL_CONNECTED)
-        {
+        {   
 
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
@@ -220,6 +223,16 @@ static void ManagerTasks(void *parameter)
         if(WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader)==eSuspended)
         {
             ArduinoOTA.handle2();
+        }
+        if(eTaskGetState(Modo_Bootloader)==eRunning)
+        {
+            Tiempo_Actual_Bootloader = millis();
+            if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) >= 600000) // 10 minutos
+            {
+                Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
+                Serial.println("Tiempo de espera Modo Bootloader Agotado.");
+                vTaskSuspend(Modo_Bootloader);
+            }
         }
         
         delay(100);

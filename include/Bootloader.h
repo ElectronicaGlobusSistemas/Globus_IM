@@ -41,7 +41,6 @@ void Setup_Bootloader(void)
         else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
 
     ArduinoOTA.begin();
-    ArduinoOTA.setPassword("admin");
 }
 
 void  Init_Bootloader()
