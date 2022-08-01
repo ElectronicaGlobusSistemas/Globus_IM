@@ -63,14 +63,29 @@ static void Rum_Bootloader(void*parameter)
   
   int Conteo = 0;
   int Mensaje=1;
+  unsigned long Tiempo_Actual_Bootloader= 0;
+  unsigned long Tiempo_Previo_Bootloader=0;
   for (;;)
   {
+    Tiempo_Actual_Bootloader = millis();
+
     if(Mensaje==1)
     {
-       Serial.println("Bootloader Activado..");
-       Mensaje=0;
+      Serial.println("Bootloader Activado..");
+      Mensaje = 0;
     }
     
+    if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) > 600000) // 10 minutos
+    {
+      Serial.println("Tiempo de espera Modo Bootloader Agotado.");
+      vTaskSuspend(Modo_Bootloader);
+      if(eTaskGetState(Modo_Bootloader)==eSuspended)
+      {
+        Serial.println("Tarea Bootloader Terminada TIMEOUT");
+      }
+      Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
+    }
+
     Conteo++;
     ArduinoOTA.handle();
    // delay(100);

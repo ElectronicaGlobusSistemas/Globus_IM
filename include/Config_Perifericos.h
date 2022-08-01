@@ -103,8 +103,7 @@ static void ManagerTasks(void *parameter)
     bool MCU_State = LOW;
     long conta = 0;
 
-    unsigned long Tiempo_Actual_Bootloader= 0;
-    unsigned long Tiempo_Previo_Bootloader=0;
+    
     for (;;)
     {
         Tiempo_Actual = millis();
@@ -129,7 +128,7 @@ static void ManagerTasks(void *parameter)
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont==true)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont==true && eTaskGetState(Ftp_SERVER) == eSuspended)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
@@ -140,10 +139,9 @@ static void ManagerTasks(void *parameter)
             {
                 Serial.println("------->>>>> Resume Task  Ftp SERVER");
                 vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
-                
             }
         }
-        if (WiFi.status() != WL_CONNECTED)
+        if (WiFi.status() != WL_CONNECTED && eTaskGetState(Status_WIFI) == eSuspended)
         {   
 
             if (eTaskGetState(Status_WIFI) == eRunning)
@@ -158,7 +156,7 @@ static void ManagerTasks(void *parameter)
                 continue;
             }
         }
-        if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion))
+        if (!clientTCP.connected() && Configuracion.Get_Configuracion(Tipo_Conexion) && eTaskGetState(Status_SERVER) == eSuspended)
         {
             if (eTaskGetState(Status_SERVER) == eRunning)
             {
@@ -172,7 +170,7 @@ static void ManagerTasks(void *parameter)
                 continue;
             }
         }
-        if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED)
+        if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
         {
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
@@ -213,7 +211,7 @@ static void ManagerTasks(void *parameter)
                 }
             }
         }
-        if(Sd_Mont==false && Variables_globales.Get_Variable_Global(Ftp_Mode)==true)
+        if(Sd_Mont==false && Variables_globales.Get_Variable_Global(Ftp_Mode)==true && eTaskGetState(Ftp_SERVER) == eRunning)
         {
             if(eTaskGetState(Ftp_SERVER) == eRunning)
             {
@@ -223,16 +221,6 @@ static void ManagerTasks(void *parameter)
         if(WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader)==eSuspended)
         {
             ArduinoOTA.handle2();
-        }
-        if(eTaskGetState(Modo_Bootloader)==eRunning)
-        {
-            Tiempo_Actual_Bootloader = millis();
-            if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) >= 600000) // 10 minutos
-            {
-                Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
-                Serial.println("Tiempo de espera Modo Bootloader Agotado.");
-                vTaskSuspend(Modo_Bootloader);
-            }
         }
         
         delay(100);
