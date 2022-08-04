@@ -14,9 +14,9 @@ static void Rum_Bootloader(void*parameter);
 
 void Setup_Bootloader(void)
 {
-    ArduinoOTA.setPassword("FEFE99098F1EAC0361BE7BBCC3342204");
-    ArduinoOTA.onStart([]()
-                      {
+  ArduinoOTA.setPassword("FEFE99098F1EAC0361BE7BBCC3342204");
+  ArduinoOTA.onStart([]()
+                     {
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH)
           type = "sketch";
@@ -25,14 +25,12 @@ void Setup_Bootloader(void)
 
         // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
         Serial.println("Start updating " + type); })
-        .onEnd([]()
-              { 
-                Serial.println("\nEnd"); 
-              })
-        .onProgress([](unsigned int progress, unsigned int total)
-                    { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
-        .onError([](ota_error_t error)
-                {
+      .onEnd([]()
+             { Serial.println("\nEnd"); })
+      .onProgress([](unsigned int progress, unsigned int total)
+                  { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+      .onError([](ota_error_t error)
+               {
         Serial.printf("Error[%u]: ", error);
         if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
         else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
@@ -40,12 +38,12 @@ void Setup_Bootloader(void)
         else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
         else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
 
-    ArduinoOTA.begin();
+  ArduinoOTA.begin();
 }
 
 void  Init_Bootloader()
 {
-  
+  Setup_Bootloader(); // Setup
   xTaskCreatePinnedToCore(
       Rum_Bootloader,           //  Funcion a implementar la tarea
       "Modo_Bootlader",         //  Nombre de la tarea
@@ -58,7 +56,7 @@ void  Init_Bootloader()
 }
 static void Rum_Bootloader(void*parameter)
 {
-  Setup_Bootloader(); // Setup
+ 
   vTaskSuspend(Modo_Bootloader);//  bootloader En Pausa.
   
   int Conteo = 0;
@@ -75,15 +73,17 @@ static void Rum_Bootloader(void*parameter)
       Mensaje = 0;
     }
     
-    if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) > 600000) // 10 minutos
+    if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) > 500000) // 5 minutos
     {
-      Serial.println("Tiempo de espera Modo Bootloader Agotado.");
       vTaskSuspend(Modo_Bootloader);
+      Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
+      Serial.println("Tiempo de espera Modo Bootloader Agotado.");
+      
       if(eTaskGetState(Modo_Bootloader)==eSuspended)
       {
         Serial.println("Tarea Bootloader Terminada TIMEOUT");
       }
-      Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
+      
     }
 
     Conteo++;
