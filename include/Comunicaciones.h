@@ -213,6 +213,7 @@ void Transmite_Info_Memoria_SDCARD(void)
     int len = sizeof(res);
     Transmite_A_Servidor(res, len);
 }
+
 void Transmite_Info_Procesador_ESP32(void)
 {
     char res[258] = {};
@@ -961,6 +962,7 @@ bool Inicializa_modo_bootloader(void)
         return true;
     }
 }
+
 bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 {
     char res[258] = {};
