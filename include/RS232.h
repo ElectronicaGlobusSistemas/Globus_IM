@@ -100,6 +100,7 @@ int Handle_Maquina = 0;
 bool Act_Coin_in_Poker = false;
 bool Act_Coin_out_Poker = false;
 bool Act_Bill_Poker = false;
+bool Act_Current_Credits = false;
 
 #define flag_bloquea_Maquina 1
 #define flag_desbloquea_Maquina 2
@@ -348,11 +349,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
               {
                 Act_Bill_Poker = true;
-                if (Act_Coin_in_Poker && Act_Coin_out_Poker && Act_Bill_Poker)
+                if (Act_Coin_in_Poker && Act_Coin_out_Poker && Act_Bill_Poker && Act_Current_Credits)
                 {
                   Act_Coin_in_Poker = false;
                   Act_Coin_out_Poker = false;
                   Act_Bill_Poker = false;
+                  Act_Current_Credits = false;
                   Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, true);
                 }
               }
@@ -385,6 +387,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
               contadores.Set_Contadores(Current_Credits, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Add_Contador(contador, Current_Credits, false);
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                Act_Current_Credits = true;
             }
           }
 
