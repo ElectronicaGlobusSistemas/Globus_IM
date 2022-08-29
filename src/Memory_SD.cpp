@@ -1684,5 +1684,3 @@ char *FtpServer::makeDateTimeStr(char *tstr, uint16_t date, uint16_t time)
           (time & 0xF800) >> 11, (time & 0x07E0) >> 5, (time & 0x001F) << 1);
   return tstr;
 }
-
-

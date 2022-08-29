@@ -100,6 +100,7 @@ int Handle_Maquina = 0;
 bool Act_Coin_in_Poker = false;
 bool Act_Coin_out_Poker = false;
 bool Act_Bill_Poker = false;
+bool Act_Current_Credits = false;
 
 #define flag_bloquea_Maquina 1
 #define flag_desbloquea_Maquina 2
@@ -314,26 +315,26 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
             case 10:
               contadores.Set_Contadores(Total_Cancel_Credit, contador);
-              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
-                Calcula_Cancel_Credit_IRT();
+              //              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+              //                Calcula_Cancel_Credit_IRT();
               //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
               {
                 Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ Generica
               }
-              Add_Contador(contador,Total_Cancel_Credit,false);
+              Add_Contador(contador, Total_Cancel_Credit, false);
               break;
             case 11:
               contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
                 Act_Coin_in_Poker = true;
               Add_Contador(contador, Coin_In, false);
-              contadores.Set_Contadores(Coin_In, contador);//? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+              contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
               {
                 Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora Poker
               }
-              Add_Contador(contador,Coin_In,false);
+              Add_Contador(contador, Coin_In, false);
               break;
             case 12:
               contadores.Set_Contadores(Coin_Out, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
@@ -348,11 +349,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
               {
                 Act_Bill_Poker = true;
-                if (Act_Coin_in_Poker && Act_Coin_out_Poker && Act_Bill_Poker)
+                if (Act_Coin_in_Poker && Act_Coin_out_Poker && Act_Bill_Poker && Act_Current_Credits)
                 {
                   Act_Coin_in_Poker = false;
                   Act_Coin_out_Poker = false;
                   Act_Bill_Poker = false;
+                  Act_Current_Credits = false;
                   Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, true);
                 }
               }
@@ -385,6 +387,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             {
               contadores.Set_Contadores(Current_Credits, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Add_Contador(contador, Current_Credits, false);
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                Act_Current_Credits = true;
             }
           }
 
@@ -457,14 +461,14 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             Serial.println(contador);
 
-            contadores.Set_Contadores(Door_Open, contador);// ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-            Add_Contador(contador,Door_Open,false);
+            contadores.Set_Contadores(Door_Open, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+            Add_Contador(contador, Door_Open, false);
             Selector_Modo_SD(); // Ftp o Storage
-            if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
+            if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
             {
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
               {
-               
+
                 for (int i = 0; i < Max_Encuestas; i++)
                 {
                   SD_Cont = SD_Cont + Estructura_CSV[i];
@@ -472,7 +476,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
                 {
                   Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
-                  
                 }
                 for (int i = 0; i < Max_Encuestas; i++)
                 {
@@ -502,7 +505,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 }
               }
             }
-            
           }
 
           else if (buffer[1] == 0x18)
@@ -532,7 +534,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             contadores.Set_Contadores(Games_Since_Last_Power_Up, contador); // ? Serial.println("Guardado con exito") : Serial.println("No se pudo guardar");
             Add_Contador(contador, Games_Since_Last_Power_Up, true);
             Selector_Modo_SD(); // Ftp o Storage
-            if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
+            if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
             {
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
               {
@@ -557,7 +559,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 }
                 Delete_Trama();
               }
-            }else
+            }
+            else
             {
               for (int i = 0; i < Max_Encuestas; i++)
               {
@@ -754,16 +757,16 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Serial.println("--------------------------------------------------");
           Serial.println();
           Selector_Modo_SD(); // Ftp o Storage
-          if(!Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN))
+          if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN))
           {
             try
             {
               // Guarda Evento En Memoria SD.
               int Evento = eventos.Get_evento();
-              String Descrip=Tabla_Evento.Get_Descrip_Eventos(Evento);
-              Add_String_Hora_EVEN(RTC.getTime());   // Agrega Hora de Evento a String
-              Add_String_EVEN(String(Evento), true); // Agrega Tipo de Evento a String
-              Add_String_EVEN(Descrip, false);       // Agrega Descripción  de Evento a String
+              String Descrip = Tabla_Evento.Get_Descrip_Eventos(Evento);
+              Add_String_Hora_EVEN(RTC.getTime());                                                           // Agrega Hora de Evento a String
+              Add_String_EVEN(String(Evento), true);                                                         // Agrega Tipo de Evento a String
+              Add_String_EVEN(Descrip, false);                                                               // Agrega Descripción  de Evento a String
               Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
               Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
             }
@@ -1652,9 +1655,9 @@ void Selector_Modo_SD(void)
   }
   else
   {
-    if (Archivos_Ready==true &&  Variables_globales.Get_Variable_Global(Archivo_CSV_OK)==true)
+    if (Archivos_Ready == true && Variables_globales.Get_Variable_Global(Archivo_CSV_OK) == true)
     {
-      if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
       {
         Variables_globales.Set_Variable_Global(Enable_Storage, true);
       }

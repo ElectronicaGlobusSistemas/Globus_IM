@@ -213,6 +213,7 @@ void Transmite_Info_Memoria_SDCARD(void)
     int len = sizeof(res);
     Transmite_A_Servidor(res, len);
 }
+
 void Transmite_Info_Procesador_ESP32(void)
 {
     char res[258] = {};
@@ -967,6 +968,7 @@ bool Inicializa_modo_bootloader(void)
         return true;
     }
 }
+
 bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 {
     char res[258] = {};
@@ -1463,7 +1465,7 @@ void Transmision_Controlada_Contadores(void)
 
 bool Calcula_Cancel_Credit(bool Calcula_Contador)
 {
-    int Cancel_Credit_Poker, Coin_In_Poker, Coin_Out_Poker, Drop_Poker, Residuo;
+    int Cancel_Credit_Poker, Coin_In_Poker, Coin_Out_Poker, Drop_Poker, Creditos_Poker, Residuo;
     int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
     char Contador_Cancel_Credit_Poker[9];
     bzero(Contador_Cancel_Credit_Poker, 9);
@@ -1473,8 +1475,9 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
         Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
         Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
+        Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
 
-        Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker);
+        Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
         if (Cancel_Credit_Poker <= 0)
             return false;
     }
