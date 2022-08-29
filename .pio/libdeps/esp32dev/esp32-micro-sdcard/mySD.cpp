@@ -340,6 +340,7 @@ boolean SDClass::begin(uint8_t csPin, int8_t mosi, int8_t miso, int8_t sck) {
     Return true if initialization succeeds, false otherwise.
 
    */
+  root.close(); // add Linea  para forzar desactiva
   return card.init(SPI_HALF_SPEED, csPin, mosi, miso, sck) &&
          volume.init(card) &&
          root.openRoot(volume);

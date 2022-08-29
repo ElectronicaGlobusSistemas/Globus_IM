@@ -65,6 +65,7 @@ void Init_SD(void)
   //Variables_globales.Set_Variable_Global(Ftp_Mode,true);
   //Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
   //Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
+
   SD.begin(SD_ChipSelect); // Intento Conectar SD 
   xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_SD, //  Función a implementar la tarea.
@@ -146,7 +147,6 @@ static void Task_Verifica_Conexion_SD(void *parameter)
   //  Serial.println(state_2);
     if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin())          // SD Desconectada...
     {
-      SD.end();
       Serial.println("Memoria SD Desconectada..");
                  // Apaga  Indicador LED SD Status.
       Enable_Status = false;// Desactiva Parpadeo de LED SD Status en Modo FTP Server
@@ -154,11 +154,11 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       if(!card.init(SPI_FULL_SPEED,SD_ChipSelect))
       {
         // Intenta Conectar Despues de Fallo.
-      Serial.print("Fallo en Conexión SD");   // Mensaje de Fallo.
-      Serial.print(" Intento #: ");           // Mensaje de Fallo.
-      Serial.println(Intento_Connect_SD);     // Imprime conteo de Fallos.
-      Intento_Connect_SD++;
-      digitalWrite(SD_Status, LOW); // Enciende Indicador LED SD Status.
+        Serial.print("Fallo en Conexión SD"); // Mensaje de Fallo.
+        Serial.print(" Intento #: ");         // Mensaje de Fallo.
+        Serial.println(Intento_Connect_SD);   // Imprime conteo de Fallos.
+        Intento_Connect_SD++;
+        digitalWrite(SD_Status, LOW); // Enciende Indicador LED SD Status.
       }
     }
     else 
