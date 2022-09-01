@@ -209,7 +209,8 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       info_MCU_Temp[2]=chipId;                     // ID chip
       info_MCU_Temp[3]=Temperatura_Procesador;    //Temperatura °C
       Buffer.Set_buffer_info_MCU(info_MCU_Temp); //Guarda Buffer de Datos;
-
+      //Serial.println("-------------------->>>");
+      //Serial.println(Buffer.Get_buffer_info_MCU());
     }
     vTaskDelay(10000); // Pausa Tarea 10000ms
   }

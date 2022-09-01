@@ -259,13 +259,18 @@ bool Sincroniza_Reloj_RTC(char res[])
             month_copy = month;
             year_copy = year;
             Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+            delay(10);
             Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+            delay(10);
             Create_ARCHIVE_Txt(Archivo_LOG);
+            delay(10);
 
             if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
             {
+                delay(10);
                 Serial.println("OK Archivos Listos..");
                 Archivos_Ready = true;
+                
             }
             else
             {

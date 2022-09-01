@@ -44,6 +44,7 @@ void Init_Config(void)
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------> Inicializa Indicadores <----------------
     pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
+
     digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
@@ -199,16 +200,19 @@ static void ManagerTasks(void *parameter)
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
                 {
                     Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+                    delay(10);
                 }
 
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
                 {
                     Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+                    delay(10);
                 }
 
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == true)
                 {
                     Create_ARCHIVE_Txt(Archivo_LOG);
+                    delay(10);
                 }
             }
         }
@@ -251,7 +255,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 152};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
@@ -272,7 +276,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 208};
+        uint8_t ip_server[] = {192, 168, 5, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -293,16 +297,16 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
-        //String ssid = "GLOBUS_ONLINEW";
-        String ssid = "GLOBUS-DESARROLLO";
+        String ssid = "GLOBUS_ONLINEW";
+        //String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
 
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-        //String password = "Globus#OnlineW324";
-        String password = "Globus2020*";
+        String password = "Globus#OnlineW324";
+       // String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
 
