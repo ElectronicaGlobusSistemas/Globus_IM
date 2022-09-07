@@ -5,10 +5,11 @@
 
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency 240
-#define MCU_Status 2
-#define WIFI_Status 15
-#define Reset_Config 27
-#define Hopper_Enable 14
+#define MCU_Status      2
+#define WIFI_Status     15
+#define Reset_Config    27
+#define Hopper_Enable   14
+#define MCU_Status_2    25
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
@@ -44,13 +45,13 @@ void Init_Config(void)
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------> Inicializa Indicadores <----------------
     pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
-
     digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
+    pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional 
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
@@ -114,6 +115,7 @@ static void ManagerTasks(void *parameter)
             Tiempo_Previo = Tiempo_Actual;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
+            digitalWrite(MCU_Status_2,!MCU_State);
         }
         
 
@@ -240,6 +242,7 @@ void Init_Indicadores_LED(void)
     digitalWrite(SD_Status, LOW);
     digitalWrite(MCU_Status, LOW);
     digitalWrite(WIFI_Status, LOW);
+    digitalWrite(MCU_Status_2,LOW);
 }
 
 void Init_Configuracion_Inicial(void)

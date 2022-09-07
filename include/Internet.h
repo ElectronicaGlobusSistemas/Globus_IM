@@ -81,7 +81,8 @@ void CONNECT_WIFI(void)
   // size_t dir_sn_mask = NVS.getBytesLength("Dir_SN_MASK");
   // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
   //-----------------------------------------------------------------------------------------------------------
-  WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
+  //WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
+  WiFi.mode(WIFI_MODE_STA);
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
