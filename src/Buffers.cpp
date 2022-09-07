@@ -78,6 +78,16 @@ bool Buffers::Verifica_buffer_Maq(char buffer[], int len)
     return false;
 }
 
+bool Buffers::Verifica_buffer_Mecanicas(char buffer[], int len)
+{
+    //    MetodoCRC CRC_Mecanicas;
+    if (Metodo_CRC.Verifica_CRC_Mecanicas(buffer, len))
+    {
+        return true;
+    }
+    return false;
+}
+
 /**********************************************************************************/
 /*                BUFFER DE RECEPCION DE DATOS SERVIDOR TCP                       */
 /**********************************************************************************/

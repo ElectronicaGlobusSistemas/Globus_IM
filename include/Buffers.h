@@ -71,6 +71,7 @@ public:
 
     /* Buffer de Maquina */
     bool Verifica_buffer_Maq(char[], int);
+    bool Verifica_buffer_Mecanicas(char[], int);
 
     /* Buffer de Recepcion Servidor TCP */
     bool Set_buffer_recepcion_TCP(String);

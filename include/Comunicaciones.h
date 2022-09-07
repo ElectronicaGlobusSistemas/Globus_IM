@@ -26,7 +26,7 @@ int Contador_Coin_In_Act = 0;
 
 extern bool flag_ultimo_contador_Ok;
 extern bool Archivos_Ready;
-extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
+extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 char Archivo_CSV_Contadores[100];
 char Archivo_CSV_Eventos[100];
 char Archivo_LOG[100];
@@ -140,7 +140,6 @@ void Transmite_Confirmacion(char High, char Low)
             }
         }
     }
-        
 }
 
 /*****************************************************************************************/
@@ -247,18 +246,18 @@ bool Sincroniza_Reloj_RTC(char res[])
         Serial.println("RTC sincronizado con exito!");
 
         //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
-        string_Fecha=String(day)+String(month)+String(year)+".CSV";
-        string_Fecha_LOG=String(day)+String(month)+String(year)+".TXT";
-        string_Fecha_Eventos=String(day)+String(month)+String(year)+"1"+".CSV";
-        
-        strcpy(Archivo_CSV_Contadores,string_Fecha.c_str());
-        strcpy(Archivo_LOG,string_Fecha_LOG.c_str());
-        strcpy(Archivo_CSV_Eventos,string_Fecha_Eventos.c_str());
-        day_copy=day ;
-        month_copy=month;
-        year_copy=year;
-        Create_ARCHIVE_Excel(Archivo_CSV_Contadores,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos,Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+        string_Fecha = String(day) + String(month) + String(year) + ".CSV";
+        string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
+        string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
+
+        strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
+        strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
+        strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
+        day_copy = day;
+        month_copy = month;
+        year_copy = year;
+        Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+        Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
         Create_ARCHIVE_Txt(Archivo_LOG);
 
         if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
@@ -721,12 +720,18 @@ void Guarda_Configuracion_ESP32(void)
                 j++;
                 ip[i] = octeto;
             }
-            if (NVS.putBytes("Dir_IP", ip, sizeof(ip)) == 4)
+            uint8_t ip_server[] = {192, 168, ip[2], 200};
+            if (NVS.putBytes("Dir_IP", ip, sizeof(ip)) == 4 && NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server)) == 4)
             {
                 size_t ip_len = NVS.getBytesLength("Dir_IP");
                 char IP[ip_len];
                 NVS.getBytes("Dir_IP", IP, ip_len);
                 Configuracion.Set_Configuracion_ESP32(Direccion_IP, IP);
+                
+                size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
+                char IP_SERV[ip_serv_len];
+                NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
+                Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
             }
             NVS.end();
             diferencia = false;
@@ -1027,7 +1032,6 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
             return true;
         }
     }
-    
 }
 
 /*****************************************************************************************/
@@ -1170,7 +1174,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 200:
                 Serial.println("Solicitud de configuracion maquina");
-                if (((res[4] - 48) < 7) && Configura_Tipo_Maquina(res))
+                if (((res[4] - 48) < 10) && Configura_Tipo_Maquina(res))
                 {
                     Transmite_Confirmacion('C', '9');
                     ESP.restart();
@@ -1189,18 +1193,18 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 315:
                 Serial.println("Solicitud FTP Server INPUT");
-                if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
+                if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
                     Enable_Disable_modo_Ftp_server(true);
                 }
                 else
                 {
                     Serial.println("Solicitud FTP Server INPUT Rechazada!");
-                } 
+                }
                 break;
             case 316:
                 Serial.println("Solicitud FTP Server OUT");
-                if(Variables_globales.Get_Variable_Global(Ftp_Mode))
+                if (Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
                     Enable_Disable_modo_Ftp_server(false);
                 }
@@ -1217,7 +1221,7 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Información de Procesador");
                 Transmite_Info_Procesador_ESP32();
                 break;
-                
+
             default:
                 Serial.println(Comando_Recibido());
                 for (int i = 0; i < 256; i++)

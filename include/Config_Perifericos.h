@@ -103,7 +103,6 @@ static void ManagerTasks(void *parameter)
     bool MCU_State = LOW;
     long conta = 0;
 
-    
     for (;;)
     {
         Tiempo_Actual = millis();
@@ -113,7 +112,6 @@ static void ManagerTasks(void *parameter)
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
         }
-        
 
         // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
         // {
@@ -128,12 +126,11 @@ static void ManagerTasks(void *parameter)
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont==true && eTaskGetState(Ftp_SERVER) == eSuspended)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont == true && eTaskGetState(Ftp_SERVER) == eSuspended)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
                 Serial.println("------->>>>> Run Task   Ftp SERVER ");
-                
             }
             else if (eTaskGetState(Ftp_SERVER) == eSuspended)
             {
@@ -142,7 +139,7 @@ static void ManagerTasks(void *parameter)
             }
         }
         if (WiFi.status() != WL_CONNECTED && eTaskGetState(Status_WIFI) == eSuspended)
-        {   
+        {
 
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
@@ -175,25 +172,22 @@ static void ManagerTasks(void *parameter)
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Modo Bootloader");
-                
             }
             else if (eTaskGetState(Modo_Bootloader) == eSuspended)
             {
                 Serial.println("------->>>>> Resume Task  Modo Bootloader");
                 vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
-                
             }
         }
-        if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true && Archivos_Ready==false)
+        if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Archivos_Ready == false)
         {
-           // Serial.println("Preparando Archivos...");
-            if(Variables_globales.Get_Variable_Global(Fallo_Archivo_COM)==false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN)==false&&Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG)==false)
+            // Serial.println("Preparando Archivos...");
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
             {
-                Archivos_Ready=true;
+                Archivos_Ready = true;
                 Serial.println("OK Archivos Listos..");
-                
             }
-            if(Sd_Mont==1)
+            if (Sd_Mont == 1)
             {
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
                 {
@@ -211,18 +205,18 @@ static void ManagerTasks(void *parameter)
                 }
             }
         }
-        if(Sd_Mont==false && Variables_globales.Get_Variable_Global(Ftp_Mode)==true && eTaskGetState(Ftp_SERVER) == eRunning)
+        if (Sd_Mont == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true && eTaskGetState(Ftp_SERVER) == eRunning)
         {
-            if(eTaskGetState(Ftp_SERVER) == eRunning)
+            if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
                 vTaskSuspend(Ftp_SERVER);
             }
         }
-        if(WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader)==eSuspended)
+        if (WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
         {
             ArduinoOTA.handle2();
         }
-        
+
         delay(100);
         vTaskDelay(1000);
     }
@@ -250,7 +244,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 152};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
@@ -271,7 +265,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 208};
+        uint8_t ip_server[] = {192, 168, 5, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -292,16 +286,16 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("SSID_DESA")) // Configura SSID de conexion WIFI
     {
         Serial.println("Guardando SSID por defecto...");
-        //String ssid = "GLOBUS_ONLINEW";
-        String ssid = "GLOBUS-DESARROLLO";
+        String ssid = "GLOBUS_ONLINEW";
+        // String ssid = "GLOBUS-DESARROLLO";
         NVS.putString("SSID_DESA", ssid);
     }
 
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-        //String password = "Globus#OnlineW324";
-        String password = "Globus2020*";
+        String password = "Globus#OnlineW324";
+        // String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
 
@@ -324,6 +318,9 @@ void Init_Configuracion_Inicial(void)
         // 4 = IRT
         // 5 = Generica (Encuesta simple)
         // 6 = Poker
+        // 7 = IGT Riel
+        // 8 = IGT Riel Con Bill
+        // 9 = Mecanicas
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
@@ -459,6 +456,15 @@ void Init_Configuracion_Inicial(void)
     case 6:
         Serial.println("Poker");
         break;
+    case 7:
+        Serial.println("IGT Riel");
+        break;
+    case 8:
+        Serial.println("IGT Riel Con Bill");
+        break;
+    case 9:
+        Serial.println("Mecanicas");
+        break;
     default:
         break;
     }
@@ -498,6 +504,8 @@ void Reset_Configuracion_Inicial(void)
             char name[17] = {'M', 'a', 'q', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
             NVS.putString("Name_Maq", name);
             NVS.end();
+            Serial.println("Reset finalizado en............");
+            delay(1000);
             ESP.restart();
         }
     }
