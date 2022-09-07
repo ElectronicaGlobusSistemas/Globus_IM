@@ -51,6 +51,10 @@ private:
     char buffer_info_MicroSD[258];
     char buffer_info_MCU[258];
 
+    /* Buffer tarjeta mecanica */
+    char buffer_tarjeta_mecanica[64];
+    char buffer_tarjeta_mecanica_final[64];
+
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC;
 
@@ -80,7 +84,6 @@ public:
 
     /* Buffer de Recepcion Servidor UDP */
     bool Set_buffer_recepcion_UDP(char[]);
-
 
     /* Buffer de contadores */
     bool Set_buffer_contadores_ACC(int, Contadores_SAS, ESP32Time, Variables_Globales);
@@ -118,8 +121,12 @@ public:
     bool Set_buffer_billetes_CRC(void);
     char *Get_buffer_billetes(void);
 
-    bool Set_buffer_info_MicroSD(char* buffer);
-    bool Set_buffer_info_MCU(char* buffer);
-    char*Get_buffer_info_MCU(void);
-    char*Get_buffer_info_MicroSD(void);
+    bool Set_buffer_info_MicroSD(char *buffer);
+    bool Set_buffer_info_MCU(char *buffer);
+    char *Get_buffer_info_MCU(void);
+    char *Get_buffer_info_MicroSD(void);
+
+    bool Set_buffer_tarjeta_mecanica(char buffer[]);
+    bool Set_buffer_tarjeta_CRC(void);
+    char *Get_buffer_tarjeta_mecanica(void);
 };

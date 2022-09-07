@@ -143,3 +143,27 @@ char *MetodoCRC::Calcula_CRC_Wifi(char buffer[])
     buffer[256] = CRC_RES;
     return buffer;
 }
+
+unsigned short MetodoCRC::Calcula_CRC_Mecanicas(char buffer[])
+{
+    unsigned short crc = 0xffff, i;
+    int len = 33;
+
+    while (len--)
+    {
+        crc = (crc ^ *buffer++);
+        for (i = 0; i < 8; i++)
+        {
+            if (crc & 1)
+            {
+                crc = (crc >> 1) ^ 0xA001;
+            }
+            else
+            {
+                crc = (crc >> 1);
+            }
+        }
+    }
+    
+    return crc;
+}

@@ -13,5 +13,5 @@ public:
     bool Verifica_CRC_Maq(char str_CRC[], int len_CRC);
     bool Verifica_CRC_Mecanicas(char *str_CRC, unsigned char len_CRC);
     char *Calcula_CRC_Wifi(char buffer[]);
-    bool Calcula_CRC_Maq(char buffer[]);
+    unsigned short Calcula_CRC_Mecanicas(char buffer[]);
 };

@@ -727,7 +727,7 @@ void Guarda_Configuracion_ESP32(void)
                 char IP[ip_len];
                 NVS.getBytes("Dir_IP", IP, ip_len);
                 Configuracion.Set_Configuracion_ESP32(Direccion_IP, IP);
-                
+
                 size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
                 char IP_SERV[ip_serv_len];
                 NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
@@ -1035,6 +1035,23 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 }
 
 /*****************************************************************************************/
+/****************************** ACTUALIZA TRAJETA MECANICA *******************************/
+/*****************************************************************************************/
+
+bool Actualiza_Tarjeta_Mecanica(char res[])
+{
+    if (Buffer.Set_buffer_tarjeta_mecanica(res))
+    {
+        if (Verifica_Tarjeta_Mecanica())
+            return true;
+        else
+            return false;
+    }
+    else
+        return false;
+}
+
+/*****************************************************************************************/
 /******************************* PROCESA COMANDO RECIBIDO ********************************/
 /*****************************************************************************************/
 
@@ -1121,6 +1138,20 @@ void Task_Procesa_Comandos(void *parameter)
                     Transmite_ROM_Signature();
                 else
                     Transmite_Confirmacion('A', '0');
+                break;
+
+            case 13:
+                Serial.println("Solicitud Actualizar Contadores Mecanicos");
+                if (Actualiza_Tarjeta_Mecanica(res))
+                    Transmite_Confirmacion('A', '7');
+                else
+                    Transmite_Confirmacion('A', '8');
+
+                for (int i = 0; i < 256; i++)
+                {
+                    Serial.print(res[i]);
+                }
+                Serial.println();
                 break;
 
             case 14:

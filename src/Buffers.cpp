@@ -545,7 +545,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
         req[244] = '1';
     else
         req[244] = '0';
-        
+
     req[245] = '|'; // 245
     req[246] = '0';
     req[247] = '|'; // 247
@@ -1315,23 +1315,100 @@ char *Buffers::Get_buffer_billetes(void)
     return buffer_billetes_final;
 }
 
+/**********************************************************************************/
+/*                        BUFFER DE TARJETA MICROSD                          */
+/**********************************************************************************/
 
-bool Buffers ::Set_buffer_info_MicroSD(char* buffer)
+bool Buffers::Set_buffer_info_MicroSD(char *buffer)
 {
     memcpy(buffer_info_MicroSD, buffer, 258);
     return true;
 }
-bool Buffers ::Set_buffer_info_MCU(char* buffer)
+
+bool Buffers::Set_buffer_info_MCU(char *buffer)
 {
     memcpy(buffer_info_MCU, buffer, 258);
     return true;
 }
 
-char*Buffers ::Get_buffer_info_MicroSD(void)
+char *Buffers::Get_buffer_info_MicroSD(void)
 {
     return buffer_info_MicroSD;
 }
-char*Buffers ::Get_buffer_info_MCU(void)
+
+char *Buffers::Get_buffer_info_MCU(void)
 {
     return buffer_info_MicroSD;
+}
+
+/**********************************************************************************/
+/*                            BUFFER TARJETA MECANICA                             */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_tarjeta_mecanica(char buffer[])
+{
+    int pos;
+    char req[35] = {};
+    bzero(req, 35);
+
+    req[0] = 0X02; // 1
+
+    pos = 1;
+    for (int i = 4; i < 12; i++) // Total Cancel Credit
+    {
+        req[pos] = buffer[i] - 0x30;
+        pos++;
+    }
+
+    pos = 9;
+    for (int i = 12; i < 20; i++) // Coin In
+    {
+        req[pos] = buffer[i] - 0x30;
+        pos++;
+    }
+
+    pos = 17;
+    for (int i = 20; i < 28; i++) // Coin In
+    {
+        req[pos] = buffer[i] - 0x30;
+        pos++;
+    }
+
+    pos = 25;
+    for (int i = 28; i < 36; i++) // Total Drop
+    {
+        req[pos] = buffer[i] - 0x30;
+        pos++;
+    }
+
+    req[33] = 0x00;
+    req[34] = 0x00;
+
+    memcpy(buffer_tarjeta_mecanica, req, 35);
+
+    if (Set_buffer_tarjeta_CRC())
+    {
+        return true;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_tarjeta_CRC(void)
+{
+    unsigned short crc = Metodo_CRC.Calcula_CRC_Mecanicas(buffer_tarjeta_mecanica);
+
+    memcpy(buffer_tarjeta_mecanica_final, buffer_tarjeta_mecanica, 35);
+
+    unsigned char x;
+    x = ((crc & 0b1111111100000000) >> 8);
+    buffer_tarjeta_mecanica_final[33] = x;
+    x = crc & 0b0000000011111111;
+    buffer_tarjeta_mecanica_final[34] = x;
+
+    return true;
+}
+
+char *Buffers::Get_buffer_tarjeta_mecanica(void)
+{
+    return buffer_tarjeta_mecanica_final;
 }

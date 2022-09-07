@@ -86,7 +86,7 @@ void Delete_Trama();
 void Add_Contador(char *Contador_, int Filtro, bool Salto_Linea);
 void Calcula_Cancel_Credit_IRT(void);
 void Calcula_Bill_In_550(void);
-unsigned short CalculaCRC16(char *buf, unsigned char len);
+void Escribe_Tarjeta_Mecanica(char *buf);
 //---------------------------------------------------------------------------------------------------------------
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -94,6 +94,8 @@ unsigned short CalculaCRC16(char *buf, unsigned char len);
 
 bool ACK_Maq = false;
 bool ACK_Premio = false;
+bool Recibe_Mecanicas = false;
+bool ACK_Mecanicas = false;
 int Conta_Poll_Billetes = 0;
 
 bool flag_ultimo_contador_Ok = false;
@@ -109,6 +111,7 @@ bool Act_Current_Credits = false;
 #define flag_bloquea_Maquina 1
 #define flag_desbloquea_Maquina 2
 #define flag_encuesta_premio 3
+#define escribe_tarjeta_mecanica 4
 
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -289,42 +292,57 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         //   Serial.println("Es un contador");
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
         {
-          if (Buffer.Verifica_buffer_Mecanicas(&buffer[0], conta_bytes))
+          if (Recibe_Mecanicas)
           {
-            numero_contador++;
-            int j = 1;
-            for (size_t k = 0; k < 4; k++)
+            Serial.println("Verifica recepcion de mensaje ACK Mecanicas");
+            Recibe_Mecanicas = false;
+            if (Buffer.Verifica_buffer_Mecanicas(&buffer[0], conta_bytes))
             {
-              char contador[7] = {};
-              bzero(contador, 7);
-              for (int i = 0; i < 8; i++)
-              {
-                contador[i] = buffer[j] + '0';
-                j++;
-              }
-              Serial.println(contador);
-              switch (k)
-              {
-              case 0:
-                contadores.Set_Contadores(Total_Cancel_Credit, contador);
-                contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
-                break;
-              case 1:
-                contadores.Set_Contadores(Coin_In, contador);
-                break;
-              case 2:
-                contadores.Set_Contadores(Coin_Out, contador);
-                break;
-              case 3:
-                contadores.Set_Contadores(Total_Drop, contador);
-                contadores.Set_Contadores(Bill_Amount, contador);
-                break;
-              }
+              Serial.println("Mensaje de ACK Mecanicas recibido.................................................");
+              ACK_Mecanicas = true;
             }
+            else
+              Serial.println("No mensaje ACK Mecanicas.........................................................");
           }
           else
           {
-            Serial.println("Error de CRC contadores Mecanicos...");
+            if (Buffer.Verifica_buffer_Mecanicas(&buffer[0], conta_bytes))
+            {
+              numero_contador++;
+              int j = 1;
+              for (size_t k = 0; k < 4; k++)
+              {
+                char contador[7] = {};
+                bzero(contador, 7);
+                for (int i = 0; i < 8; i++)
+                {
+                  contador[i] = buffer[j] + '0';
+                  j++;
+                }
+                Serial.println(contador);
+                switch (k)
+                {
+                case 0:
+                  contadores.Set_Contadores(Total_Cancel_Credit, contador);
+                  contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+                  break;
+                case 1:
+                  contadores.Set_Contadores(Coin_In, contador);
+                  break;
+                case 2:
+                  contadores.Set_Contadores(Coin_Out, contador);
+                  break;
+                case 3:
+                  contadores.Set_Contadores(Total_Drop, contador);
+                  contadores.Set_Contadores(Bill_Amount, contador);
+                  break;
+                }
+              }
+            }
+            else
+            {
+              Serial.println("Error de CRC contadores Mecanicos...");
+            }
           }
 
           for (size_t i = 0; i < conta_bytes; i++)
@@ -989,6 +1007,11 @@ void Encuestas_Maquina(void *pvParameters)
         case 3:
           //    Serial.println("Encuesta Premio");
           Encuesta_contador_1B();
+          Handle_Maquina = 0;
+          break;
+        case 4:
+          //    Serial.println("Encuesta Premio");
+          Escribe_Tarjeta_Mecanica(Buffer.Get_buffer_tarjeta_mecanica());
           Handle_Maquina = 0;
           break;
         default:
@@ -1994,24 +2017,28 @@ void Calcula_Bill_In_550(void)
   contadores.Set_Contadores(Bill_Amount, Contador_Bill_In_550);
 }
 
-unsigned short CalculaCRC16(char *buf, unsigned char len)
+void Escribe_Tarjeta_Mecanica(char buf[])
 {
-  unsigned short crc = 0xffff, i;
-
-  while (len--)
+  for (int i = 0; i < 35; i++)
   {
-    crc = (crc ^ *buf++);
-    for (i = 0; i < 8; i++)
-    {
-      if (crc & 1)
-      {
-        crc = (crc >> 1) ^ 0xA001;
-      }
-      else
-      {
-        crc = (crc >> 1);
-      }
-    }
+    sendDataa(&buf[i], sizeof(buf[i]));
   }
-  return crc;
+  Recibe_Mecanicas = true;
+}
+
+bool Verifica_Tarjeta_Mecanica(void)
+{
+  flag_handle_maquina = true;
+
+  Handle_Maquina = escribe_tarjeta_mecanica;
+  delay(3000);
+  if (ACK_Mecanicas)
+  {
+    ACK_Mecanicas = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
 }
