@@ -26,7 +26,7 @@ int Contador_Coin_In_Act = 0;
 
 extern bool flag_ultimo_contador_Ok;
 extern bool Archivos_Ready;
-extern TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
+extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 char Archivo_CSV_Contadores[100];
 char Archivo_CSV_Eventos[100];
 char Archivo_LOG[100];
@@ -140,7 +140,6 @@ void Transmite_Confirmacion(char High, char Low)
             }
         }
     }
-        
 }
 
 /*****************************************************************************************/
@@ -732,12 +731,18 @@ void Guarda_Configuracion_ESP32(void)
                 j++;
                 ip[i] = octeto;
             }
-            if (NVS.putBytes("Dir_IP", ip, sizeof(ip)) == 4)
+            uint8_t ip_server[] = {192, 168, ip[2], 200};
+            if (NVS.putBytes("Dir_IP", ip, sizeof(ip)) == 4 && NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server)) == 4)
             {
                 size_t ip_len = NVS.getBytesLength("Dir_IP");
                 char IP[ip_len];
                 NVS.getBytes("Dir_IP", IP, ip_len);
                 Configuracion.Set_Configuracion_ESP32(Direccion_IP, IP);
+
+                size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
+                char IP_SERV[ip_serv_len];
+                NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
+                Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
             }
             NVS.end();
             diferencia = false;
@@ -1038,7 +1043,23 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
             return true;
         }
     }
-    
+}
+
+/*****************************************************************************************/
+/****************************** ACTUALIZA TRAJETA MECANICA *******************************/
+/*****************************************************************************************/
+
+bool Actualiza_Tarjeta_Mecanica(char res[])
+{
+    if (Buffer.Set_buffer_tarjeta_mecanica(res))
+    {
+        if (Verifica_Tarjeta_Mecanica())
+            return true;
+        else
+            return false;
+    }
+    else
+        return false;
 }
 
 /*****************************************************************************************/
@@ -1130,6 +1151,20 @@ void Task_Procesa_Comandos(void *parameter)
                     Transmite_Confirmacion('A', '0');
                 break;
 
+            case 13:
+                Serial.println("Solicitud Actualizar Contadores Mecanicos");
+                if (Actualiza_Tarjeta_Mecanica(res))
+                    Transmite_Confirmacion('A', '7');
+                else
+                    Transmite_Confirmacion('A', '8');
+
+                for (int i = 0; i < 256; i++)
+                {
+                    Serial.print(res[i]);
+                }
+                Serial.println();
+                break;
+
             case 14:
                 Serial.println("Solicitud Reset ESP32");
                 Transmite_Confirmacion('A', 'F');
@@ -1181,7 +1216,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 200:
                 Serial.println("Solicitud de configuracion maquina");
-                if (((res[4] - 48) < 7) && Configura_Tipo_Maquina(res))
+                if (((res[4] - 48) < 10) && Configura_Tipo_Maquina(res))
                 {
                     Transmite_Confirmacion('C', '9');
                     ESP.restart();
@@ -1200,18 +1235,18 @@ void Task_Procesa_Comandos(void *parameter)
 
             case 315:
                 Serial.println("Solicitud FTP Server INPUT");
-                if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
+                if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
                     Enable_Disable_modo_Ftp_server(true);
                 }
                 else
                 {
                     Serial.println("Solicitud FTP Server INPUT Rechazada!");
-                } 
+                }
                 break;
             case 316:
                 Serial.println("Solicitud FTP Server OUT");
-                if(Variables_globales.Get_Variable_Global(Ftp_Mode))
+                if (Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
                     Enable_Disable_modo_Ftp_server(false);
                 }
@@ -1228,7 +1263,7 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Información de Procesador");
                 Transmite_Info_Procesador_ESP32();
                 break;
-                
+
             default:
                 Serial.println(Comando_Recibido());
                 for (int i = 0; i < 256; i++)
