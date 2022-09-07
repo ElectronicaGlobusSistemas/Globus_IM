@@ -243,34 +243,40 @@ bool Sincroniza_Reloj_RTC(char res[])
 
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
-        Serial.println("RTC sincronizado con exito!");
-
-        //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
-        string_Fecha = String(day) + String(month) + String(year) + ".CSV";
-        string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
-        string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
-
-        strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
-        strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
-        strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
-        day_copy = day;
-        month_copy = month;
-        year_copy = year;
-        Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-        Create_ARCHIVE_Txt(Archivo_LOG);
-
-        if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+        try
         {
-            Serial.println("OK Archivos Listos..");
-            Archivos_Ready = true;
+            Serial.println("RTC sincronizado con exito!");
+            //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
+            string_Fecha = String(day) + String(month) + String(year) + ".CSV";
+            string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
+            string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
+
+            strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
+            strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
+            strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
+            day_copy = day;
+            month_copy = month;
+            year_copy = year;
+            Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+            Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+            Create_ARCHIVE_Txt(Archivo_LOG);
+
+            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+            {
+                Serial.println("OK Archivos Listos..");
+                Archivos_Ready = true;
+            }
+            else
+            {
+                Serial.println("Configurando Archivos...");
+            }
+            //---------------------------------------------------------------------------------------------------------
+            return true;
         }
-        else
+        catch (const std::exception &e)
         {
-            Serial.println("Configurando Archivos...");
+            Serial.println(e.what());
         }
-        //---------------------------------------------------------------------------------------------------------
-        return true;
     }
     else
     {

@@ -43,7 +43,8 @@ void Init_Config(void)
     //---------------------------------------------------------------
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------> Inicializa Indicadores <----------------
-    pinMode(SD_ChipSelect, OUTPUT); // Selector de Esclavo SPI.
+    pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
+    digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
@@ -168,7 +169,7 @@ static void ManagerTasks(void *parameter)
             }
         }
         if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
-        {
+        { 
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Modo Bootloader");
