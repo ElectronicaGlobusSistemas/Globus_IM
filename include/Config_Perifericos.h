@@ -295,11 +295,7 @@ void Init_Configuracion_Inicial(void)
     {
         Serial.println("Guardando SSID por defecto...");
         String ssid = "GLOBUS_ONLINEW";
-<<<<<<< HEAD
         //String ssid = "GLOBUS-DESARROLLO";
-=======
-        // String ssid = "GLOBUS-DESARROLLO";
->>>>>>> 78e8c94bdc577a95adf57b4875d94a8f42cdcdfe
         NVS.putString("SSID_DESA", ssid);
     }
 
@@ -307,11 +303,7 @@ void Init_Configuracion_Inicial(void)
     {
         Serial.println("Guardando Password por defecto...");
         String password = "Globus#OnlineW324";
-<<<<<<< HEAD
        // String password = "Globus2020*";
-=======
-        // String password = "Globus2020*";
->>>>>>> 78e8c94bdc577a95adf57b4875d94a8f42cdcdfe
         NVS.putString("PASS_DESA", password);
     }
 
