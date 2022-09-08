@@ -172,7 +172,7 @@ static void ManagerTasks(void *parameter)
             }
         }
         if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
-        { 
+        {
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Modo Bootloader");
@@ -235,6 +235,7 @@ void Init_Indicadores_LED(void)
     digitalWrite(SD_ChipSelect, LOW);
     digitalWrite(SD_Status, LOW);
     digitalWrite(MCU_Status, LOW);
+    digitalWrite(MCU_Status_2, LOW);
     digitalWrite(WIFI_Status, LOW);
     digitalWrite(MCU_Status_2,LOW);
 }

@@ -81,8 +81,13 @@ void CONNECT_WIFI(void)
   // size_t dir_sn_mask = NVS.getBytesLength("Dir_SN_MASK");
   // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
   //-----------------------------------------------------------------------------------------------------------
+<<<<<<< HEAD
   //WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
   WiFi.mode(WIFI_MODE_STA);
+=======
+  // WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
+  WiFi.mode(WIFI_MODE_STA); // MODO STA y AP.
+>>>>>>> 7e492e82813abedabe9bd8eca3545dd9c83146fd
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -151,9 +156,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
     {
       Serial.print("Conectando a... ");
       Serial.println(SSID_Wifi);
-      WiFi.disconnect();//desconecta red 
-      WiFi.reconnect(); // intenta reconectar
-      //WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
+      WiFi.disconnect(); // desconecta red
+      WiFi.reconnect();  // intenta reconectar
+      // WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
       tiempo_inicial = millis();
       while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
       {
@@ -228,7 +233,6 @@ void CONNECT_SERVER_TCP(void)
       {
         Serial.println("Acceso denegado");
         clientTCP.stop(); // Cerrar el cliente
-
       }
     }
     else
@@ -276,7 +280,7 @@ void Task_Verifica_Conexion_Servidor(void *parameter)
 
           if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG))
           {
-            if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
+            if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
             {
               log_e("Error Conexión Servidor TCP", 102);
               LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
