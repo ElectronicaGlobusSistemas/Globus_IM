@@ -6,6 +6,7 @@
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency 240
 #define MCU_Status 2
+#define MCU_Status_2 25
 #define WIFI_Status 15
 #define Reset_Config 27
 #define Hopper_Enable 14
@@ -43,14 +44,15 @@ void Init_Config(void)
     //---------------------------------------------------------------
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------> Inicializa Indicadores <----------------
-    pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
-    digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
-    pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
-    pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
-    pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
-    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
-    pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
-    Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
+    pinMode(5, OUTPUT);            // Define como salida Selector de Esclavo SPI SS1 SD.
+    digitalWrite(5, HIGH);         // Desactiva  Esclavo SPI SS1 SD.
+    pinMode(SD_Status, OUTPUT);    // SD Status Como Salida.
+    pinMode(MCU_Status, OUTPUT);   // MCU_Status Como Salida.
+    pinMode(MCU_Status_2, OUTPUT); // MCU_Status Como Salida.
+    pinMode(WIFI_Status, OUTPUT);  // Wifi_Status como Salida.
+    pinMode(Reset_Config, INPUT);  // Reset_Config como Entrada.
+    pinMode(Hopper_Enable, INPUT); // Reset_Config como Entrada.
+    Init_Indicadores_LED();        // Reset Indicadores LED'S LOW.
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj Default <--------------------
@@ -112,6 +114,7 @@ static void ManagerTasks(void *parameter)
             Tiempo_Previo = Tiempo_Actual;
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
+            digitalWrite(MCU_Status_2, !MCU_State);
         }
 
         // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
@@ -169,7 +172,7 @@ static void ManagerTasks(void *parameter)
             }
         }
         if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
-        { 
+        {
             if (eTaskGetState(Modo_Bootloader) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Modo Bootloader");
@@ -229,6 +232,7 @@ void Init_Indicadores_LED(void)
     digitalWrite(SD_ChipSelect, LOW);
     digitalWrite(SD_Status, LOW);
     digitalWrite(MCU_Status, LOW);
+    digitalWrite(MCU_Status_2, LOW);
     digitalWrite(WIFI_Status, LOW);
 }
 
