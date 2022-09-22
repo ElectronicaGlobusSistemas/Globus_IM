@@ -1573,7 +1573,7 @@ void Task_Verifica_Hopper(void *parameter)
         else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
             Conta_Poll_Cancel_Poker++;
-            if (Conta_Poll_Cancel_Poker > 60 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
+            if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
             {
                 Serial.println("Premio Pagado Poker *************************************");
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
