@@ -2,6 +2,8 @@
 #include "Memory_SD.h"
 #include "RTC.h"
 #include "nvs_flash.h"
+#include <SPI.h>
+#include <SD.h>
 
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency 240
@@ -10,11 +12,11 @@
 #define Reset_Config    27
 #define Hopper_Enable   14
 #define MCU_Status_2    25
+#define Unlock_Machine  26
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
 extern TaskHandle_t SD_CHECK;          //  Manejador de tareas
-extern Sd2Card card;                   //  Memoria SD.
 extern TaskHandle_t Ftp_SERVER;        //  Manejador de tareas
 extern TaskHandle_t Status_WIFI;       //  Manejador de  Tarea Wifi
 extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
@@ -22,8 +24,12 @@ extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader
 extern WiFiClient client;              // Declara un objeto cliente para conectarse al servidor
 //------------------------------------------------------------------
 
+
+
+
 extern char Archivo_CSV[100];
-extern int Sd_Mont;
+//extern int Sd_Mont;
+
 bool Archivos_Ready;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
@@ -35,10 +41,20 @@ void Init_Configuracion_Inicial(void);
 void Reset_Configuracion_Inicial(void);
 void TaskManager();
 static void ManagerTasks(void *parameter);
+void FromFloatTobyte(byte* bytes, float dato);
+void Config_Red_Serial(String Comando);
+//------------------------------------------------------------------
+
+//---------------------------> Version de programa <----------------
+uint8_t Version_Firmware_[]={1,0,1,0}; // 1000--> en  server 1.0
 //------------------------------------------------------------------
 
 void Init_Config(void)
+
 {
+    //---------------------------> Version de programa <----------------
+     Inicializa_Buffer_Eventos(); /*Inicializa Buffer de Eventos*/
+    //------------------------------------------------------------------
     //------------------------> Config MCU <-------------------------
     setCpuFrequencyMhz(Clock_frequency); // Frecuencia de Nucleos 1 y 0.
     //---------------------------------------------------------------
@@ -51,12 +67,14 @@ void Init_Config(void)
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
-    pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional 
+    pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
+    pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj Default <--------------------
     RTC.setTime(0, 12, 10, 9, 6, 2022);
+   
     //---------------------------------------------------------------
     //-------------------> Reset valores NVS <-----------------------
     Reset_Configuracion_Inicial();
@@ -108,6 +126,11 @@ static void ManagerTasks(void *parameter)
 
     for (;;)
     {
+        while (Serial.available() > 0)
+        {
+            String Command = Serial.readString(); // read until timeout
+            Config_Red_Serial(Command);
+        }
         Tiempo_Actual = millis();
         if ((Tiempo_Actual - Tiempo_Previo) > 50)
         {
@@ -130,10 +153,11 @@ static void ManagerTasks(void *parameter)
         //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
         //     }
         // }
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Sd_Mont == true && eTaskGetState(Ftp_SERVER) == eSuspended)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Variables_globales.Get_Variable_Global(SD_INSERT) == true && eTaskGetState(Ftp_SERVER) == eSuspended)
         {
             if (eTaskGetState(Ftp_SERVER) == eRunning)
             {
+                
                 Serial.println("------->>>>> Run Task   Ftp SERVER ");
             }
             else if (eTaskGetState(Ftp_SERVER) == eSuspended)
@@ -179,11 +203,70 @@ static void ManagerTasks(void *parameter)
             }
             else if (eTaskGetState(Modo_Bootloader) == eSuspended)
             {
-                Serial.println("------->>>>> Resume Task  Modo Bootloader");
-                vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
+                
+                if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
+                {
+                    Serial.println("------->>>>> Resume Task  Modo Bootloader");
+                    vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
+                    /*Captura información inicio Bootloader*/
+                    String Hora = RTC.getTime();
+                    String Fecha = RTC.getDate();
+                    String Mes;
+                    int month = RTC.getMonth();
+                    switch (month)
+                    {
+                    case 0:
+                        Mes = "01";
+                        break;
+                    case 1:
+                        Mes = "02";
+                        break;
+                    case 2:
+                        Mes = "03";
+                        break;
+                    case 3:
+                        Mes = "04";
+                        break;
+                    case 4:
+                        Mes = "05";
+                        break;
+                    case 5:
+                        Mes = "06";
+                        break;
+                    case 6:
+                        Mes = "07";
+                        break;
+                    case 7:
+                        Mes = "08";
+                        break;
+                    case 8:
+                        Mes = "09";
+                        break;
+                    case 9:
+                        Mes = "10";
+                        break;
+                    case 10:
+                        Mes = "11";
+                        break;
+                    case 11:
+                        Mes = "12";
+                        break;
+                    default:
+                        break;
+                    }
+                    Serial.println("Guardando Fecha Bootloader.....");
+                    NVS.begin("Config_ESP32", false);
+                    uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
+                    NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
+
+                    size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+                    uint8_t Datos_Fecha_B[Fecha_len];
+                    NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+                    NVS.end();
+                }
             }
         }
-        if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Archivos_Ready == false)
+        if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Archivos_Ready == false &&Variables_globales.Get_Variable_Global(SD_INSERT) == true)
         {
             // Serial.println("Preparando Archivos...");
             if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
@@ -191,33 +274,34 @@ static void ManagerTasks(void *parameter)
                 Archivos_Ready = true;
                 Serial.println("OK Archivos Listos..");
             }
-            if (Sd_Mont == 1)
+            if (Variables_globales.Get_Variable_Global(SD_INSERT) == true)
             {
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
                 {
                     Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-                    delay(10);
+                    
                 }
 
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
                 {
                     Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-                    delay(10);
+                   
                 }
 
                 if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == true)
                 {
                     Create_ARCHIVE_Txt(Archivo_LOG);
-                    delay(10);
+    
                 }
             }
         }
-        if (Sd_Mont == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true && eTaskGetState(Ftp_SERVER) == eRunning)
+        
+        if (Variables_globales.Get_Variable_Global(SD_INSERT) == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true && eTaskGetState(Ftp_SERVER) == eBlocked)
         {
-            if (eTaskGetState(Ftp_SERVER) == eRunning)
-            {
-                vTaskSuspend(Ftp_SERVER);
-            }
+            Serial.println("Memoria SD Desconectada..");
+            Serial.println("Desconecta Modo FTP");
+            Variables_globales.Set_Variable_Global(Ftp_Mode, false);
+            vTaskSuspend(Ftp_SERVER);
         }
         if (WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
         {
@@ -232,6 +316,7 @@ static void ManagerTasks(void *parameter)
 
 void Init_Indicadores_LED(void)
 {
+    digitalWrite(Unlock_Machine,HIGH);
     digitalWrite(SD_ChipSelect, LOW);
     digitalWrite(SD_Status, LOW);
     digitalWrite(MCU_Status, LOW);
@@ -242,6 +327,8 @@ void Init_Indicadores_LED(void)
 
 void Init_Configuracion_Inicial(void)
 {
+    
+    
     Serial.println("\n");
     Serial.println("Inicializando modulo...");
     // Borrar particiones creadas en NVS
@@ -250,17 +337,69 @@ void Init_Configuracion_Inicial(void)
 
     NVS.begin("Config_ESP32", false);
 
+    if(!NVS.isKey("Fecha_Boot"))
+    {   uint8_t Fecha[]={0,0,0,0,0,0,0,0,0,0,0,0};// Indica que no se ha iniciado un modo Bootloader.
+        Serial.println("Guarda espacio de memoria para fecha por defecto");
+        NVS.putBytes("Fecha_Boot",Fecha,sizeof(Fecha));
+    }
+   
+    if(!NVS.isKey("Ver_Fir")) // Configura versión firmware actual.
+    {
+        Serial.println("Guarda Version de firmware actual");
+        NVS.putBytes("Ver_Fir", Version_Firmware_, sizeof(Version_Firmware_));
+    }
+        size_t Ver_fir_len = NVS.getBytesLength("Ver_Fir");
+        uint8_t Version[Ver_fir_len];
+        NVS.getBytes("Ver_Fir", Version, sizeof(Version));
+        Serial.print("Version del software: ");
+    
+        Serial.print(Version[0]);
+        if(Version[1]==0){Serial.print(".");}
+        Serial.print(Version[2]); 
+        if(Version[3]!=0){Serial.print(Version[3]);}
+        if(Version[1]!=0){Serial.print(Version[1]);}
+        Serial.println();
+
+        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+        uint8_t Datos_Fecha_B[Fecha_len];
+        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+        String Fecha_Bootlader = String(char(Datos_Fecha_B[6])) + String(char(Datos_Fecha_B[7]))+"/" + String(char(Datos_Fecha_B[8])) + String(char(Datos_Fecha_B[9])) +"/"+ String(char(Datos_Fecha_B[10])) + String(char(Datos_Fecha_B[11]));
+        Serial.println("Ultima fecha Bootloader: "+Fecha_Bootlader);
+
+        if(int(Version[0])!=int(Version_Firmware_[0]) || int(Version[1])!=int(Version_Firmware_[1]) || int(Version[2])!=int(Version_Firmware_[2]) ||int(Version[3])!=int(Version_Firmware_[3])) //  Si la version guardada en memoria es diferente a la actual del codigo
+        {
+            Serial.println(" Nueva version de software detectada ");
+          
+            NVS.putBytes("Ver_Fir",Version_Firmware_, sizeof(Version_Firmware_));
+            Serial.print(Version_Firmware_[0]); // 1
+            if (Version_Firmware_[1] == 0)
+            {
+                Serial.print(".");
+            }                        
+            Serial.print(Version_Firmware_[2]); 
+
+            if (Version_Firmware_[3] != 0)
+            {
+                Serial.print(Version_Firmware_[3]);
+            }
+            if (Version_Firmware_[1] != 0)
+            {
+                Serial.print(Version_Firmware_[1]);
+            }
+            Serial.println();
+        }
+
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 5, 250};
+        uint8_t ip[] = {192, 168, 0, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
     if (!NVS.isKey("Dir_IP_GW")) // Configura la IP de enlace
     {
         Serial.println("Guardando IP_GW por defecto...");
-        uint8_t ip_gw[] = {192, 168, 5, 1};
+        uint8_t ip_gw[] = {192, 168, 0, 1};
         NVS.putBytes("Dir_IP_GW", ip_gw, sizeof(ip_gw));
     }
 
@@ -274,7 +413,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 5, 200};
+        uint8_t ip_server[] = {192, 168, 0, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -297,7 +436,7 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Guardando SSID por defecto...");
         String ssid = "GLOBUS_ONLINEW";
         //String ssid = "GLOBUS-DESARROLLO";
-        NVS.putString("SSID_DESA", ssid);
+        NVS.putString("SSID_DESA", ssid); 
     }
 
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
@@ -330,6 +469,7 @@ void Init_Configuracion_Inicial(void)
         // 7 = IGT Riel
         // 8 = IGT Riel Con Bill
         // 9 = Mecanicas
+        // 10 = Poker-solo-SAS
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
@@ -474,6 +614,9 @@ void Init_Configuracion_Inicial(void)
     case 9:
         Serial.println("Mecanicas");
         break;
+    case 10:
+        Serial.println("Poker Solo SAS");
+        break;
     default:
         break;
     }
@@ -495,6 +638,7 @@ void Reset_Configuracion_Inicial(void)
             {
                 MCU_State = !MCU_State;
                 digitalWrite(MCU_Status, !MCU_State);
+                digitalWrite(MCU_Status_2,!MCU_State);
                 delay(100);
             }
 
@@ -507,7 +651,6 @@ void Reset_Configuracion_Inicial(void)
             NVS.getBytes("Dir_IP", IP, ip_len);
             IP[3] = 250;
             NVS.putBytes("Dir_IP", IP, sizeof(IP));
-
             // Reset Nombre MAQ
             Serial.println("Reset Nombre MAQ por defecto...");
             char name[17] = {'M', 'a', 'q', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
@@ -519,4 +662,186 @@ void Reset_Configuracion_Inicial(void)
         }
     }
     return;
+}
+
+void FromFloatTobyte(byte* bytes, float dato)
+{
+    int length= sizeof(float);
+    for(int i=0; i <length;i++)
+    {
+        bytes[i]=((byte*)&dato)[i];
+    }
+}
+
+void Config_Red_Serial(String Comando)
+{
+    String Red="";
+    if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
+    {
+
+        if (Comando[5]==NULL ||Comando[5]>53)
+        {
+            Serial.println("------->Comando no identificado");
+        }
+        else
+        {
+            /*IP LOCAL */
+            NVS.begin("Config_ESP32", false);
+            size_t ip_len = NVS.getBytesLength("Dir_IP");
+            char IP[ip_len];
+            NVS.getBytes("Dir_IP", IP, ip_len);
+            IP[2] = int(Comando[5] - 48);
+            NVS.putBytes("Dir_IP", IP, sizeof(IP));
+
+            /*IP SERVER*/
+            size_t ip_server_len1 = NVS.getBytesLength("Dir_IP_Serv");
+            char IP_Server1[ip_server_len1];
+            NVS.getBytes("Dir_IP_Serv", IP_Server1, ip_server_len1);
+            IP_Server1[2] = int(Comando[5] - 48);
+            NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
+
+
+            /*IP GET*/
+            size_t ip_gw_len=NVS.getBytesLength("Dir_IP_GW");
+            char IP_GW[ip_gw_len];
+            NVS.getBytes("Dir_IP_GW",IP_GW, sizeof(IP_GW));
+            IP_GW[2]=int(Comando[5]-48);
+            NVS.putBytes("Dir_IP_GW",IP_GW, sizeof(IP_GW));
+    
+            /*REDES*/
+
+            if(Comando[3]==48){
+
+                Serial.println("CONFIGURA---GLOBUS_DESARROLLO");
+                String ssid = "GLOBUS-DESARROLLO";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus2020*";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+             else if(Comando[3]==49)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW");
+                String ssid = "GLOBUS_ONLINEW";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+            else if(Comando[3]==50)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW2");
+                String ssid = "GLOBUS_ONLINEW2";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+            else if(Comando[3]==51)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW3");
+                String ssid = "GLOBUS_ONLINEW3";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+            else if(Comando[3]==52)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW4");
+                String ssid = "GLOBUS_ONLINEW4";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+            else if(Comando[3]==53)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW5");
+                String ssid = "GLOBUS_ONLINEW5";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+            else if(Comando[3]==54)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW6");
+                String ssid = "GLOBUS_ONLINEW6";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+             else if(Comando[3]==55)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW7");
+                String ssid = "GLOBUS_ONLINEW7";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+             else if(Comando[3]==56)
+            {
+                Serial.println("CONFIGURA---GLOBUS_ONLINEW8");
+                String ssid = "GLOBUS_ONLINEW8";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }
+             else if(Comando[3]==57)
+            {
+                Serial.println("CONFIGURA---GLOBUS_IMPERIAL");
+                String ssid = "GLOBUS_IMPERIAL";
+                NVS.putString("SSID_DESA", ssid);
+                String password = "Globus#OnlineW324";
+                NVS.putString("PASS_DESA", password);
+                NVS.end();
+                ESP.restart();
+            }else{
+                Serial.println("------->Comando no identificado");
+                NVS.end();
+            }
+            NVS.end();
+        }
+    }else{
+        if(Comando=="SERVER200")
+        {
+            NVS.begin("Config_ESP32", false);
+            size_t ip_server_len1 = NVS.getBytesLength("Dir_IP_Serv");
+            char IP_Server1[ip_server_len1];
+            NVS.getBytes("Dir_IP_Serv", IP_Server1, ip_server_len1);
+            IP_Server1[3] =200;
+            NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
+            NVS.end();
+            
+        }
+
+        else if(Comando=="SERVER204")
+        {
+            NVS.begin("Config_ESP32", false);
+            size_t ip_server_len1 = NVS.getBytesLength("Dir_IP_Serv");
+            char IP_Server1[ip_server_len1];
+            NVS.getBytes("Dir_IP_Serv", IP_Server1, ip_server_len1);
+            IP_Server1[3] =204;
+            NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
+            NVS.end();
+            ESP.restart();
+        }else{
+            Serial.println("------->Comando no identificado");
+        }
+        
+    }
+    
 }

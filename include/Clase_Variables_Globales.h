@@ -27,7 +27,15 @@ using namespace std;
 #define Fallo_Archivo_EVEN          20
 #define Fallo_Archivo_LOG           21
 
-#define Calc_Cancel_Credit        22
+#define Calc_Cancel_Credit          22
+#define Version_Firmware            23
+#define Espacio_Libre_SD            24
+#define Enable_SD                   25
+#define Espacio_Usado_SD            26
+#define Size_SD                     27
+#define Temperatura_procesador      28
+#define Consulta_Info_Cashless_OK   29
+#define SD_INSERT                   35
 
 class Variables_Globales
 {
@@ -54,11 +62,20 @@ private:
     bool Calcula_Cancel_Credit_;
     bool Flag_Hopper_Enable_;
     bool Flag_Maquina_En_Juego_;
+    float Version_Firmware_;
+    String Espacio_Libre_SD_;
+    bool Enable_SD_;
+    String Espacio_Usado_SD_;
+    String Size_SD_;
+    String Temperatura_procesador_;
+    bool Consulta_info_Cashless_OK_;
+    bool SD_INSERT_;
 
 public:
     void Init_Variables_Globales();
     void Set_Variable_Global(int Filtro, bool Change_estado);
     bool Get_Variable_Global(int Filtro);
     String Get_Encabezado_Maquina(int Filtro);
-  
+    String Get_Variables_Global_String(int filtro);
+    void Set_Variable_Global_String(int Filtro, String Dato);
 };

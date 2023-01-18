@@ -1,6 +1,7 @@
 #include <iostream>
 #include "Clase_Variables_Globales.h"
 
+extern bool Bootloader_Enable;
 bool Variables_Globales::Get_Variable_Global(int Filtro)
 {
     switch (Filtro)
@@ -19,6 +20,7 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
         break;
     case Archivo_LOG_OK:
         return Archivo_LOG_OK_;
+        break;
     case Dato_Entrante_Valido:
         return Dato_Entrante_Valido_;
         break;
@@ -42,6 +44,7 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
         break;
     case Libera_Memoria_OK:
         return Libera_Memoria_OK_;
+        break;
     case Primer_Cancel_Credit:
         return Primer_Cancel_Credit_;
         break;
@@ -63,6 +66,18 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
         break;
     case Fallo_Archivo_LOG:
         return Fallo_Archivo_LOG_;
+        break;
+    case Version_Firmware:
+        return Version_Firmware_;
+        break;
+    case Enable_SD:
+        return Enable_SD_;
+        break;
+    case Consulta_Info_Cashless_OK:
+        return Consulta_info_Cashless_OK_;
+        break;
+    case SD_INSERT:
+        return SD_INSERT_;
         break;
     }
 }
@@ -86,6 +101,7 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
 
     case Archivo_LOG_OK:
         Archivo_LOG_OK_ = Change_estado;
+        break;
     case Dato_Entrante_Valido:
         Dato_Entrante_Valido_ = Change_estado;
         break;
@@ -109,6 +125,7 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
         break;
     case Libera_Memoria_OK:
         Libera_Memoria_OK_ = Change_estado;
+        break;
     case Primer_Cancel_Credit:
         Primer_Cancel_Credit_ = Change_estado;
         break;
@@ -131,8 +148,19 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Fallo_Archivo_LOG:
         Fallo_Archivo_LOG_=Change_estado;
         break;
+    case Enable_SD:
+        Enable_SD_=Change_estado;
+        break;
+    case Consulta_Info_Cashless_OK:
+        Consulta_info_Cashless_OK_=Change_estado;
+        break;
+    case SD_INSERT:
+        SD_INSERT_=Change_estado;
+        break;
     }
 }
+
+
 
 void Variables_Globales::Init_Variables_Globales() // Constructor explicito
 {
@@ -163,6 +191,15 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Calcula_Cancel_Credit_ = false;
     Flag_Hopper_Enable_ = false;
     Flag_Maquina_En_Juego_ = false;
+    Version_Firmware_=0.0; // Version  de firmware de tarjeta.
+    Espacio_Libre_SD_="0000";
+    Enable_SD_=false;
+    Espacio_Usado_SD_="0000";
+    Size_SD_="0000";
+    Consulta_info_Cashless_OK_=false;
+    Bootloader_Enable=false;
+    SD_INSERT_=false;
+    
 
 }
 
@@ -176,6 +213,45 @@ String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
 
     case Encabezado_Maquina_Eventos:
         return Encabezado_Maquina_Eventos_;
+        break;
+    }
+}
+
+String Variables_Globales::Get_Variables_Global_String(int filtro)
+{
+    switch (filtro)
+    {
+    case Espacio_Libre_SD:
+        return Espacio_Libre_SD_;
+        break;
+    case Espacio_Usado_SD:
+        return Espacio_Usado_SD_;
+        break;
+    case Size_SD:
+        return Size_SD_;
+        break;
+    case Temperatura_procesador:
+        return Temperatura_procesador_;
+        break;
+    }
+}
+
+void Variables_Globales::Set_Variable_Global_String(int Filtro, String Dato)
+{
+
+    switch (Filtro)
+    {
+    case Espacio_Libre_SD:
+        Espacio_Libre_SD_=Dato;
+        break;
+    case Espacio_Usado_SD:
+        Espacio_Usado_SD_=Dato;
+        break;
+    case Size_SD:
+        Size_SD_=Dato;
+        break;
+    case Temperatura_procesador:
+        Temperatura_procesador_=Dato;
         break;
     }
 }

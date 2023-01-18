@@ -56,6 +56,30 @@ bool Eventos_SAS::Set_evento(char evento)
         Evento_SAS = evento;
         return true;
         break;
+    case 0x8C: // Juego Seleccionado
+        Evento_SAS=evento;
+        return true;
+        break;
+    case 0x82: // Ha ingresado a pantalla de contadores o menu de asistente.
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x83: // Ha salido de pantalla de contadores o menu de asistente.
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x1B: // la caja del dinero fue removida.
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x1C: // la caja del dinero fue instalada.
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x7B: // Validador de billetes Los totales han sido reseteados.
+        Evento_SAS = evento;
+        return true;
+        break;
     default:
         Evento_SAS = 0x00;
         return false;

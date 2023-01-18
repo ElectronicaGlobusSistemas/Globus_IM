@@ -1,16 +1,21 @@
 #include "ArduinoOTA.h"
 #include <Arduino.h>
 #include "Memory_SD.h"
+#include "Preferences.h"
+#include "ESP32Time.h"
+
 #define Mode_Bootloder_A 1
 #define Mode_Program 0
 #define WIFI_Status 15
 TaskHandle_t Modo_Bootloader;
-
-
+extern Preferences NVS;
+extern ESP32Time RTC;
 
 void Setup_Bootloader(void);
 void  Init_Bootloader();
 static void Rum_Bootloader(void*parameter);
+//Variables_Globales Variables_globales;
+bool Bootloader_Enable;
 
 void Setup_Bootloader(void)
 {
@@ -71,6 +76,64 @@ static void Rum_Bootloader(void*parameter)
     {
       Serial.println("Bootloader Activado..");
       Mensaje = 0;
+      if(Bootloader_Enable)
+      {
+        /*Captura información inicio Bootloader*/
+        String Hora = RTC.getTime();
+        String Fecha = RTC.getDate();
+        String Mes;
+        int month = RTC.getMonth();
+        switch (month)
+        {
+        case 0:
+          Mes = "01";
+          break;
+        case 1:
+          Mes = "02";
+          break;
+        case 2:
+          Mes = "03";
+          break;
+        case 3:
+          Mes = "04";
+          break;
+        case 4:
+          Mes = "05";
+          break;
+        case 5:
+          Mes = "06";
+          break;
+        case 6:
+          Mes = "07";
+          break;
+        case 7:
+          Mes = "08";
+          break;
+        case 8:
+          Mes = "09";
+          break;
+        case 9:
+          Mes = "10";
+          break;
+        case 10:
+          Mes = "11";
+          break;
+        case 11:
+          Mes = "12";
+          break;
+        default:
+          break;
+        }
+        Serial.println("Guardando Fecha Bootloader.....");
+        NVS.begin("Config_ESP32", false);
+        uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
+        NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
+
+        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+        uint8_t Datos_Fecha_B[Fecha_len];
+        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+        NVS.end();
+      }
     }
     
     if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) > 500000) // 5 minutos

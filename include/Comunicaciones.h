@@ -7,7 +7,13 @@
 #define ID_Maquina 11
 #define ID_ROM_Signature 12
 #define ID_Contadores_Cashless 308
+#define ID_Informacion_Tarjeta 273
+#define ID_Informacion_Cashless 318
+#define MAX_LIM_EVENTOS  900
 
+/*----------->Hardware<--------------*/
+#define Unlock_Machine  26
+/*-----------------------------------*/
 int Contador_Transmision = 0;
 int Contador_Transmision_Contadores = 0;
 int Contador_Maquina_En_Juego = 0;
@@ -38,6 +44,12 @@ int day_copy;
 int month_copy;
 int year_copy;
 
+unsigned short Ptr_Eventos_Marca_Temp = 0x00;
+unsigned short Ptr_Eventos_Marca = 0x00;
+unsigned short Num_Eventos = 0x0000;
+unsigned char Tabla_Eventos_[ 999 ][ 8 ];
+
+
 #define Hopper_Enable 14
 
 void Task_Procesa_Comandos(void *parameter);
@@ -47,13 +59,16 @@ void Verifica_Cambio_Contadores(void);
 void Transmite_Configuracion(void);
 void Transmision_Controlada_Contadores(void);
 bool Calcula_Cancel_Credit(bool);
+extern void Almacena_Evento(unsigned char Evento,ESP32Time RTC);
+bool Unlock_Machine_(void);
+void Maneja_Marca_Eventos(void);
 
 void init_Comunicaciones()
 {
     xTaskCreatePinnedToCore(
         Task_Procesa_Comandos,
         "Procesa comandos server",
-        5000,
+        8000,
         NULL,
         configMAX_PRIORITIES - 5,
         NULL,
@@ -61,7 +76,7 @@ void init_Comunicaciones()
     xTaskCreatePinnedToCore(
         Task_Maneja_Transmision,
         "Maneja la transmision con server",
-        5000,
+        8000,
         NULL,
         configMAX_PRIORITIES - 15,
         NULL,
@@ -72,9 +87,9 @@ void init_Comunicaciones()
         xTaskCreatePinnedToCore(
             Task_Verifica_Hopper,
             "Verifica en estado del Hopper - Poker",
-            5000,
+            8000,
             NULL,
-            configMAX_PRIORITIES - 15,
+            configMAX_PRIORITIES - 8,
             NULL,
             0); // Core donde se ejecutara la tarea
     }
@@ -185,6 +200,24 @@ void Transmite_Contadores_Cashless(void)
 }
 
 /*****************************************************************************************/
+/**************************    TRANSMITE INFO CASHLESS    ********************************/
+/*****************************************************************************************/
+
+void Transmite_Info_Cashless(void)
+{
+    if (Buffer.Set_buffer_info_Cashless(ID_Informacion_Cashless))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_info_Cashless(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Transmite_A_Servidor(res, len);
+    }
+    else
+        Serial.println("Set buffer general ERROR");
+}
+/*****************************************************************************************/
 /************************** TRANSMITE CONTADORES BILLETES ********************************/
 /*****************************************************************************************/
 
@@ -243,45 +276,45 @@ bool Sincroniza_Reloj_RTC(char res[])
 
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
+        Serial.println("RTC sincronizado con exito!");
         try
         {
-            Serial.println("RTC sincronizado con exito!");
-            //--------------------------------> Crea Archivos con Fecha Actual <---------------------------------------
-            string_Fecha = String(day) + String(month) + String(year) + ".CSV";
-            string_Fecha_LOG = String(day) + String(month) + String(year) + ".TXT";
-            string_Fecha_Eventos = String(day) + String(month) + String(year) + "1" + ".CSV";
-
-            strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
-            strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
-            strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
-            day_copy = day;
-            month_copy = month;
-            year_copy = year;
-            Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-            delay(10);
-            Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-            delay(10);
-            Create_ARCHIVE_Txt(Archivo_LOG);
-            delay(10);
-
-            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+            if (Variables_globales.Get_Variable_Global(SD_INSERT)==true)
             {
-                delay(10);
-                Serial.println("OK Archivos Listos..");
-                Archivos_Ready = true;
+                string_Fecha = "Contadores-" + String(day) + String(month) + String(year) + ".CSV";
+                string_Fecha_LOG = "Log-" + String(day) + String(month) + String(year) + ".TXT";
+                string_Fecha_Eventos = "Eventos-" + String(day) + String(month) + String(year) + ".CSV";
+
+                strcpy(Archivo_CSV_Contadores, string_Fecha.c_str());
+                strcpy(Archivo_LOG, string_Fecha_LOG.c_str());
+                strcpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str());
+                day_copy = day;
+                month_copy = month;
+                year_copy = year;
+
+                Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+                Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+                Create_ARCHIVE_Txt(Archivo_LOG);
+
+                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
+                {
+                    delay(10);
+                    Serial.println("OK Archivos Listos..");
+                    Archivos_Ready = true;
+                }
+                else
+                {
+                    Serial.println("Configurando Archivos...");
+                }
+                //---------------------------------------------------------------------------------------------------------
                 
             }
-            else
-            {
-                Serial.println("Configurando Archivos...");
-            }
-            //---------------------------------------------------------------------------------------------------------
-            return true;
         }
         catch (const std::exception &e)
         {
             Serial.println(e.what());
         }
+        return true;
     }
     else
     {
@@ -354,7 +387,14 @@ bool Configura_Tipo_Maquina(char res[])
 {
     uint16_t ID_Maq = Configuracion.Get_Configuracion(Tipo_Maquina, 0);
     uint16_t ID_Maq_Server = res[4] - 48;
-
+    if(res[5]-48>=0)
+    {
+        if(res[5]-48==0)
+        {
+          ID_Maq_Server=(res[4] - 48)+9;
+        }
+    }
+    
     if (ID_Maq != ID_Maq_Server)
     {
         Serial.println("Tipo de maquina diferente");
@@ -375,6 +415,26 @@ bool Configura_Tipo_Maquina(char res[])
         Serial.println("Tipo de maquina igual");
         return true;
     }
+}
+
+/*****************************************************************************************/
+/*******************************  TRANSMITE INFO TARJETA *********************************/
+/*****************************************************************************************/
+
+
+void Transmite_Info_Tarjeta(void)
+{
+    if (Buffer.Set_buffer_info_tarjeta(ID_Informacion_Tarjeta))
+    {
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_info_tarjeta(), 258);
+        Serial.println("Set buffer general OK");
+        int len = sizeof(res);
+        Transmite_A_Servidor(res, len);
+    }
+    else
+        Serial.println("Set buffer general ERROR");
 }
 
 /*****************************************************************************************/
@@ -979,6 +1039,28 @@ bool Inicializa_modo_bootloader(void)
     }
 }
 
+/*****************************************************************************************/
+/*************************** VALIDA CONTRASEÑA BOOTLOADER ********************************/
+/*****************************************************************************************/
+
+bool Valida_contrasena_Bootloader(char buffer[])
+{
+    
+    int i,j; // Iteradores 
+    j=0;
+    String password="St4rt$B0ot&G1ob5";
+        
+    for(i=4; i<20; i++)
+    {
+        if(password[j]!=buffer[i])
+        {
+            return false;
+        }
+        j++;
+    }
+    return true;
+}
+
 bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 {
     char res[258] = {};
@@ -1119,9 +1201,19 @@ void Task_Procesa_Comandos(void *parameter)
                 else
                     Transmite_Confirmacion('A', '0');
                 break;
+            
+            case 5:
+                Serial.println("Solicitud de Eventos SAS");
+                Transmite_Eventos();
+                if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==false)
+                    Transmite_Confirmacion('A','3');
+                break;
 
             case 7:
                 Serial.println("Evento recibido con exito");
+                Maneja_Marca_Eventos();
+                if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==false)
+                    Transmite_Confirmacion('A','3');
                 break;
 
             case 8:
@@ -1129,10 +1221,14 @@ void Task_Procesa_Comandos(void *parameter)
                 if (Sincroniza_Reloj_RTC(res))
                 {
                     Variables_globales.Set_Variable_Global(Sincronizacion_RTC, true);
+                    Bootloader_Enable=Variables_globales.Get_Variable_Global(Sincronizacion_RTC);
                     Transmite_Confirmacion('A', '4');
                 }
                 else
+                {
                     Transmite_Confirmacion('A', '5');
+                    Bootloader_Enable=Variables_globales.Get_Variable_Global(Sincronizacion_RTC);
+                }
                 break;
 
             case 11:
@@ -1213,7 +1309,37 @@ void Task_Procesa_Comandos(void *parameter)
                 else
                     Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
                 break;
-
+            case 273: 
+                Serial.println("Solicitud de información tarjeta");
+                Transmite_Info_Tarjeta();
+                break;
+                
+            case 271:
+                if(Valida_contrasena_Bootloader(res))
+                {
+                    Serial.println("Solicitud de Bootloader");
+                    Inicializa_modo_bootloader();
+                }else
+                {
+                    Transmite_Confirmacion('C', 'I');
+                    Serial.println("Contraseña incorrecta");
+                }
+                break;
+            case 318:
+                    Serial.println("Solicitud de información Cashless");
+                    if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                    {
+                        Consulta_Info_Cashless();
+                        if(Variables_globales.Get_Variable_Global(Consulta_Info_Cashless_OK))
+                        {
+                            Transmite_Info_Cashless();    
+                        }
+                        
+                    }else{
+                        Transmite_Confirmacion('A', '0');
+                    }
+                    Variables_globales.Set_Variable_Global(Consulta_Info_Cashless_OK,false);
+                    break;
             case 200:
                 Serial.println("Solicitud de configuracion maquina");
                 if (((res[4] - 48) < 10) && Configura_Tipo_Maquina(res))
@@ -1237,7 +1363,9 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud FTP Server INPUT");
                 if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
-                    Enable_Disable_modo_Ftp_server(true);
+                    if(Enable_Disable_modo_Ftp_server(true))
+                        Transmite_Confirmacion('T','P');
+                   
                 }
                 else
                 {
@@ -1248,7 +1376,11 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud FTP Server OUT");
                 if (Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
-                    Enable_Disable_modo_Ftp_server(false);
+                    if(Enable_Disable_modo_Ftp_server(false))
+                    {
+                         Transmite_Confirmacion('P','T');
+                    }
+                    ESP.restart();
                 }
                 else
                 {
@@ -1259,9 +1391,13 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Información de MicroSD");
                 Transmite_Info_Memoria_SDCARD();
                 break;
-            case 318:
-                Serial.println("Solicitud Información de Procesador");
-                Transmite_Info_Procesador_ESP32();
+              
+            case 319:
+                Serial.println("Solicitud Reset Premio Handpay");
+                if(Unlock_Machine_())
+                    Transmite_Confirmacion('A', 'A');
+                else
+                    Transmite_Confirmacion('A', '9');
                 break;
 
             default:
@@ -1334,6 +1470,8 @@ void Task_Procesa_Comandos(void *parameter)
         }
         else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
         {
+            
+            Almacena_Evento(eventos.Get_evento(),RTC);
             Transmite_Eventos();
             Variables_globales.Set_Variable_Global(Dato_Evento_Valido, false);
 
@@ -1516,9 +1654,9 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
         Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
         Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
-
+        
         Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
-        if (Cancel_Credit_Poker <= 0)
+        if (Cancel_Credit_Poker <= 0 ||Cancel_Credit_Poker==Drop_Poker)
             return false;
     }
     Serial.print("contador cancel credit int poker es: ");
@@ -1566,24 +1704,81 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
 void Task_Verifica_Hopper(void *parameter)
 {
     int Conta_Poll_Cancel_Poker = 0;
+    int contadorActiv=0;
+    
     for (;;)
     {
-        if (digitalRead(Hopper_Enable) == HIGH)
+        contadorActiv++;
+        //Serial.println("Verificando Hopper");
+        if (digitalRead(Hopper_Enable) == HIGH){
+            Serial.println("Hopper HIGH");
             Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, true);
+
+        }
+                
         else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
+           Serial.println("Hopper LOW");
             Conta_Poll_Cancel_Poker++;
             if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
             {
                 Serial.println("Premio Pagado Poker *************************************");
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
-                if (Calcula_Cancel_Credit(true))
+                if (Calcula_Cancel_Credit(true)==true)
+                {
                     Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
+                }
+
+                else
+                {
+                    if (Calcula_Cancel_Credit(true)==true)
+                    {
+                        Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
+                    }
+                }
                 Transmite_Confirmacion('D', '1');
                 Conta_Poll_Cancel_Poker = 0;
+                contadorActiv=0;
             }
         }
         vTaskDelay(500 / portTICK_PERIOD_MS);
-        continue;
+       // continue;
     }
+}
+
+
+void Inicializa_Buffer_Eventos(void)
+{
+    unsigned short i;
+    unsigned char j;
+
+    for (i = 0; i < 999; i++)
+    {
+        for (j = 0; j < 8; j++)
+        {
+            Tabla_Eventos_[i][j] = 0xFF;
+        }
+    }
+    Ptr_Eventos_Marca_Temp = 0x00;
+    Ptr_Eventos_Marca = 0x00;
+    Num_Eventos = 0x0000;
+}
+
+void Maneja_Marca_Eventos(void)
+{
+    if(Ptr_Eventos_Marca_Temp>=MAX_LIM_EVENTOS)
+    {
+        Inicializa_Buffer_Eventos();
+    }else{
+        Ptr_Eventos_Marca = Ptr_Eventos_Marca_Temp;
+    }
+    Transmite_Confirmacion('A','1');
+}
+
+bool Unlock_Machine_(void)
+{
+    digitalWrite(Unlock_Machine,LOW);
+    delay(500);
+    digitalWrite(Unlock_Machine,HIGH);
+    return (true);
 }

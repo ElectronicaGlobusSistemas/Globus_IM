@@ -11,7 +11,7 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   {
   case 1:
     return Total_Cancel_Credit_;
-    break;
+    break;  
   case 2:
     return Coin_In_;
     break;
@@ -228,27 +228,35 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
   case 26: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Games_Since_Last_Power_Up_);
     return res;
+    break;
   case 29: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_2k_);
     return res;
+    break;
   case 30: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_5k_);
     return res;
+    break;
   case 31: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_10k_);
     return res;
+    break;
   case 32: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_20k_);
     return res;
+    break;
   case 33: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Billetes_50k_);
     return res;
+    break;
   case 34: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Premio_1B_);
     return res;
+    break;
   case 50: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Serie_Trama_);
     return res;
+    break;
   }
   return 0;
 }

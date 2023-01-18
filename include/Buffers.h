@@ -6,6 +6,7 @@
 #include "Eventos.h"
 #include "Clase_Variables_Globales.h"
 
+
 class Buffers
 {
 private:
@@ -36,6 +37,16 @@ private:
     char buffer_ROM_Singnature[258];
     char buffer_ROM_Singnature_encriptado[258];
     char buffer_ROM_Singnature_final[258];
+
+    /* Buffer info tarjeta */
+    char buffer_info_tarjeta[258];
+    char buffer_info_tarjeta_encriptado[258];
+    char buffer_info_tarjeta_final[258];
+
+    /* Buffer info Cashless */
+    char buffer_info_Cashless[258];
+    char buffer_info_Cashless_encriptado[258];
+    char buffer_info_Cashless_final[258];
 
     /* Buffer de contadores cashless */
     char buffer_contadores_CASH[258];
@@ -120,6 +131,18 @@ public:
     bool Set_buffer_billetes_encriptado(void);
     bool Set_buffer_billetes_CRC(void);
     char *Get_buffer_billetes(void);
+
+    /*Buffer info tarjeta*/
+    bool Set_buffer_info_tarjeta(int);
+    bool Set_buffer_info_tarjeta_encriptado(void);
+    bool Set_buffer_info_tarjeta_CRC(void);
+    char *Get_buffer_info_tarjeta(void);
+
+     /*Buffer info Cashless*/
+    bool Set_buffer_info_Cashless(int);
+    bool Set_buffer_info_Cashless_encriptado(void);
+    bool Set_buffer_info_Cashless_CRC(void);
+    char *Get_buffer_info_Cashless(void);
 
     bool Set_buffer_info_MicroSD(char *buffer);
     bool Set_buffer_info_MCU(char *buffer);

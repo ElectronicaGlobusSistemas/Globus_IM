@@ -1,10 +1,31 @@
 #include "Buffers.h"
+#include <WiFi.h>
+#include "Preferences.h"
+#include "Configuracion.h"
+#include "Buffer_Cashless.h"
+#include "Json_Datos.h"
 
+extern Configuracion_ESP32 Configuracion;
+extern Preferences NVS;
 using namespace std;
+extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
+extern Buffer_RX_AFT Buffer_Cashless;
+char convert(uint8_t dato);
+int Firts_cancel_credit=0;
+
+extern unsigned char Tabla_Eventos_[ 999 ][ 8 ]; /* Cola de Eventos*/
+extern unsigned short Num_Eventos;
+extern unsigned short Ptr_Eventos_Marca_Temp, Ptr_Eventos_Marca;
+void Almacena_Evento(unsigned char Evento,ESP32Time RTC);
+char Hex_Ascci_H(char Hex_Val);
+char Hex_Ascci_L(char Hex_Val);
+void  Escribe_Tiempo_Eventos(unsigned short N_Evento, ESP32Time RTC);
 
 /**********************************************************************************/
 /*                              BUFFERS DE ACK                                    */
 /**********************************************************************************/
+
+
 
 bool Buffers::Set_buffer_ACK(int Com, char High, char Low)
 {
@@ -78,6 +99,7 @@ bool Buffers::Verifica_buffer_Maq(char buffer[], int len)
     return false;
 }
 
+
 bool Buffers::Verifica_buffer_Mecanicas(char buffer[], int len)
 {
     //    MetodoCRC CRC_Mecanicas;
@@ -139,6 +161,68 @@ bool Buffers::Set_buffer_recepcion_UDP(char buffer[])
 /*                       BUFFER DE CONTADORES ACCOUTING                           */
 /**********************************************************************************/
 
+
+bool Calcula_Cancel_Credit_first(bool Calcula_Contador)
+{
+    extern Contadores_SAS contadores;
+    int Cancel_Credit_Poker, Coin_In_Poker, Coin_Out_Poker, Drop_Poker, Creditos_Poker, Residuo;
+    int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
+    char Contador_Cancel_Credit_Poker[9];
+    bzero(Contador_Cancel_Credit_Poker, 9);
+
+    if (Calcula_Contador)
+    {
+        Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
+        Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+        Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
+        Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
+
+        Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
+        if (Cancel_Credit_Poker <= 0)
+            return false;
+    }
+    Serial.print("contador cancel credit int poker es: ");
+    Serial.println(Cancel_Credit_Poker);
+
+    decmill = Cancel_Credit_Poker / 10000000;
+    Contador_Cancel_Credit_Poker[0] = decmill + 48;
+    Residuo = Cancel_Credit_Poker % 10000000;
+
+    unimill = Residuo / 1000000;
+    Contador_Cancel_Credit_Poker[1] = unimill + 48;
+    Residuo = Cancel_Credit_Poker % 1000000;
+
+    centmil = Residuo / 100000;
+    Contador_Cancel_Credit_Poker[2] = centmil + 48;
+    Residuo = Cancel_Credit_Poker % 100000;
+
+    decmil = Residuo / 10000;
+    Contador_Cancel_Credit_Poker[3] = decmil + 48;
+    Residuo = Cancel_Credit_Poker % 10000;
+
+    unimil = Residuo / 1000;
+    Contador_Cancel_Credit_Poker[4] = unimil + 48;
+    Residuo = Cancel_Credit_Poker % 1000;
+
+    cen = Residuo / 100;
+    Contador_Cancel_Credit_Poker[5] = cen + 48;
+    Residuo = Cancel_Credit_Poker % 100;
+
+    dec = Residuo / 10;
+    Contador_Cancel_Credit_Poker[6] = dec + 48;
+    Residuo = Cancel_Credit_Poker % 10;
+
+    uni = Residuo;
+    Contador_Cancel_Credit_Poker[7] = uni + 48;
+
+    Serial.print("contador cancel credit char poker es: ");
+    Serial.println(Contador_Cancel_Credit_Poker);
+    if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
+        return true;
+    else
+        return false;
+}
+
 bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
 {
     int pos;
@@ -169,6 +253,36 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     // TOTAL CANCEL CREDIT
     //--------------------------------------------------------------------------------------------------
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6){
+        if(Firts_cancel_credit==0)
+        {
+            Calcula_Cancel_Credit_first(true);
+            Serial.println("Primer");
+            Firts_cancel_credit=1;
+            
+            bzero(res, 8);
+            memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+            pos = 4;
+            for (int i = 0; i < 8; i++) // Total Cancel Credit
+            {
+                req[pos] = res[i];
+                pos++;
+            }
+            req[pos] = '|'; // 12
+        }else{
+            bzero(res, 8);
+            memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+            pos = 4;
+            for (int i = 0; i < 8; i++) // Total Cancel Credit
+            {
+                req[pos] = res[i];
+                pos++;
+            }
+            req[pos] = '|'; // 12
+        }
+       
+    }else{
+
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
     pos = 4;
@@ -179,9 +293,13 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     }
     req[pos] = '|'; // 12
 
+    }
+    
+
     //--------------------------------------------------------------------------------------------------
     // COIN IN
     //--------------------------------------------------------------------------------------------------
+    
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Coin_In), sizeof(res) / sizeof(res[0]));
     pos = 13;
@@ -429,10 +547,10 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
 
     // IP Tarjeta
     req[188] = '0';
-    req[189] = '1';
-    req[190] = '5';
-    req[191] = '5';
-    req[192] = '|'; // 192
+    req[189] = '0';
+    req[190] = '0';
+    req[191] = '0';
+    req[192] = '0'; // 192
 
     // Bytes libres
     req[193] = '0';
@@ -749,6 +867,36 @@ char *Buffers::Get_buffer_id_maq(void)
 {
     return buffer_id_maq_final;
 }
+const unsigned char Tabla_Ascii[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+unsigned char Convierte_Hex_Ascii_Centenas(unsigned char Hex_Val) {
+    unsigned char Centenas;
+
+    Centenas = Hex_Val / 100;
+    Centenas = Tabla_Ascii[ Centenas ];
+    return ( Centenas);
+}
+
+/******************************************************************************/
+
+unsigned char Convierte_Hex_Ascii_Decenas(unsigned char Hex_Val) {
+    unsigned char Decenas, Temp;
+
+    Temp = Hex_Val % 100;
+    Decenas = Temp / 10;
+    Decenas = Tabla_Ascii[ Decenas ];
+    return ( Decenas);
+}
+
+/******************************************************************************/
+
+unsigned char Convierte_Hex_Ascii_Unidades(unsigned char Hex_Val) {
+    unsigned char Unidades;
+
+    Unidades = Hex_Val % 10;
+    Unidades = Tabla_Ascii[ Unidades ];
+    return ( Unidades);
+}
+
 
 /**********************************************************************************/
 /*                           BUFFER DE EVENTOS SAS                                */
@@ -756,6 +904,11 @@ char *Buffers::Get_buffer_id_maq(void)
 
 bool Buffers::Set_buffer_eventos(int Com, Eventos_SAS eventos, ESP32Time RTC)
 {
+
+    /*Cola-Variables*/
+
+    unsigned char i, j, Dato, Index;
+
     char req[258] = {};
     bzero(req, 258);
     char res = {'0'};
@@ -780,93 +933,68 @@ bool Buffers::Set_buffer_eventos(int Com, Eventos_SAS eventos, ESP32Time RTC)
     Aux1 = ((Aux1 & 0xFF000000) >> 24);
     req[3] = Aux1;
 
-    req[4] = '0';
-    req[5] = '1';
-    req[6] = '|';
+    Ptr_Eventos_Marca_Temp = Ptr_Eventos_Marca;
+    Index = 7;
 
-    String string_dato = String(eventos.Get_evento(), HEX);
-
-    // char char_dato = string_dato.toInt();
-
-    // int dato = (char_dato - (char_dato % 10)) / 10;
-    // req[7] = dato + '0';
-    // dato = char_dato % 10;
-    // req[8] = dato + '0';
-
-    (string_dato[0] > 96) ? req[7] = string_dato[0] - 32 : req[7] = string_dato[0];
-    (string_dato[1] > 96) ? req[8] = string_dato[1] - 32 : req[8] = string_dato[1];
-
-    req[9] = '|';
-
-    String Hora = RTC.getTime();
-    String Fecha = RTC.getDate();
-    String Mes;
-    int month = RTC.getMonth();
-    switch (month)
+    for (i = 0; i < 10; i++)
     {
-    case 0:
-        Mes = "01";
-        break;
-    case 1:
-        Mes = "02";
-        break;
-    case 2:
-        Mes = "03";
-        break;
-    case 3:
-        Mes = "04";
-        break;
-    case 4:
-        Mes = "05";
-        break;
-    case 5:
-        Mes = "06";
-        break;
-    case 6:
-        Mes = "07";
-        break;
-    case 7:
-        Mes = "08";
-        break;
-    case 8:
-        Mes = "09";
-        break;
-    case 9:
-        Mes = "10";
-        break;
-    case 10:
-        Mes = "11";
-        break;
-    case 11:
-        Mes = "12";
-        break;
-    default:
-        break;
+        if (Tabla_Eventos_[Ptr_Eventos_Marca_Temp][7] == 0x00)
+        {
+            for (j = 0; j < 7; j++)
+            {
+
+                if(j==0)
+                {
+                    Dato = Tabla_Eventos_[Ptr_Eventos_Marca_Temp][j];
+                    req[Index] = Hex_Ascci_H(Dato);
+                    Index++;
+                    req[Index] = Hex_Ascci_L(Dato);
+                    Index++;
+                    req[Index] = '|';
+                    Index++;
+                }
+                else
+                {
+                    Dato = Tabla_Eventos_[Ptr_Eventos_Marca_Temp][j];
+                    String Dato2=String(Dato,DEC);
+
+                    if(Dato2[1]==NULL)
+                    {
+                        req[Index] = '0';
+                        Index++;
+                        req[Index] = Dato2[0];
+                        Index++;
+                        req[Index] = '|';
+                        Index++;
+                        
+                    }else{
+                        req[Index] = Dato2[0];
+                        Index++;
+                        req[Index] = Dato2[1];
+                        Index++;
+                        req[Index] = '|';
+                        Index++;
+                    }
+                }
+            }
+        }
+        else if (Tabla_Eventos_[Ptr_Eventos_Marca_Temp][7] == 0xFF)
+        {
+            break;
+        }
+        Ptr_Eventos_Marca_Temp++;
     }
 
-    // Hora y fecha
-    req[10] = Hora[0];
-    req[11] = Hora[1];
-    req[12] = '|';
-    req[13] = Hora[3];
-    req[14] = Hora[4];
-    req[15] = '|';
-    req[16] = Hora[6];
-    req[17] = Hora[7];
-    req[18] = '|';
-    req[19] = Fecha[9];
-    req[20] = Fecha[10];
-    req[21] = '|';
-    req[22] = Mes[0];
-    req[23] = Mes[1];
-    req[24] = '|';
-    req[25] = Fecha[14];
-    req[26] = Fecha[15];
-    req[27] = '|';
-
-    for (int i = 28; i < 258; i++)
+    if(i!=0)
     {
-        req[i] = '0';
+        req[4]=Convierte_Hex_Ascii_Decenas(i);
+        req[5]=Convierte_Hex_Ascii_Unidades(i);
+        req[6]='|';
+    }
+
+    if(i==0)
+    {
+        return false;
     }
 
     memcpy(buffer_eventos, req, 258);
@@ -887,7 +1015,6 @@ bool Buffers::Set_buffer_eventos(int Com, Eventos_SAS eventos, ESP32Time RTC)
     }
     return false;
 }
-
 bool Buffers::Set_buffer_eventos_encriptado(void)
 {
     memcpy(buffer_eventos_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_eventos), 258);
@@ -906,8 +1033,499 @@ char *Buffers::Get_buffer_eventos(void)
 }
 
 /**********************************************************************************/
+/*                           BUFFER DE INFO TARJETA                               */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_info_tarjeta(int Com)
+
+{
+    /* ID Comando */
+    char req[258] = {};
+    bzero(req, 258);
+    char res[2] = {};
+    bzero(res, 2);
+    int32_t Aux1;
+    String Ver;
+    String mac;
+    String Fecha_Bootlader;
+    String Espacio_Memoria_Libre = Variables_globales.Get_Variables_Global_String(Espacio_Libre_SD);
+    String Espacio_Memoria_Usado=Variables_globales.Get_Variables_Global_String(Espacio_Usado_SD);
+    String Max_Storage_SD=Variables_globales.Get_Variables_Global_String(Size_SD);
+    String GPU_Temperature=Variables_globales.Get_Variables_Global_String(Temperatura_procesador);
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+    
+    
+    req[4]='|';
+
+    /* MAC */
+     mac = WiFi.macAddress();
+    /**/
+    req[5] = mac[0];
+    req[6] = mac[1];
+    req[7] = mac[2];
+    req[8] = mac[3];
+    req[9] = mac[4];
+    req[10] = mac[5];
+    req[11] = mac[6];
+    req[12] = mac[7];
+    req[13] = mac[8];
+    req[14] = mac[9];
+    req[15] = mac[10];
+    req[16] = mac[11];
+    req[17] = mac[12];
+    req[18] = mac[13];
+    req[19] = mac[14];
+    req[20] = mac[15];
+    req[21] = mac[16];
+    req[22] = '|';
+
+    /*Tipo maquina*/
+    char tipoMq;
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 1:
+        tipoMq='1';
+        break;
+    case 2:
+        tipoMq='2';
+        break;
+    case 3:
+        tipoMq='3';
+        break;
+    case 4:
+        tipoMq='4';
+        break;
+    case 5:
+        tipoMq='5';
+        break;
+    case 6:
+        tipoMq='6';
+        break;
+    case 7:
+        tipoMq='7';
+        break;
+    
+    case 8:
+        tipoMq='8';
+        break;
+    case 9:
+        tipoMq='9';
+        break;
+    }
+    req[23]= tipoMq;
+    req[24]='|';
+
+    /*Version de firmware*/
+    NVS.begin("Config_ESP32", false);
+    size_t Version_length = NVS.getBytesLength("Ver_Fir");
+    uint8_t Version_FIRMWARE[Version_length];
+    NVS.getBytes("Ver_Fir", Version_FIRMWARE, sizeof(Version_FIRMWARE));
+    req[25]=convert(int(Version_FIRMWARE[0]));
+    req[26]=convert(Version_FIRMWARE[1]);
+    req[27]=convert(int(Version_FIRMWARE[2]));
+    req[28]=convert(int(Version_FIRMWARE[3]));
+    
+    Ver= String(int(Version_FIRMWARE[0]))+String(int(Version_FIRMWARE[1]))+String(int(Version_FIRMWARE[2]))+String(int(Version_FIRMWARE[3]));
+    
+    req[29]='|';
+    NVS.end();
+    /*Fecha ultimo bootloader*/
+    NVS.begin("Config_ESP32", false);
+    size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+    uint8_t Datos_Fecha_B[Fecha_len];
+    NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+    NVS.end();
+
+    req[30]=char(Datos_Fecha_B[6]);
+    req[31]=char(Datos_Fecha_B[7]);
+    req[32]='|';
+    req[33]=char(Datos_Fecha_B[8]);
+    req[34]=char(Datos_Fecha_B[9]);
+    req[35]='|';
+    req[36]=char(Datos_Fecha_B[10]);
+    req[37]=char(Datos_Fecha_B[11]);
+    req[38]='|';
+    Fecha_Bootlader=String(char(Datos_Fecha_B[6]))+String(char(Datos_Fecha_B[7]))+String(char(Datos_Fecha_B[8]))+String(char(Datos_Fecha_B[9]))+String(char(Datos_Fecha_B[10]))+String(char(Datos_Fecha_B[11]));
+   // Serial.println(Fecha_Bootlader);
+    /*Status SD*/
+
+    req[39]=convert(Variables_globales.Get_Variable_Global(Estado_Escritura));
+    req[40]='|';
+    /*Información de memoria*/
+    
+    if(Variables_globales.Get_Variable_Global(Enable_SD))
+    {
+        /*Espacio libre SD */
+       
+        req[41] = Espacio_Memoria_Libre[0];
+        req[42] = Espacio_Memoria_Libre[1];
+        req[43] = Espacio_Memoria_Libre[2];
+        req[44] = Espacio_Memoria_Libre[3];
+        /* Espacio Usado SD */
+        
+        req[45]=Espacio_Memoria_Usado[0];
+        req[46]=Espacio_Memoria_Usado[1];
+        req[47]=Espacio_Memoria_Usado[2];
+        req[48]=Espacio_Memoria_Usado[3];
+        /* Tamaño de memoria */
+        
+        req[49]=Max_Storage_SD[0];
+        req[50]=Max_Storage_SD[1];
+        req[51]=Max_Storage_SD[2];
+        req[52]=Max_Storage_SD[3];
+
+    }else
+    {
+        req[41] = '0';
+        req[42] = '0';
+        req[43] = '0';
+        req[44] = '0';
+        req[45] = '0';
+        req[46] = '0';
+        req[47] = '0';
+        req[48] = '0';
+        req[49] = '0';
+        req[50] = '0';
+        req[51] = '0';
+        req[52] = '0';
+    }
+    req[53]='|';
+    /*MODO FTP */
+    req[54]=convert(Variables_globales.Get_Variable_Global(Ftp_Mode));
+    req[55]='|';
+
+    /*Temperatura procesador*/
+    
+    req[56]=GPU_Temperature[0];
+    req[57]=GPU_Temperature[1];
+    req[58]=GPU_Temperature[2];
+    req[59]='|';
+    /*Datos Restantes en 0 */
+    /*
+   for (int i = 60; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+   */
+  String json;
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6)
+    {
+        json=Buffer_Json_info_IM(mac,Configuracion.Get_Configuracion(Tipo_Maquina, 0),Ver,Fecha_Bootlader,Variables_globales.Get_Variable_Global(Estado_Escritura),Espacio_Memoria_Libre,Espacio_Memoria_Usado,Max_Storage_SD,Variables_globales.Get_Variable_Global(Ftp_Mode),GPU_Temperature,String(digitalRead(14)));
+    }else{
+        json=Buffer_Json_info_IM(mac,Configuracion.Get_Configuracion(Tipo_Maquina, 0),Ver,Fecha_Bootlader,Variables_globales.Get_Variable_Global(Estado_Escritura),Espacio_Memoria_Libre,Espacio_Memoria_Usado,Max_Storage_SD,Variables_globales.Get_Variable_Global(Ftp_Mode),GPU_Temperature,"NO");
+    }
+   
+    
+    int pos=5;
+    for(int i=0; i<json.length();i++)
+    {
+        req[pos]=json[i];
+        pos++;
+    }
+    req[pos]='|';    
+    for (int i = pos+2; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+
+   // Serial.println(Espacio_Memoria_Libre);
+   // Serial.println(Espacio_Memoria_Usado);
+   // Serial.println(Max_Storage_SD);
+
+    memcpy(buffer_info_tarjeta, req, 258);
+
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_info_tarjeta[indice]);
+    }
+    Serial.println();
+    //Reset Variables 
+    if (Set_buffer_info_tarjeta_encriptado())
+    {
+        if (Set_buffer_info_tarjeta_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_info_tarjeta_encriptado(void)
+{
+    memcpy(buffer_info_tarjeta_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_info_tarjeta), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_info_tarjeta_CRC(void)
+{
+    memcpy(buffer_info_tarjeta_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_info_tarjeta_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_info_tarjeta(void)
+{
+    return buffer_info_tarjeta_final;
+}
+
+/**********************************************************************************/
+/*                           BUFFER INFO CASHLESS                                 */
+/**********************************************************************************/
+const unsigned char Tabla_Ascii_1[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+char Hex_Ascci_H(char Hex_Val) {
+    char Val1, Val2;
+
+    Val1 = Hex_Val; //Paso el valor del registro
+    Val2 = (Val1 & 0b11110000); //Enmascaro  el nibble superior
+    Val2 = Val2 >> 4;
+    Val1 = Tabla_Ascii_1[ Val2 ];
+    return ( Val1);
+}
+
+char Hex_Ascci_L(char Hex_Val) {
+    char Val1, Val2;
+
+    Val1 = Hex_Val; //Paso el valor del registro
+    Val2 = (Val1 & 0b00001111); //Enmascaro  el nibble superior
+    Val1 = Tabla_Ascii_1[ Val2 ];
+    return ( Val1);
+}
+
+bool Buffers::Set_buffer_info_Cashless(int Com)
+
+{
+    /* ID Comando */
+    char req[258] = {};
+    bzero(req, 258);
+    char res[2] = {};
+    bzero(res, 2);
+    int32_t Aux1;
+    /* Reset Variables*/
+    String AFT_Game_Lock="00";
+    String Asset_Number="00000000";
+    String Available_transfer="00";
+    String Host_Cashout_Status="00";
+    String AFT_Status="00";
+    String Max_History_index="00";
+    String Current_Casheable="0000000000";
+    String Current_Restricted="0000000000";
+    String Current_Nonrestricted="0000000000";
+    String Transfer_Limit="0000000000";
+    String Restricted_Expiration="00000000";
+    String Restricted_Pool_ID = "0000";
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+    
+    int m=4;
+    String CASHLESS;
+    for(int i=0; i<38;i++)
+    {
+       //req[m]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]);
+        //m++;
+        //req[m]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]);
+        //m++;
+        //Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]);
+        //Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]);
+        CASHLESS =CASHLESS+String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]))+String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[i]));
+    }
+    // GAME LOCK
+    AFT_Game_Lock=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[7]))+String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[7]));
+    //ASET NUMBER
+    Asset_Number=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[3]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[3]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[4]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[4]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[5]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[5]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[6]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[6]));
+
+    //Available Transfers
+    Available_transfer=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[8]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[8]));
+    //Host Cashout Status
+    Host_Cashout_Status=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[9]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[9]));
+    //AFT Status
+    AFT_Status=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[10]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[10]));
+    // Max History Index
+    Max_History_index=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[11]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[11]));
+    // Current Cashable
+    Current_Casheable=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[12]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[12]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[13]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[13]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[14]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[14]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[15]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[15]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[16]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[16]));
+    //Current Restricted
+    Current_Restricted=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[17]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[17]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[18]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[18]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[19]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[19]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[20]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[20]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[21]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[21]));
+   
+    //Current Nonrestricted
+    Current_Nonrestricted=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[22]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[22]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[23]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[23]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[24]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[24]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[25]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[25]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[26]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[26]));
+    //Transfer limit
+    Transfer_Limit=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[27]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[27]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[28]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[28]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[29]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[29]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[30]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[30]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[31]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[31]));
+    //Restricted Expiration
+    Restricted_Expiration=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[32]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[32]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[33]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[33]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[34]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[34]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[35]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[35]));
+    //Restricted Pool_ID
+    Restricted_Pool_ID=
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[36]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[36]))+
+    String(Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[37]))+
+    String(Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[37]));
+    //Convierte Datos en Entidad para transmitir
+    String json= Buffer_Json_info_Cashless(AFT_Game_Lock,
+    Asset_Number,
+    Available_transfer,
+    Host_Cashout_Status,
+    AFT_Status,
+    Max_History_index,
+    Current_Casheable,
+    Current_Restricted,
+    Current_Nonrestricted,
+    Transfer_Limit,
+    Restricted_Expiration,
+    Restricted_Pool_ID);
+
+    req[4]='|';
+    int pos2=5;
+    for(int i=0; i<json.length();i++)
+    {
+        req[pos2]=json[i];
+        pos2++;
+    }
+    req[pos2]='|';
+
+   for (int i = pos2+2; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+    memcpy(buffer_info_Cashless, req, 258);
+
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_info_Cashless[indice]);
+    }
+    Serial.println();
+
+    if (Set_buffer_info_Cashless_encriptado())
+    {
+        if (Set_buffer_info_Cashless_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_info_Cashless_encriptado(void)
+{
+    memcpy(buffer_info_Cashless_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_info_Cashless), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_info_Cashless_CRC(void)
+{
+    memcpy(buffer_info_Cashless_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_info_Cashless_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_info_Cashless(void)
+{
+    return buffer_info_Cashless_final;
+}
+
+
+/**********************************************************************************/
 /*                           BUFFER DE ROM SIGNATURE                              */
 /**********************************************************************************/
+
+
 
 bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 {
@@ -1411,4 +2029,134 @@ bool Buffers::Set_buffer_tarjeta_CRC(void)
 char *Buffers::Get_buffer_tarjeta_mecanica(void)
 {
     return buffer_tarjeta_mecanica_final;
+}
+
+char convert(uint8_t dato)
+{
+    char dato_out;
+    if(dato==0)
+    {
+        dato_out='0';
+        return dato_out;
+    }
+    else
+    {
+        switch (dato)
+        {
+        case 1:
+            dato_out = '1';
+            break;
+
+        case 2:
+            dato_out = '2';
+            break;
+        case 3:
+            dato_out = '3';
+            break;
+        case 4:
+            dato_out = '4';
+            break;
+        case 5:
+            dato_out = '5';
+            break;
+        case 6:
+            dato_out = '6';
+            break;
+        case 7:
+            dato_out = '7';
+            break;
+        case 8:
+            dato_out = '8';
+            break;
+        case 9:
+            dato_out = '9';
+            break;
+        }
+
+        return dato_out;
+    }
+
+    
+}
+
+
+
+void Almacena_Evento_En_RAM(unsigned short N_Evento,unsigned char Val_A_Guardar)
+{
+    Tabla_Eventos_[N_Evento][0]=Val_A_Guardar; /* Guarda Evento en Cola*/
+    //Serial.println("Evento almacenado en RAM");
+}
+
+void Almacena_Evento(unsigned char Evento,ESP32Time RTC)
+{
+    Almacena_Evento_En_RAM(Num_Eventos, Evento);
+    Escribe_Tiempo_Eventos(Num_Eventos,RTC);
+    Num_Eventos++;
+}
+
+void  Escribe_Tiempo_Eventos(unsigned short N_Evento, ESP32Time RTC)
+{
+    /*Captura time*/
+
+    String Hora = RTC.getTime();
+    String Fecha = RTC.getDate();
+    String Mes;
+    int month = RTC.getMonth();
+    switch (month)
+    {
+    case 0:
+        Mes = "01";
+        break;
+    case 1:
+        Mes = "02";
+        break;
+    case 2:
+        Mes = "03";
+        break;
+    case 3:
+        Mes = "04";
+        break;
+    case 4:
+        Mes = "05";
+        break;
+    case 5:
+        Mes = "06";
+        break;
+    case 6:
+        Mes = "07";
+        break;
+    case 7:
+        Mes = "08";
+        break;
+    case 8:
+        Mes = "09";
+        break;
+    case 9:
+        Mes = "10";
+        break;
+    case 10:
+        Mes = "11";
+        break;
+    case 11:
+        Mes = "12";
+        break;
+    default:
+        break;
+    }
+
+
+   int  hour = ((Hora[0] - 48) * 10) + (Hora[1] - 48);
+   int  minutes = ((Hora[3] - 48) * 10) + (Hora[4] - 48);
+   int  seconds = ((Hora[6] - 48) * 10) + (Hora[7] - 48);
+   int  day = ((Fecha[9] - 48) * 10) + (Fecha[10] - 48);
+   int  month2 = ((Mes[0] - 48) * 10) + (Mes[1] - 48);
+   int  year = ((Fecha[14] - 48) * 10) + (Fecha[15] - 48);
+ 
+   Tabla_Eventos_[N_Evento][1]=hour;
+   Tabla_Eventos_[N_Evento][2]=minutes;
+   Tabla_Eventos_[N_Evento][3]=seconds;
+   Tabla_Eventos_[N_Evento][4]=day;
+   Tabla_Eventos_[N_Evento][5]=month2;
+   Tabla_Eventos_[N_Evento][6]=year;
+   Tabla_Eventos_[N_Evento][7]=0x00;
 }

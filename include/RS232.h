@@ -7,6 +7,12 @@ using namespace std;
 #include <stdio.h>
 #include <stdlib.h>
 
+
+/*---------------------------------------->Debug<---------------------------------------------------------*/
+//#define Debug_Contadores
+//#define Debug_Encuestas
+//#define Debug_Eventos
+//#define Debug_ACK_MSG
 //--------------------------------------> Define UART <-----------------------------------------------------
 #define NUMERO_PORTA_SERIALE UART_NUM_2
 #define BUF_SIZE (1024 * 2)
@@ -14,7 +20,9 @@ using namespace std;
 static QueueHandle_t uart2_queue;
 //----------------------------------------------------------------------------------------------------------
 //--------------------------------------> TaskHandle_t <----------------------------------------------------
+
 TaskHandle_t RecepcionRS232, Encuestas;
+
 //----------------------------------------------------------------------------------------------------------
 //--------------------------------------> Define Maquina <--------------------------------------------------
 #define SYNC 0x80
@@ -23,12 +31,10 @@ TaskHandle_t RecepcionRS232, Encuestas;
 //-----------------------------------------------------------------------------------------------------------
 #define U2RXD 16
 #define U2TXD 17
-extern SdVolume volume;
-extern Sd2Card card;
-extern SdFile root;
 uint8_t rxbuf[255];   // Buffer di ricezione
 uint16_t rx_fifo_len; // Lunghezza dati
 uint8_t UART2_data[1024];
+
 char dat[1] = {SYNC};
 char dat3[1] = {POLL};
 char dat4[1] = {DIR};
@@ -87,6 +93,9 @@ void Add_Contador(char *Contador_, int Filtro, bool Salto_Linea);
 void Calcula_Cancel_Credit_IRT(void);
 void Calcula_Bill_In_550(void);
 void Escribe_Tarjeta_Mecanica(char *buf);
+void Interroga_Info_Cashless(void);
+extern unsigned long Bandera_RS232;
+extern unsigned long Bandera_RS232_F;
 //---------------------------------------------------------------------------------------------------------------
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -112,6 +121,7 @@ bool Act_Current_Credits = false;
 #define flag_desbloquea_Maquina 2
 #define flag_encuesta_premio 3
 #define escribe_tarjeta_mecanica 4
+#define Encuesta_Info_Cashless   5
 
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -133,9 +143,8 @@ void Init_UART2()
   ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
   uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
-  // uart_set_rx_timeout(uart_port_t uart_num, const uint8_t tout_thresh);
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
-  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 2048, NULL, configMAX_PRIORITIES, &RecepcionRS232, 1); // Máx Priority principal
+  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 5048, NULL, configMAX_PRIORITIES, &RecepcionRS232, 1); // Máx Priority principal
   xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 15, &Encuestas, 1);
   //----------------------------------------------------------------------------------------------------------------------
 }
@@ -276,13 +285,19 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           conta_bytes++;
         }
         //        Serial.println();
+        Bandera_RS232_F=Bandera_RS232;
       }
+      
+      
+
 
       if (conta_bytes == 1)
       {
         if (buffer[0] == 0x01 && flag_handle_maquina)
         {
+          #ifdef Debug_ACK_MSG
           Serial.println("Mensaje de ACK recibido.................................................");
+          #endif
           ACK_Maq = true;
         }
       }
@@ -294,15 +309,24 @@ static void UART_ISR_ROUTINE(void *pvParameters)
         {
           if (Recibe_Mecanicas)
           {
+            #ifdef Debug_ACK_MSG
             Serial.println("Verifica recepcion de mensaje ACK Mecanicas");
+            #endif
             Recibe_Mecanicas = false;
             if (Buffer.Verifica_buffer_Mecanicas(&buffer[0], conta_bytes))
             {
+              #ifdef Debug_ACK_MSG
               Serial.println("Mensaje de ACK Mecanicas recibido.................................................");
+              #endif
               ACK_Mecanicas = true;
             }
             else
+            {
+              #ifdef Debug_ACK_MSG
               Serial.println("No mensaje ACK Mecanicas.........................................................");
+              #endif
+            }
+              
           }
           else
           {
@@ -319,35 +343,93 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   contador[i] = buffer[j] + '0';
                   j++;
                 }
+                #ifdef Debug_Contadores
                 Serial.println(contador);
+                #endif
                 switch (k)
                 {
                 case 0:
+                  Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora Mecanicas
                   contadores.Set_Contadores(Total_Cancel_Credit, contador);
+                  Add_Contador(contador, Total_Cancel_Credit, false);
                   contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+                  Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
                   break;
                 case 1:
+                  
                   contadores.Set_Contadores(Coin_In, contador);
+                  Add_Contador(contador, Coin_In, false);
                   break;
                 case 2:
                   contadores.Set_Contadores(Coin_Out, contador);
+                  Add_Contador(contador, Coin_Out, false);
                   break;
                 case 3:
                   contadores.Set_Contadores(Total_Drop, contador);
+                  Add_Contador(contador, Total_Drop, false);
                   contadores.Set_Contadores(Bill_Amount, contador);
+                  Add_Contador(contador, Bill_Amount, false);
+
+                  Selector_Modo_SD(); // Ftp o Storage
+                  if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
+                  {
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
+                    {
+
+                      for (int i = 0; i < Max_Encuestas; i++)
+                      {
+                        SD_Cont = SD_Cont + Estructura_CSV[i];
+                      }
+                      if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
+                      {
+                        Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      }
+                      for (int i = 0; i < Max_Encuestas; i++)
+                      {
+                        if (i == Max_Encuestas - 1)
+                        {
+                          Estructura_CSV[i] = "n/a";
+                        }
+                        else
+                        {
+                          Estructura_CSV[i] = "n/a,";
+                        }
+                      }
+                      Delete_Trama();
+                    }
+                  }
+                  else
+                  {
+                    for (int i = 0; i < Max_Encuestas; i++)
+                    {
+                      if (i == Max_Encuestas - 1)
+                      {
+                        Estructura_CSV[i] = "n/a";
+                      }
+                      else
+                      {
+                        Estructura_CSV[i] = "n/a,";
+                      }
+                    }
+                  }
+
                   break;
                 }
               }
             }
             else
             {
+              #ifdef Debug_ACK
               Serial.println("Error de CRC contadores Mecanicos...");
+              #endif
             }
           }
 
           for (size_t i = 0; i < conta_bytes; i++)
           {
+            #ifdef Debug_Contadores
             Serial.print(buffer[i], HEX);
+            #endif
           }
           Serial.println();
         }
@@ -379,9 +461,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = dato + '0';
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
-
+              #endif
               switch (buffer_contadores[1])
               {
               case 10:
@@ -399,11 +481,16 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
                   Act_Coin_in_Poker = true;
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
+                {
+                  Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ IGT Riel
+                }
                 Add_Contador(contador, Coin_In, false);
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
                 {
                   Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora Poker
+                  Add_Contador(contadores.Get_Contadores_Char(Total_Cancel_Credit), Total_Cancel_Credit, false); /*Poker*/
                 }
                 Add_Contador(contador, Coin_In, false);
                 break;
@@ -478,8 +565,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = dato + '0';
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
 
               switch (buffer[1])
               {
@@ -529,15 +617,17 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = dato + '0';
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
 
               contadores.Set_Contadores(Door_Open, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Add_Contador(contador, Door_Open, false);
               Selector_Modo_SD(); // Ftp o Storage
               if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
               {
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7
+                ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
                 {
 
                   for (int i = 0; i < Max_Encuestas; i++)
@@ -607,7 +697,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Selector_Modo_SD(); // Ftp o Storage
               if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_COM))
               {
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 ||
+                Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==2)
                 {
                   for (int i = 0; i < Max_Encuestas; i++)
                   {
@@ -656,8 +747,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = buffer[j];
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
               contadores.Set_Contadores(Informacion_Maquina, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
             }
 
@@ -667,10 +759,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
               contador[0] = buffer[2];
               contador[1] = buffer[3];
-
+              #ifdef Debug_Contadores
               Serial.print(contador[0], HEX);
               Serial.println(contador[1], HEX);
-
+              #endif
               contadores.Set_Contadores(ROM_Signature, contador);
             }
 
@@ -706,8 +798,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   j++;
                 }
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
               switch (buffer[5])
               {
               case 0x0D:
@@ -780,11 +873,21 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = dato + '0';
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
 
               contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
               Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+            }
+
+            else if(buffer[7]==0x00 |buffer[7]==0x40 |buffer[7]==0xFF)
+            {
+              if(Buffer_Cashless.Set_RX_AFT(Info_MQ_AFT,buffer))
+              {
+                Variables_globales.Set_Variable_Global(Consulta_Info_Cashless_OK,true);
+              }
+
             }
 
             else if (buffer[1] == 0x1B)
@@ -802,8 +905,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contador[i] = dato + '0';
                 j++;
               }
-
+              #ifdef Debug_Contadores
               Serial.println(contador);
+              #endif
 
               contadores.Set_Contadores(Premio_1B, contador);
             }
@@ -816,7 +920,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           else
           {
             // bzero(buffer, 128);
+            #ifdef Debug_Contadores
             Serial.println("Error de CRC en contadores...");
+            #endif
           }
         }
       }
@@ -825,10 +931,13 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
         if (eventos.Set_evento(buffer[0]))
         {
+          #ifdef Debug_Eventos
           Serial.println("Es un evento");
           Serial.println("--------------------------------------------------");
           Serial.println();
+          #endif
           Selector_Modo_SD(); // Ftp o Storage
+          Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
           if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN))
           {
             try
@@ -840,7 +949,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Add_String_EVEN(String(Evento), true);                                                         // Agrega Tipo de Evento a String
               Add_String_EVEN(Descrip, false);                                                               // Agrega Descripción  de Evento a String
               Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
-              Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
+
             }
             catch (const std::exception &e)
             {
@@ -867,7 +976,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
   free(UART2_data);
 }
 //----------------------------------------------------------------------------------------------------------------------------
-
+unsigned long tiemp=0;
+unsigned long temp2=0;
+unsigned long inter=1000;
+unsigned long tope=0;
 //---------------------------- Tarea Para Consulta de Contadores y General Poll-----------------------------------------------
 void Encuestas_Maquina(void *pvParameters)
 {
@@ -885,6 +997,7 @@ void Encuestas_Maquina(void *pvParameters)
       Serial.println("Cashless AFT");
       break;
     case 2:
+      /*
       if (numero_encuesta > 18) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 10) // Numero de respuestas recibidas por la maquina
@@ -894,11 +1007,13 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 3:
       Serial.println("Cashless AFT Single");
       break;
     case 4:
+      /*
       if (numero_encuesta > 10) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 8) // Numero de respuestas recibidas por la maquina
@@ -908,8 +1023,10 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 5:
+      /*
       if (numero_encuesta > 20) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 12) // Numero de respuestas recibidas por la maquina
@@ -919,8 +1036,10 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 6:
+      /*
       if (numero_encuesta > 6) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 5) // Numero de respuestas recibidas por la maquina
@@ -930,8 +1049,10 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 7:
+      /*
       if (numero_encuesta > 4) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 3) // Numero de respuestas recibidas por la maquina
@@ -941,8 +1062,10 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 8:
+    /*
       if (numero_encuesta > 4) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 3) // Numero de respuestas recibidas por la maquina
@@ -952,8 +1075,10 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
       break;
     case 9:
+      /*
       if (numero_encuesta > 5) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 3) // Numero de respuestas recibidas por la maquina
@@ -963,6 +1088,14 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
+      */
+      break;
+
+    case 10:
+        /*
+        Serial.println("Poker Solo SAS");
+        
+        */
       break;
     default:
       break;
@@ -1014,6 +1147,11 @@ void Encuestas_Maquina(void *pvParameters)
           Escribe_Tarjeta_Mecanica(Buffer.Get_buffer_tarjeta_mecanica());
           Handle_Maquina = 0;
           break;
+        case Encuesta_Info_Cashless:
+          Interroga_Info_Cashless();
+          Handle_Maquina = 0;
+          Serial.println("Encuesta info Cashless");
+          break;
         default:
           Handle_Maquina = 0;
           break;
@@ -1053,6 +1191,9 @@ void Encuestas_Maquina(void *pvParameters)
           break;
         case 9:
           Encuestas_Mecanicas();
+          break;
+        case 10:
+          Encuestas_Maquinas_Genericas();
           break;
         default:
           break;
@@ -1170,27 +1311,39 @@ void Encuestas_Maquinas_Genericas(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
     Transmite_Poll(0x10);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+    #endif
     Transmite_Poll(0x12);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
+    #endif
     Transmite_Poll(0x13);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+    #endif
     sendDataa(dat4, sizeof(dat4));             // Transmite DIR
     Transmite_Poll_Long(0x2D);
     Transmite_Poll_Long(0x00);
@@ -1199,11 +1352,15 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xE0);
     break;
   case 7:
+    #ifdef Debug_Encuestas
     Serial.println("Bill amount");
+    #endif
     Transmite_Poll(0x46); // Bill amount
     break;
   case 8:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable In"); // Casheable in
+    #endif
     sendDataa(dat4, sizeof(dat4));  // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1214,7 +1371,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xE3);
     break;
   case 9:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable Restricted In"); // Casheable restricted in
+    #endif
     sendDataa(dat4, sizeof(dat4));             // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1225,7 +1384,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xF2);
     break;
   case 10:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
+    #endif
     sendDataa(dat4, sizeof(dat4));                // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1236,7 +1397,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x1A);
     break;
   case 11:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable Out"); // Casheable out
+    #endif
     sendDataa(dat4, sizeof(dat4));   // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1247,7 +1410,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x39);
     break;
   case 12:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable Restricted Out"); // Casheable restricted out
+    #endif
     sendDataa(dat4, sizeof(dat4));              // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1258,7 +1423,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x28);
     break;
   case 13:
+    #ifdef Debug_Encuestas
     Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
+    #endif
     sendDataa(dat4, sizeof(dat4));                 // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1269,19 +1436,27 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x5C);
     break;
   case 14:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 15:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
     Transmite_Poll(0x2A);
     break;
   case 16:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
     Transmite_Poll(0x2B);
     break;
   case 17:
+    #ifdef Debug_Encuestas
     Serial.println("Total Coin Drop");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1292,7 +1467,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x4C);
     break;
   case 18:
+    #ifdef Debug_Encuestas
     Serial.println("Machine Paid Progresive Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1303,7 +1480,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xE0);
     break;
   case 19:
+    #ifdef Debug_Encuestas
     Serial.println("Machine Paid External Bonus Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1314,7 +1493,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xD2);
     break;
   case 20:
+    #ifdef Debug_Encuestas
     Serial.println("Attendant Paid Progresive Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1325,7 +1506,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x0A);
     break;
   case 21:
+    #ifdef Debug_Encuestas
     Serial.println("Attendant Paid External Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1336,7 +1519,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0x1B);
     break;
   case 22:
+    #ifdef Debug_Encuestas
     Serial.println("Ticket In");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1347,7 +1532,9 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xF0);
     break;
   case 23:
+    #ifdef Debug_Encuestas
     Serial.println("Ticket Out");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1358,23 +1545,33 @@ void Encuestas_Maquinas_Genericas(void)
     Transmite_Poll_Long(0xC2);
     break;
   case 24:
+    #ifdef Debug_Encuestas
     Serial.println("Current Credits");
+    #endif
     Transmite_Poll(0x1A);
     break;
   case 25:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 26:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
     Transmite_Poll(0x18);
     break;
   case 27:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     break;
   case 28:
+    #ifdef Debug_Encuestas
     Serial.println("ROM Signature");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x21);
     Transmite_Poll_Long(0x00);
@@ -1396,35 +1593,51 @@ void Encuestas_Maquinas_Poker(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+    #endif
     Transmite_Poll(0x12);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
+    #endif
     Transmite_Poll(0x13);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("Current Credits");
+    #endif
     Transmite_Poll(0x1A);
     break;
   case 7:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 8:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
@@ -1439,55 +1652,81 @@ void Encuestas_Maquinas_IRT(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
     Transmite_Poll(0x10);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+    #endif
     Transmite_Poll(0x12);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
+    #endif
     Transmite_Poll(0x13);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 7:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
     Transmite_Poll(0x2A);
     break;
   case 8:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
     Transmite_Poll(0x2B);
     break;
   case 9:
+    #ifdef Debug_Encuestas
     Serial.println("Current Credits");
+    #endif
     Transmite_Poll(0x1A);
     break;
   case 10:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 11:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
     Transmite_Poll(0x18);
     break;
   case 12:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     break;
   case 13:
+    #ifdef Debug_Encuestas
     Serial.println("ROM Signature");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x21);
     Transmite_Poll_Long(0x00);
@@ -1496,7 +1735,9 @@ void Encuestas_Maquinas_IRT(void)
     Transmite_Poll_Long(0x45);
     break;
   case 14:
+    #ifdef Debug_Encuestas
     Serial.println("Encuesta Billetes");
+    #endif
     Encuesta_Billetes();
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
@@ -1510,27 +1751,39 @@ void Encuestas_Maquinas_EFT(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
     Transmite_Poll(0x10);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+    #endif
     Transmite_Poll(0x12);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
+    #endif
     Transmite_Poll(0x13);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+    #endif
     sendDataa(dat4, sizeof(dat4));             // Transmite DIR
     Transmite_Poll_Long(0x2D);
     Transmite_Poll_Long(0x00);
@@ -1539,23 +1792,33 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0xE0);
     break;
   case 7:
+    #ifdef Debug_Encuestas
     Serial.println("Bill amount");
+    #endif
     Transmite_Poll(0x46); // Bill amount
     break;
   case 8:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 9:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
     Transmite_Poll(0x2A);
     break;
   case 10:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
     Transmite_Poll(0x2B);
     break;
   case 11:
+    #ifdef Debug_Encuestas
     Serial.println("Total Coin Drop");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1566,7 +1829,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0x4C);
     break;
   case 12:
+    #ifdef Debug_Encuestas
     Serial.println("Machine Paid Progresive Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1577,7 +1842,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0xE0);
     break;
   case 13:
+    #ifdef Debug_Encuestas
     Serial.println("Machine Paid External Bonus Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1588,7 +1855,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0xD2);
     break;
   case 14:
+    #ifdef Debug_Encuestas
     Serial.println("Attendant Paid Progresive Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1599,7 +1868,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0x0A);
     break;
   case 15:
+    #ifdef Debug_Encuestas
     Serial.println("Attendant Paid External Payout");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1610,7 +1881,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0x1B);
     break;
   case 16:
+    #ifdef Debug_Encuestas
     Serial.println("Ticket In");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1621,7 +1894,9 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0xF0);
     break;
   case 17:
+    #ifdef Debug_Encuestas
     Serial.println("Ticket Out");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
     Transmite_Poll_Long(0x03);
@@ -1632,23 +1907,33 @@ void Encuestas_Maquinas_EFT(void)
     Transmite_Poll_Long(0xC2);
     break;
   case 18:
+    #ifdef Debug_Encuestas
     Serial.println("Current Credits");
+    #endif
     Transmite_Poll(0x1A);
     break;
   case 19:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 20:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
     Transmite_Poll(0x18);
     break;
   case 21:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     break;
   case 22:
+    #ifdef Debug_Encuestas
     Serial.println("ROM Signature");
+    #endif
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x21);
     Transmite_Poll_Long(0x00);
@@ -1670,27 +1955,39 @@ void Encuestas_Maquinas_IGT_Riel(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+     #endif
     Transmite_Poll(0x12);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
@@ -1705,31 +2002,45 @@ void Encuestas_Maquinas_IGT_Riel_Bill(void)
   switch (Conta_Encuestas)
   {
   case 1:
+    #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
+    #endif
     Transmite_Poll(0x11);
     break;
   case 2:
+    #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
+    #endif
     Transmite_Poll(0x12);
     break;
   case 3:
+    #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
+    #endif
     Transmite_Poll(0x14);
     break;
   case 4:
+    #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
+    #endif
     Transmite_Poll(0x13);
     break;
   case 5:
+    #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
+    #endif
     Transmite_Poll(0x15);
     break;
   case 6:
+    #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
+    #endif
     Transmite_Poll(0x1C);
     break;
   case 7:
+    #ifdef Debug_Encuestas
     Serial.println("ID Machine");
+    #endif
     Transmite_Poll(0x1F);
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
@@ -1857,6 +2168,40 @@ bool Activa_Maquina(void)
   }
 }
 
+//------------------------------> Transmite info cashless <---------------------------------------
+
+void Interroga_Info_Cashless(void)
+{
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x74);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x05);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0xC6);
+  Transmite_Poll_Long(0x68);
+  
+ 
+}
+
+
+bool Consulta_Info_Cashless(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = Encuesta_Info_Cashless;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+
 void Transmite_Activa_Maquina(void)
 {
   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
@@ -1888,6 +2233,8 @@ void Encuesta_contador_1B(void)
   Transmite_Poll(0x1B);
 }
 
+
+
 void Selector_Modo_SD(void)
 {
 
@@ -1897,12 +2244,9 @@ void Selector_Modo_SD(void)
   }
   else
   {
-    if (Archivos_Ready == true && Variables_globales.Get_Variable_Global(Archivo_CSV_OK) == true)
+    if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
     {
-      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true)
-      {
-        Variables_globales.Set_Variable_Global(Enable_Storage, true);
-      }
+      Variables_globales.Set_Variable_Global(Enable_Storage, true);
     }
   }
 }
@@ -2042,3 +2386,6 @@ bool Verifica_Tarjeta_Mecanica(void)
     return false;
   }
 }
+
+
+

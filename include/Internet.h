@@ -323,65 +323,74 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
 {
   for (;;)
   {
-    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+    if (WiFi.status() != WL_CONNECTED)
     {
-      // Mensajes Servidor TCP
-      if (clientTCP.available())
-      {
-        buffer = clientTCP.readStringUntil('\n'); // Leer datos a nueva línea
-        Serial.println("Dato entrante...");
-
-        if (Buffer.Set_buffer_recepcion_TCP(buffer))
-        {
-          Serial.println("CRC de datos entrante OK");
-          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
-        }
-        else
-        {
-          Serial.println("CRC de datos entrante ERROR");
-          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
-        }
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        continue;
-      }
-      else
-      {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        continue;
-      }
+      vTaskDelay(50 / portTICK_PERIOD_MS);
+      continue;
     }
     else
     {
-      // Mensajes Servidor UDP
-      int packetSize = clientUDP.parsePacket();
-      if (packetSize)
-      {
-        // receive incoming UDP packets
-        Serial.printf("Received %d bytes from %s, port %d\n", packetSize, clientUDP.remoteIP().toString().c_str(), clientUDP.remotePort());
-        int len = clientUDP.read(incomingPacket, 258);
-        if (len > 0)
-        {
-          incomingPacket[len] = 0;
-        }
-        //        Serial.printf("UDP packet contents: %s\n", incomingPacket);
 
-        if (Buffer.Set_buffer_recepcion_UDP(incomingPacket))
+      if (Configuracion.Get_Configuracion(Tipo_Conexion))
+      {
+        // Mensajes Servidor TCP
+        if (clientTCP.available())
         {
-          Serial.println("CRC de datos entrante OK");
-          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+          buffer = clientTCP.readStringUntil('\n'); // Leer datos a nueva línea
+          Serial.println("Dato entrante...");
+
+          if (Buffer.Set_buffer_recepcion_TCP(buffer))
+          {
+            Serial.println("CRC de datos entrante OK");
+            Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+          }
+          else
+          {
+            Serial.println("CRC de datos entrante ERROR");
+            Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+          }
+          vTaskDelay(50 / portTICK_PERIOD_MS);
+          continue;
         }
         else
         {
-          Serial.println("CRC de datos entrante ERROR");
-          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+          vTaskDelay(50 / portTICK_PERIOD_MS);
+          continue;
         }
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        continue;
       }
       else
       {
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        continue;
+        // Mensajes Servidor UDP
+        int packetSize = clientUDP.parsePacket();
+        if (packetSize)
+        {
+          // receive incoming UDP packets
+          Serial.printf("Received %d bytes from %s, port %d\n", packetSize, clientUDP.remoteIP().toString().c_str(), clientUDP.remotePort());
+          int len = clientUDP.read(incomingPacket, 258);
+          if (len > 0)
+          {
+            incomingPacket[len] = 0;
+          }
+          //        Serial.printf("UDP packet contents: %s\n", incomingPacket);
+
+          if (Buffer.Set_buffer_recepcion_UDP(incomingPacket))
+          {
+            Serial.println("CRC de datos entrante OK");
+            Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+          }
+          else
+          {
+            Serial.println("CRC de datos entrante ERROR");
+            Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+          }
+          vTaskDelay(50 / portTICK_PERIOD_MS);
+          continue;
+        }
+        else
+        {
+          vTaskDelay(50 / portTICK_PERIOD_MS);
+          continue;
+        }
       }
     }
   }

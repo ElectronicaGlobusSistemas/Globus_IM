@@ -17,7 +17,12 @@ using namespace std;
 #define Requerimiento_AFT_Solicitud_Registro        0x6C
 #define Requerimiento_AFT_Interrogacion_Registro    0x6D
 #define Requerimiento_AFT_Cancelar_Registro         0x6E
-
+#define Juego_Seleccionado                          0x8C
+#define Ingreso_Pantalla_Contadores                 0x82
+#define Salida_Pantalla_Contadores                  0x83
+#define Caja_Dinero_removida                        0x1B
+#define Caja_dinero_Instalada                       0x1C
+#define Validador_billetes_Reset                    0x7B
 
 class Tabla_Eventos
 {
@@ -36,6 +41,12 @@ private:
     String Requerimiento_AFT_Interrogacion_Registro_="";
     String Requerimiento_AFT_Cancelar_Registro_="";
     String Evento_No_Identificado_="";
+    String Juego_Seleccionado_="";
+    String Ingreso_Pantalla_Contadores_="";
+    String Salida_Pantalla_Contadores_="";
+    String Caja_Dinero_removida_="";
+    String Caja_dinero_Instalada_="";
+    String Validador_billetes_Reset_="";
 
 public:
    String Get_Descrip_Eventos(int Eventoss);
@@ -85,6 +96,27 @@ String Tabla_Eventos::Get_Descrip_Eventos(int Eventoss)
     case 0x6E:
         return Requerimiento_AFT_Cancelar_Registro_;
         break;
+
+    case Juego_Seleccionado:
+        return Juego_Seleccionado_;
+        break;
+    case Ingreso_Pantalla_Contadores:
+        return Ingreso_Pantalla_Contadores_;
+        break;
+
+    case Salida_Pantalla_Contadores:
+        return Salida_Pantalla_Contadores_;
+        break;
+    case Caja_Dinero_removida:
+        return Caja_Dinero_removida_;
+        break;
+    case Caja_dinero_Instalada:
+        return Caja_dinero_Instalada_;
+        break;
+    case Validador_billetes_Reset:
+        return Validador_billetes_Reset_;
+        break;
+
     default:
         return Evento_No_Identificado_;
         break;
@@ -107,4 +139,10 @@ void Tabla_Eventos::Init_Tabla_Eventos(void)
     Requerimiento_AFT_Interrogacion_Registro_ = "Requerimiento AFT Interrogacion Registro";
     Requerimiento_AFT_Cancelar_Registro_ = "Requerimiento AFT Cancelar Registro";
     Evento_No_Identificado_="Evento No Identificado";
+    Juego_Seleccionado_="Juego Seleccionado";
+    Ingreso_Pantalla_Contadores_="Ingreso a pantalla de contadores o menu asistente";
+    Salida_Pantalla_Contadores_="Salida de pantalla de contadores o menu de asistente";
+    Caja_Dinero_removida_="Caja del dinero removida";
+    Caja_dinero_Instalada_="Caja del dinero instalada";
+    Validador_billetes_Reset_="Validador de billetes Totales han sido reseteados";
 }
