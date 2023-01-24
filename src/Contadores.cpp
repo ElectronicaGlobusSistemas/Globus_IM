@@ -114,6 +114,9 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   case 50:
     return Serie_Trama_;
     break;
+  case 53:
+    return Copia_Cancel_Credit_;
+    break;
   default:
     return 0x00;
     break;
@@ -122,7 +125,7 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
 
 int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
 {
-  int res = 0;
+  int res;
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
   case 1: // Bloque de instrucciones 1;
@@ -133,7 +136,7 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
     res = Convert_Char_To_Int(Coin_In_);
     return res;
     break;
-  case 3: // Bloque de instrucciones 3;
+  case Coin_Out: // Bloque de instrucciones 3;
     res = Convert_Char_To_Int(Coin_Out_);
     return res;
     break;
@@ -255,6 +258,10 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
     break;
   case 50: // Bloque de instrucciones 14;
     res = Convert_Char_To_Int(Serie_Trama_);
+    return res;
+    break;
+  case 53: // Bloque de instrucciones 14;
+    res = Convert_Char_To_Int(Copia_Cancel_Credit_);
     return res;
     break;
   }
@@ -548,6 +555,11 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     break;
   case 50: // Bloque de instrucciones 13;
     memcpy(Serie_Trama_, Data_Contador, sizeof(Serie_Trama_) / sizeof(Serie_Trama_[0]));
+    return true;
+    break;
+  
+  case 53: // Bloque de instrucciones 13;
+    memcpy(Copia_Cancel_Credit_, Data_Contador, sizeof(Copia_Cancel_Credit_) / sizeof(Copia_Cancel_Credit_[0]));
     return true;
     break;
   }

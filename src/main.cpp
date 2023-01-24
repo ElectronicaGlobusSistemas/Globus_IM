@@ -42,6 +42,7 @@ Tabla_Eventos Tabla_Evento;
 unsigned long tiempo_inicial, tiempo_final = 0;
 int bandera2 = 0;
 
+/*Variables Para Task Comunicación Maquina*/
 unsigned long Bandera_RS232=0;
 unsigned long Bandera_RS232_F=0;
 
@@ -52,29 +53,23 @@ unsigned long Timeout_Msg=8000;
 unsigned long Timeout_RS232=8000;
 unsigned long Excepcion=0;
 bool Fallo_Comunicacion=false;
-int Contador=0;
-extern bool Enable_Status;
-extern int Contador_Escrituras;
-
-unsigned long SD_Check=0;
-unsigned long SD_Check2=0;
-unsigned long Timeout_SD_CHECK=10000;
-
 void Check_Comunicacion_Maq(void);
+
+
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
-
 }
 
 void loop()
 {
   Check_Comunicacion_Maq();
-
 }
 
+/*Verifica Comunicación Maquina cada Timeout cuando llega un dato por el puerto COM1
+el Timeout es  reseteado.*/
 void Check_Comunicacion_Maq(void)
 {
   Bandera_RS232 = millis();

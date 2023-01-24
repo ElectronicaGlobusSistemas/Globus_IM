@@ -7,9 +7,10 @@
 //----------------------------------------> Variables Globales <----------------------------------------
 bool Enable_Status;
 unsigned long count2 = 0;
-//#define Debug_FTP
-//#define Debug_Status_SD
-//#define Debug_Escritura
+#define Debug_FTP
+#define Debug_Status_SD
+#define Debug_Escritura
+#define Info_SD
 extern char Archivo_LOG[100];
 
 //------------------------------------------------------------------------------------------------------
@@ -101,13 +102,12 @@ void Init_FTP_SERVER()
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
 static void Rum_FTP_SERVER(void *parameter)
 {
- 
-  if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(SD_INSERT))
+  if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
     ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
   }
-  
+
   unsigned long InicialTime = 0;
   unsigned long FinalTime = 0;
   int Conteo = 0;
@@ -151,7 +151,6 @@ static void Task_Verifica_Conexion_SD(void *parameter)
   int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
   for (;;)
   {
-
     uint8_t Temperatura_Procesador_GPU = temperatureRead();
     Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
     if (!SD.begin(SD_ChipSelect)) // SD Desconectada...
@@ -159,10 +158,12 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       #ifdef Info_SD
       Serial.println("Memoria SD Desconectada..");
       #endif
+      if(!SD.begin(SD_ChipSelect))
+      {
       // Apaga  Indicador LED SD Status.
       Enable_Status = false; // Desactiva Parpadeo de LED SD Status en Modo FTP Server
-     
-      
+
+
         // Intenta Conectar Despues de Fallo.
         #ifdef Info_SD
         Serial.print("Fallo en Conexión SD"); // Mensaje de Fallo.
@@ -177,10 +178,11 @@ static void Task_Verifica_Conexion_SD(void *parameter)
         Variables_globales.Set_Variable_Global_String(Size_SD, "0000");
         //Sd_Mont = false;
         Variables_globales.Set_Variable_Global(SD_INSERT,false);
-
+      }
     }
     else
     {
+      
       #ifdef Info_SD
       Serial.println("SD OK"); // Mensaje de Conexión SD.
       #endif
@@ -223,8 +225,9 @@ static void Task_Verifica_Conexion_SD(void *parameter)
           #endif
         }
       }
+      
     }
-    vTaskDelay(30000); // Pausa Tarea 10000ms
+    vTaskDelay(10000); // Pausa Tarea 10000ms
   }
   vTaskDelay(10);
 }

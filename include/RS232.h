@@ -467,7 +467,16 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               switch (buffer_contadores[1])
               {
               case 10:
-                contadores.Set_Contadores(Total_Cancel_Credit, contador);
+               
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                {
+                  contadores.Set_Contadores(Copia_Cancel_Credit,contador);   
+                }
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
+                {
+                  contadores.Set_Contadores(Total_Cancel_Credit, contador);
+                }
+
                 //              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 //                Calcula_Cancel_Credit_IRT();
                 //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
@@ -481,7 +490,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
                   Act_Coin_in_Poker = true;
-                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
                 {
                   Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ IGT Riel
                 }
@@ -489,7 +498,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
                 {
-                  Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora Poker
+                  Estructura_CSV[0] = RTC.getTime() + ",";                                                       // Add Hora Poker
                   Add_Contador(contadores.Get_Contadores_Char(Total_Cancel_Credit), Total_Cancel_Credit, false); /*Poker*/
                 }
                 Add_Contador(contador, Coin_In, false);
@@ -578,7 +587,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               case 0x2B:
                 contadores.Set_Contadores(Physical_Coin_Out, contador);
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
-                  Calcula_Cancel_Credit_IRT(); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+                {
+                  Calcula_Cancel_Credit_IRT();
+                }   
                 Add_Contador(contador, Physical_Coin_Out, false);
                 break;
               case 0x3C:
@@ -2238,8 +2249,9 @@ void Encuesta_contador_1B(void)
 void Selector_Modo_SD(void)
 {
 
-  if (Variables_globales.Get_Variable_Global(Ftp_Mode)) // FTP activado
+  if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true) // FTP activado
   {
+    
     Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita  Guardado SD.
   }
   else
@@ -2258,57 +2270,79 @@ void Delete_Trama()
     SD_Cont.remove(i);
   }
 }
-
+int Convert_Char_To_Int3(char buffer[])
+{
+  int resultado = ((buffer[0] - 48) * 10000000) + ((buffer[1] - 48) * 1000000) +
+                  ((buffer[2] - 48) * 100000) + ((buffer[3] - 48) * 10000) +
+                  ((buffer[4] - 48) * 1000) + ((buffer[5] - 48) * 100) +
+                  ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
+  return resultado;
+}
 void Calcula_Cancel_Credit_IRT(void)
 {
-  int Total_Cancel_Credit_IRT, Cancel_Credit_IRT, Coin_Out_IRT, Residuo;
+  int Total_Cancel_Credit_IRT, Cancel_Credit_IRT, Coin_Out_IRT, Residuo,Total_Cancel_Credit_IRT_2;
   int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
   char Contador_Cancel_Credit_IRT[9];
   bzero(Contador_Cancel_Credit_IRT, 9);
-
-  Cancel_Credit_IRT = contadores.Get_Contadores_Int(Total_Cancel_Credit);
-  Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
-
+  
+  //Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
+  Cancel_Credit_IRT =Convert_Char_To_Int3(contadores.Get_Contadores_Char(Copia_Cancel_Credit));
+  //Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
+  Coin_Out_IRT =Convert_Char_To_Int3(contadores.Get_Contadores_Char(Physical_Coin_Out));
+  //Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
   Total_Cancel_Credit_IRT = Cancel_Credit_IRT + Coin_Out_IRT;
+  
+  if (Total_Cancel_Credit_IRT<(Cancel_Credit_IRT + Coin_Out_IRT)||Coin_Out_IRT<=0)
+  {
+    Serial.println("ERROR CALCULO PREMIO");
+  }
+  else
+  {
+    Total_Cancel_Credit_IRT_2=Total_Cancel_Credit_IRT;
+    Serial.print("contador cancel credit int IRT es: ");
+    Serial.println(Total_Cancel_Credit_IRT);
 
-  Serial.print("contador cancel credit int IRT es: ");
-  Serial.println(Total_Cancel_Credit_IRT);
+    decmill = Total_Cancel_Credit_IRT / 10000000;
+    Contador_Cancel_Credit_IRT[0] = decmill + 48;
+    Residuo = Total_Cancel_Credit_IRT % 10000000;
 
-  decmill = Total_Cancel_Credit_IRT / 10000000;
-  Contador_Cancel_Credit_IRT[0] = decmill + 48;
-  Residuo = Total_Cancel_Credit_IRT % 10000000;
+    unimill = Residuo / 1000000;
+    Contador_Cancel_Credit_IRT[1] = unimill + 48;
+    Residuo = Total_Cancel_Credit_IRT % 1000000;
 
-  unimill = Residuo / 1000000;
-  Contador_Cancel_Credit_IRT[1] = unimill + 48;
-  Residuo = Total_Cancel_Credit_IRT % 1000000;
+    centmil = Residuo / 100000;
+    Contador_Cancel_Credit_IRT[2] = centmil + 48;
+    Residuo = Total_Cancel_Credit_IRT % 100000;
 
-  centmil = Residuo / 100000;
-  Contador_Cancel_Credit_IRT[2] = centmil + 48;
-  Residuo = Total_Cancel_Credit_IRT % 100000;
+    decmil = Residuo / 10000;
+    Contador_Cancel_Credit_IRT[3] = decmil + 48;
+    Residuo = Total_Cancel_Credit_IRT % 10000;
 
-  decmil = Residuo / 10000;
-  Contador_Cancel_Credit_IRT[3] = decmil + 48;
-  Residuo = Total_Cancel_Credit_IRT % 10000;
+    unimil = Residuo / 1000;
+    Contador_Cancel_Credit_IRT[4] = unimil + 48;
+    Residuo = Total_Cancel_Credit_IRT % 1000;
 
-  unimil = Residuo / 1000;
-  Contador_Cancel_Credit_IRT[4] = unimil + 48;
-  Residuo = Total_Cancel_Credit_IRT % 1000;
+    cen = Residuo / 100;
+    Contador_Cancel_Credit_IRT[5] = cen + 48;
+    Residuo = Total_Cancel_Credit_IRT % 100;
 
-  cen = Residuo / 100;
-  Contador_Cancel_Credit_IRT[5] = cen + 48;
-  Residuo = Total_Cancel_Credit_IRT % 100;
+    dec = Residuo / 10;
+    Contador_Cancel_Credit_IRT[6] = dec + 48;
+    Residuo = Total_Cancel_Credit_IRT % 10;
 
-  dec = Residuo / 10;
-  Contador_Cancel_Credit_IRT[6] = dec + 48;
-  Residuo = Total_Cancel_Credit_IRT % 10;
-
-  uni = Residuo;
-  Contador_Cancel_Credit_IRT[7] = uni + 48;
-
-  Serial.print("contador cancel credit char IRT es: ");
-  Serial.println(Contador_Cancel_Credit_IRT);
-  contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
-  contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
+    uni = Residuo;
+    Contador_Cancel_Credit_IRT[7] = uni + 48;
+    
+    Serial.print("contador cancel credit char IRT es: ");
+    Serial.println(Contador_Cancel_Credit_IRT);
+    if(Convert_Char_To_Int3(Contador_Cancel_Credit_IRT)!=Total_Cancel_Credit_IRT_2)
+    {
+      Serial.println("Error en calculo premio IRT");
+    }else{
+      contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
+      // contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
+    }
+  }
 }
 
 void Calcula_Bill_In_550(void)

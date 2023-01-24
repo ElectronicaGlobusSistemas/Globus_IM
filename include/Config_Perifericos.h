@@ -46,7 +46,7 @@ void Config_Red_Serial(String Comando);
 //------------------------------------------------------------------
 
 //---------------------------> Version de programa <----------------
-uint8_t Version_Firmware_[]={1,0,1,0}; // 1000--> en  server 1.0
+uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 //------------------------------------------------------------------
 
 void Init_Config(void)
@@ -70,6 +70,7 @@ void Init_Config(void)
     pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
     Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
     pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
+    
     //---------------------------------------------------------------
 
     //--------------------> Setup Reloj Default <--------------------
@@ -85,10 +86,13 @@ void Init_Config(void)
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
-    //------------------> Init Memoria SD <--------------------------
-    Init_SD(); // Inicializa Memoria SD.
+    
+   
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
+    //------------------> Init Memoria SD <--------------------------
+    Init_SD(); // Inicializa Memoria SD.
+    //---------------------------------------------------------------
     CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
     init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Task  SERVER <---------------------------
@@ -103,7 +107,7 @@ void Init_Config(void)
     //--------------------> Task Manager <---------------------------
     TaskManager(); // Inicia Manejador de Tareas de Verificación
     //---------------------------------------------------------------
-}
+}    
 
 void TaskManager()
 {
@@ -392,14 +396,14 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP")) // Configura la IP de conexion
     {
         Serial.println("Guardando IP por defecto...");
-        uint8_t ip[] = {192, 168, 0, 250};
+        uint8_t ip[] = {192, 168, 5, 250};
         NVS.putBytes("Dir_IP", ip, sizeof(ip));
     }
 
     if (!NVS.isKey("Dir_IP_GW")) // Configura la IP de enlace
     {
         Serial.println("Guardando IP_GW por defecto...");
-        uint8_t ip_gw[] = {192, 168, 0, 1};
+        uint8_t ip_gw[] = {192, 168, 5, 1};
         NVS.putBytes("Dir_IP_GW", ip_gw, sizeof(ip_gw));
     }
 
@@ -413,7 +417,7 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("Dir_IP_Serv")) // Configura la IP de servidor
     {
         Serial.println("Guardando IP Server por defecto...");
-        uint8_t ip_server[] = {192, 168, 0, 200};
+        uint8_t ip_server[] = {192, 168, 5, 200};
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
@@ -816,6 +820,7 @@ void Config_Red_Serial(String Comando)
             NVS.end();
         }
     }else{
+
         if(Comando=="SERVER200")
         {
             NVS.begin("Config_ESP32", false);
@@ -825,9 +830,47 @@ void Config_Red_Serial(String Comando)
             IP_Server1[3] =200;
             NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
             NVS.end();
-            
+            ESP.restart();
         }
-
+        /*
+        else if(Comando[0]=='R' && Comando[1]=='E' && Comando[2]=='D')
+        {
+            int pos;
+            char Ssd;
+            char Pass;
+                for(int i=0; i<sizeof(Comando);i++)
+                {
+                    if(Comando[i]=='=')
+                    {
+                        if(Comando[i]=='|')
+                        {
+                            break;
+                        }
+                        Ssd=Ssd+i;
+                        
+                    }
+                    pos++;
+                }
+               
+                if(Comando[pos]=='P'&&Comando[pos+1]=='A' && Comando[pos+2]=='S'&&Comando[pos+3]=='S')
+                {
+                    for (int i = pos+4; i < sizeof(Comando); i++)
+                    {
+                        if (Comando[i] == '=')
+                        {
+                            if (Comando[i] == '|')
+                            {
+                                break;
+                            }
+                            Pass = Pass + i;
+                        }
+                    }
+                }
+                pos=0;
+                Serial.println(Pass);
+                Serial.println(Ssd);
+        }
+        */
         else if(Comando=="SERVER204")
         {
             NVS.begin("Config_ESP32", false);

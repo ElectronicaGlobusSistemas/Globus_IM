@@ -1073,7 +1073,7 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
             Variables_globales.Set_Variable_Global(Ftp_Mode, true); // Activa ftp
             if (Variables_globales.Get_Variable_Global(Ftp_Mode))
             {
-                RESET_SD(); // Reset SD Para Modo FTP
+              //  RESET_SD(); // Reset SD Para Modo FTP
                 res[0] = 'F';
                 res[1] = '|';
                 res[2] = 'T';
@@ -1206,14 +1206,14 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud de Eventos SAS");
                 Transmite_Eventos();
                 if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==false)
-                    Transmite_Confirmacion('A','3');
+                   // Transmite_Confirmacion('A','3');
                 break;
 
             case 7:
                 Serial.println("Evento recibido con exito");
                 Maneja_Marca_Eventos();
                 if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==false)
-                    Transmite_Confirmacion('A','3');
+                    //Transmite_Confirmacion('A','3');
                 break;
 
             case 8:
@@ -1230,7 +1230,6 @@ void Task_Procesa_Comandos(void *parameter)
                     Bootloader_Enable=Variables_globales.Get_Variable_Global(Sincronizacion_RTC);
                 }
                 break;
-
             case 11:
                 Serial.println("Solicitud de informacion MAQ");
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
@@ -1265,6 +1264,7 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Reset ESP32");
                 Transmite_Confirmacion('A', 'F');
                 ESP.restart();
+                break;
 
             case 15:
                 Serial.println("Solicitud de inactivar maquina");
@@ -1295,6 +1295,7 @@ void Task_Procesa_Comandos(void *parameter)
             case 181:
                 Serial.println("Confirmacion contadores recibido con exito");
                 //                Transmite_Confirmacion('A', '1');
+                break;
 
             case 190:
                 Serial.println("Serializa trama de contadores");
@@ -1364,8 +1365,7 @@ void Task_Procesa_Comandos(void *parameter)
                 if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
                 {
                     if(Enable_Disable_modo_Ftp_server(true))
-                        Transmite_Confirmacion('T','P');
-                   
+                        Transmite_Confirmacion('T','P'); 
                 }
                 else
                 {
@@ -1640,6 +1640,14 @@ void Transmision_Controlada_Contadores(void)
         }
     }
 }
+int Convert_Char_To_Int2(char buffer[])
+{
+  int resultado = ((buffer[0] - 48) * 10000000) + ((buffer[1] - 48) * 1000000) +
+                  ((buffer[2] - 48) * 100000) + ((buffer[3] - 48) * 10000) +
+                  ((buffer[4] - 48) * 1000) + ((buffer[5] - 48) * 100) +
+                  ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
+  return resultado;
+}
 
 bool Calcula_Cancel_Credit(bool Calcula_Contador)
 {
@@ -1647,18 +1655,49 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
     int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
     char Contador_Cancel_Credit_Poker[9];
     bzero(Contador_Cancel_Credit_Poker, 9);
+    int Cancel_Credit_Poker_2;
 
     if (Calcula_Contador)
     {
         Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
-        Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+       // Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+        Coin_Out_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_Out));
         Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
         Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
-        
+
+        /*Verifica si la maquina fue borrada*/
+        if(Drop_Poker<=0)
+        {
+            if(Coin_In_Poker>0||Coin_Out_Poker>0) /*Si no ingresa billetes*/
+            {
+                Serial.println("Error en contadores");
+                return false;
+            }
+            else if(Coin_In_Poker==0&&Coin_Out_Poker==0)
+            {
+                Serial.println("Maquina Borrada o error?");
+            }
+        }
+        /* Intenta calcular Premio*/
         Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
-        if (Cancel_Credit_Poker <= 0 ||Cancel_Credit_Poker==Drop_Poker)
+        if((Drop_Poker - Coin_In_Poker)==Drop_Poker && Coin_Out_Poker>0)
+        {
+            Serial.println("ERROR");
             return false;
+        }
+        if (Cancel_Credit_Poker <= 0 ||Cancel_Credit_Poker==Drop_Poker||Cancel_Credit_Poker==(Drop_Poker-Creditos_Poker))
+        {
+            if(Cancel_Credit_Poker==Drop_Poker && Coin_In_Poker>0 && Coin_Out_Poker>0)
+            {
+                Serial.println("Error calculo premio");
+                return false;
+            }else{
+                Serial.println("Error calculo premio");
+                return false;
+            }
+        }     
     }
+    Cancel_Credit_Poker_2=Cancel_Credit_Poker; /*Iguala variables para validar despues de conversion*/
     Serial.print("contador cancel credit int poker es: ");
     Serial.println(Cancel_Credit_Poker);
 
@@ -1695,10 +1734,26 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
 
     Serial.print("contador cancel credit char poker es: ");
     Serial.println(Contador_Cancel_Credit_Poker);
-    if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
-        return true;
-    else
-        return false;
+    /*Si la conversion Fallo Copia y original diferentes*/
+    if(Convert_Char_To_Int2(Contador_Cancel_Credit_Poker)!=Cancel_Credit_Poker_2)
+    {
+        Serial.println("La conversion fallo");
+        Serial.println(Contador_Cancel_Credit_Poker);
+        Serial.println(Cancel_Credit_Poker_2);
+        return false; /*Intenta nuevamente el calculo del premio*/
+    }else{ /* Si Son iguales (No existe diferencia)*/
+
+        /* Verifica el guardado */
+        if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
+        {
+            return true; /*Contadores OK*/
+        }
+
+        if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) == false || contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker) == false)
+        {
+            return false; /*Uno o los dos contadores fallo*/
+        }
+    }  
 }
 
 void Task_Verifica_Hopper(void *parameter)
@@ -1722,20 +1777,10 @@ void Task_Verifica_Hopper(void *parameter)
             Conta_Poll_Cancel_Poker++;
             if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
             {
-                Serial.println("Premio Pagado Poker *************************************");
+                 Serial.println("Premio Pagado Poker *************************************");
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
                 if (Calcula_Cancel_Credit(true)==true)
-                {
                     Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
-                }
-
-                else
-                {
-                    if (Calcula_Cancel_Credit(true)==true)
-                    {
-                        Variables_globales.Set_Variable_Global(Calc_Cancel_Credit, false);
-                    }
-                }
                 Transmite_Confirmacion('D', '1');
                 Conta_Poll_Cancel_Poker = 0;
                 contadorActiv=0;

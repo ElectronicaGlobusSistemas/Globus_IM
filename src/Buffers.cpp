@@ -161,68 +161,6 @@ bool Buffers::Set_buffer_recepcion_UDP(char buffer[])
 /*                       BUFFER DE CONTADORES ACCOUTING                           */
 /**********************************************************************************/
 
-
-bool Calcula_Cancel_Credit_first(bool Calcula_Contador)
-{
-    extern Contadores_SAS contadores;
-    int Cancel_Credit_Poker, Coin_In_Poker, Coin_Out_Poker, Drop_Poker, Creditos_Poker, Residuo;
-    int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
-    char Contador_Cancel_Credit_Poker[9];
-    bzero(Contador_Cancel_Credit_Poker, 9);
-
-    if (Calcula_Contador)
-    {
-        Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
-        Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
-        Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
-        Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
-
-        Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
-        if (Cancel_Credit_Poker <= 0)
-            return false;
-    }
-    Serial.print("contador cancel credit int poker es: ");
-    Serial.println(Cancel_Credit_Poker);
-
-    decmill = Cancel_Credit_Poker / 10000000;
-    Contador_Cancel_Credit_Poker[0] = decmill + 48;
-    Residuo = Cancel_Credit_Poker % 10000000;
-
-    unimill = Residuo / 1000000;
-    Contador_Cancel_Credit_Poker[1] = unimill + 48;
-    Residuo = Cancel_Credit_Poker % 1000000;
-
-    centmil = Residuo / 100000;
-    Contador_Cancel_Credit_Poker[2] = centmil + 48;
-    Residuo = Cancel_Credit_Poker % 100000;
-
-    decmil = Residuo / 10000;
-    Contador_Cancel_Credit_Poker[3] = decmil + 48;
-    Residuo = Cancel_Credit_Poker % 10000;
-
-    unimil = Residuo / 1000;
-    Contador_Cancel_Credit_Poker[4] = unimil + 48;
-    Residuo = Cancel_Credit_Poker % 1000;
-
-    cen = Residuo / 100;
-    Contador_Cancel_Credit_Poker[5] = cen + 48;
-    Residuo = Cancel_Credit_Poker % 100;
-
-    dec = Residuo / 10;
-    Contador_Cancel_Credit_Poker[6] = dec + 48;
-    Residuo = Cancel_Credit_Poker % 10;
-
-    uni = Residuo;
-    Contador_Cancel_Credit_Poker[7] = uni + 48;
-
-    Serial.print("contador cancel credit char poker es: ");
-    Serial.println(Contador_Cancel_Credit_Poker);
-    if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
-        return true;
-    else
-        return false;
-}
-
 bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
 {
     int pos;
@@ -253,36 +191,6 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     // TOTAL CANCEL CREDIT
     //--------------------------------------------------------------------------------------------------
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6){
-        if(Firts_cancel_credit==0)
-        {
-            Calcula_Cancel_Credit_first(true);
-            Serial.println("Primer");
-            Firts_cancel_credit=1;
-            
-            bzero(res, 8);
-            memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
-            pos = 4;
-            for (int i = 0; i < 8; i++) // Total Cancel Credit
-            {
-                req[pos] = res[i];
-                pos++;
-            }
-            req[pos] = '|'; // 12
-        }else{
-            bzero(res, 8);
-            memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
-            pos = 4;
-            for (int i = 0; i < 8; i++) // Total Cancel Credit
-            {
-                req[pos] = res[i];
-                pos++;
-            }
-            req[pos] = '|'; // 12
-        }
-       
-    }else{
-
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
     pos = 4;
@@ -292,10 +200,6 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
         pos++;
     }
     req[pos] = '|'; // 12
-
-    }
-    
-
     //--------------------------------------------------------------------------------------------------
     // COIN IN
     //--------------------------------------------------------------------------------------------------
@@ -469,15 +373,28 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     // CANCEL CREDIT HAND PAY
     //--------------------------------------------------------------------------------------------------
-    bzero(res, 8);
-    memcpy(res, contadores.Get_Contadores_Char(Cancel_Credit_Hand_Pay), sizeof(res) / sizeof(res[0]));
-    pos = 134;
-    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4)
     {
-        req[pos] = res[i];
-        pos++;
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+        pos = 134;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 142
+    }else{
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Cancel_Credit_Hand_Pay), sizeof(res) / sizeof(res[0]));
+        pos = 134;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 142
     }
-    req[pos] = '|'; // 142
 
     //--------------------------------------------------------------------------------------------------
     // BILL AMOUNT

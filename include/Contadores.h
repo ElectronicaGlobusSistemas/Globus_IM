@@ -43,12 +43,13 @@ using namespace std;
 #define Billetes_50k 33
 #define Premio_1B 34
 #define Serie_Trama 50
-
+#define Copia_Cancel_Credit 53
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
 {
 
 private: // Variables Privadas Para contadores
+  char Copia_Cancel_Credit_[9]={'0', '0', '0', '0', '0', '0', '0', '0'};
   char Total_Cancel_Credit_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Coin_In_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Coin_Out_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
