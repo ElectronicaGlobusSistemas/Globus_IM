@@ -79,6 +79,9 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case SD_INSERT:
         return SD_INSERT_;
         break;
+    case Flag_Memoria_SD_Full: 
+        return Flag_Memoria_SD_Full_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -157,6 +160,9 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case SD_INSERT:
         SD_INSERT_=Change_estado;
         break;
+    case Flag_Memoria_SD_Full:
+        Flag_Memoria_SD_Full_=Change_estado;
+        break;
     }
 }
 
@@ -199,6 +205,7 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Consulta_info_Cashless_OK_=false;
     Bootloader_Enable=false;
     SD_INSERT_=false;
+    Flag_Memoria_SD_Full_=false;
     
 
 }

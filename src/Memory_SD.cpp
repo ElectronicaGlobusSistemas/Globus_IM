@@ -68,10 +68,12 @@ void Init_SD(void)
   {
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
+    digitalWrite(SD_Status,HIGH);
   }else
   {
     Serial.println("Error Inicializando Memoria SD");
     Variables_globales.Set_Variable_Global(SD_INSERT,false);
+    digitalWrite(SD_Status,LOW);
   }
   
   xTaskCreatePinnedToCore(
@@ -105,7 +107,7 @@ static void Rum_FTP_SERVER(void *parameter)
   if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
-    ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
+    ftpSrv.begin("esp32", "esp32","esp3232","esp3232"); // Usuario y Contraseña..
   }
 
   unsigned long InicialTime = 0;
@@ -158,6 +160,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       #ifdef Info_SD
       Serial.println("Memoria SD Desconectada..");
       #endif
+      Variables_globales.Set_Variable_Global(SD_INSERT,false);
       if(!SD.begin(SD_ChipSelect))
       {
       // Apaga  Indicador LED SD Status.
@@ -223,6 +226,11 @@ static void Task_Verifica_Conexion_SD(void *parameter)
           #ifdef Debug_Escritura
           Serial.println("Alerta Memoria llena Borrando Datos...");
           #endif
+          /*Memoria llena*/
+          Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full,true);
+        }else{
+          /*Memoria libre Espacio usado <80% de memoria total*/
+          Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full,false);
         }
       }
       
@@ -538,7 +546,9 @@ bool Remove_Archive(char *ARCHIVO)
   } 
   return 0;
 }
-
+/*Función para borrar datos de la memoria SD cuando el 80% de su capacidad esta  ocupada.
+retorna [1]----> Memoria Llena
+        [0]----> Memoria Libre*/
 bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
 {
 
@@ -596,7 +606,7 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
           if (Contador_Dias >= 2)
           {
             Contador_Dias = 0;
-            if (Valida_Archivos_Eliminados >80 && Espacio_Usado_MB < Limite_MB)
+            if (Valida_Archivos_Eliminados >=80 && Espacio_Usado_MB < Limite_MB)
             {
 
               Valida_Archivos_Eliminados = 0;

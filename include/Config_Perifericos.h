@@ -6,7 +6,7 @@
 #include <SD.h>
 
 //-------------------> Parametros <-------------------------------
-#define Clock_frequency 240
+#define Clock_frequency 80//240//
 #define MCU_Status      2
 #define WIFI_Status     15
 #define Reset_Config    27
@@ -53,23 +53,37 @@ void Init_Config(void)
 
 {
     //---------------------------> Version de programa <----------------
-     Inicializa_Buffer_Eventos(); /*Inicializa Buffer de Eventos*/
+    Inicializa_Buffer_Eventos(); /*Inicializa Buffer de Eventos*/
     //------------------------------------------------------------------
     //------------------------> Config MCU <-------------------------
     setCpuFrequencyMhz(Clock_frequency); // Frecuencia de Nucleos 1 y 0.
     //---------------------------------------------------------------
     Serial.begin(115200); //  Inicializa Monitor Serial Debug
     //---------------------> Inicializa Indicadores <----------------
-    pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
-    digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
+   // pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
+    
+   // digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
     pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
-    Init_Indicadores_LED();         // Reset Indicadores LED'S LOW.
+    
+    pinMode(33,OUTPUT);
+    pinMode(32,OUTPUT);
+    digitalWrite(33,HIGH);
+    digitalWrite(32,HIGH);
+    /*
+    pinMode(0,INPUT_PULLUP);
+   
+    pinMode(33,OUTPUT);
+    pinMode(32,OUTPUT);
+    */
+    Init_Indicadores_LED();         //  Reset Indicadores LED'S LOW.
     pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
+    
+
     
     //---------------------------------------------------------------
 
@@ -477,6 +491,14 @@ void Init_Configuracion_Inicial(void)
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
+    if (!NVS.isKey("COM"))
+    {
+        Serial.println("Puerto COM1 por defecto...");
+        // 1 = COM1,
+        // 2 = COM2,
+        uint16_t Port_COM = 1;
+        NVS.putUInt("COM", Port_COM);
+    }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -871,6 +893,27 @@ void Config_Red_Serial(String Comando)
                 Serial.println(Ssd);
         }
         */
+        else if(Comando[0]=='P' &&Comando[1]=='U'&&Comando[2]=='E'&&Comando[3]=='R'&&Comando[4]=='T'&&Comando[5]=='O')
+        {
+            if(Comando[6]==49)
+            {
+                /*puerto RS232 1*/
+                NVS.begin("Config_ESP32", false);
+                uint16_t Port_COM = 1;
+                NVS.putUInt("COM", Port_COM);
+                NVS.end();
+                ESP.restart();
+            }
+            if(Comando[6]==50)
+            {
+                /*puerto RS232 2*/
+                NVS.begin("Config_ESP32", false);
+                uint16_t Port_COM = 2;
+                NVS.putUInt("COM", Port_COM);
+                NVS.end();
+                ESP.restart();
+            }
+        }
         else if(Comando=="SERVER204")
         {
             NVS.begin("Config_ESP32", false);

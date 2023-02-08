@@ -9,9 +9,9 @@ using namespace std;
 
 
 /*---------------------------------------->Debug<---------------------------------------------------------*/
-//#define Debug_Contadores
-//#define Debug_Encuestas
-//#define Debug_Eventos
+#define Debug_Contadores
+#define Debug_Encuestas
+#define Debug_Eventos
 //#define Debug_ACK_MSG
 //--------------------------------------> Define UART <-----------------------------------------------------
 #define NUMERO_PORTA_SERIALE UART_NUM_2
@@ -31,6 +31,9 @@ TaskHandle_t RecepcionRS232, Encuestas;
 //-----------------------------------------------------------------------------------------------------------
 #define U2RXD 16
 #define U2TXD 17
+#define U1TXD 32
+#define U1RXD 33
+
 uint8_t rxbuf[255];   // Buffer di ricezione
 uint16_t rx_fifo_len; // Lunghezza dati
 uint8_t UART2_data[1024];
@@ -141,7 +144,22 @@ void Init_UART2()
 
   uart_param_config(NUMERO_PORTA_SERIALE, &Configurazione_UART2);
   ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
-  uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+   // Inicializa configuracion tipo de maquina
+    NVS.begin("Config_ESP32", false);
+    uint16_t Port_COM = NVS.getUInt("COM");
+    NVS.end();
+
+    if (Port_COM == 1)
+    {
+      uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    }
+    else
+    {
+      uart_set_pin(NUMERO_PORTA_SERIALE, U1TXD, U1RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    }
+
+  //uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
   xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 5048, NULL, configMAX_PRIORITIES, &RecepcionRS232, 1); // Máx Priority principal
@@ -2249,14 +2267,14 @@ void Encuesta_contador_1B(void)
 void Selector_Modo_SD(void)
 {
 
-  if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true) // FTP activado
+  if (Variables_globales.Get_Variable_Global(Ftp_Mode)==true||Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full)==true)
   {
     
     Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita  Guardado SD.
   }
   else
   {
-    if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
+    if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false&& Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full)==false)
     {
       Variables_globales.Set_Variable_Global(Enable_Storage, true);
     }
