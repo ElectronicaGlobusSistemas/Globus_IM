@@ -46,6 +46,7 @@ char Archivo_LOG_copy[100];
 extern bool Archivos_Ready;
 int Valida_Archivos_Eliminados=0;
 int Mes_Limite=4;
+
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Objetos Extern <------------------------------------------
@@ -60,7 +61,7 @@ extern int year_copy;
 //------------------------------------------------------------------------------------------------------
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
-
+extern bool Ftp_Out;
 void Init_SD(void)
 {
   
@@ -107,7 +108,8 @@ static void Rum_FTP_SERVER(void *parameter)
   if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
-    ftpSrv.begin("esp32", "esp32","esp3232","esp3232"); // Usuario y Contraseña..
+    ftpSrv.begin("GlobusAmin", "Globussistemas23","SuperGlobusAdmin","SuperG2023"); // Usuario y Contraseña..
+    //"esp32", "esp32","esp3232","esp3232"
   }
 
   unsigned long InicialTime = 0;
@@ -153,6 +155,17 @@ static void Task_Verifica_Conexion_SD(void *parameter)
   int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
   for (;;)
   {
+    if(Ftp_Out==true)
+    {
+      Variables_globales.Set_Variable_Global(Ftp_Mode,false);
+      Ftp_Out=false;
+      if(Variables_globales.Get_Variable_Global(Ftp_Mode)==false)
+      {
+        Ftp_Out=false;
+        Serial.println("------------------>>>FTP OUT");
+        vTaskSuspend(Ftp_SERVER);
+      }
+    }
     uint8_t Temperatura_Procesador_GPU = temperatureRead();
     Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
     if (!SD.begin(SD_ChipSelect)) // SD Desconectada...

@@ -23,6 +23,17 @@ using namespace std;
 #define Caja_Dinero_removida                        0x1B
 #define Caja_dinero_Instalada                       0x1C
 #define Validador_billetes_Reset                    0x7B
+#define CMOS_Ram_Error_Data_Recovered               0x31
+#define CMOS_Ram_Error_No_Data_Recovered            0x32
+#define CMOS_Ram_Error_Bad_device                   0x33
+#define Billete_falso                               0x2C
+#define EEPROM_Error_data                           0x34
+#define EEPROM_Error_Bad_device                     0x35
+#define EEPROM_Error_Diferent_checksum_vchanged     0x36
+#define EEPROM_Error_Bad_checksum_compare           0x37
+#define Partitioned_EEPROM_Error_Bad_checksum_v     0x38
+#define Partitioned_EEPROM_Error_Bad_checksum_c     0x39
+#define Memory_Error_Reset                          0x3A
 
 class Tabla_Eventos
 {
@@ -47,6 +58,18 @@ private:
     String Caja_Dinero_removida_="";
     String Caja_dinero_Instalada_="";
     String Validador_billetes_Reset_="";
+    String CMOS_Ram_Error_Data_Recovered_="";
+    String CMOS_Ram_Error_No_Data_Recovered_="";
+    String CMOS_Ram_Error_Bad_device_="";
+    String Billete_falso_="";
+    String EEPROM_Error_data_="";
+    String EEPROM_Error_Bad_device_="";
+    String EEPROM_Error_Diferent_checksum_vchanged_="";
+    String EEPROM_Error_Bad_checksum_compare_="";
+    String Partitioned_EEPROM_Error_Bad_checksum_v_="";
+    String Partitioned_EEPROM_Error_Bad_checksum_c_="";
+    String Memory_Error_Reset_="";
+
 
 public:
    String Get_Descrip_Eventos(int Eventoss);
@@ -116,7 +139,39 @@ String Tabla_Eventos::Get_Descrip_Eventos(int Eventoss)
     case Validador_billetes_Reset:
         return Validador_billetes_Reset_;
         break;
-
+    case CMOS_Ram_Error_Data_Recovered: /*CMOS RAM ERROR (data recovered EEPROM)*/
+        return CMOS_Ram_Error_Data_Recovered_;
+        break;
+    case CMOS_Ram_Error_No_Data_Recovered: /*CMOS RAM ERROR (no data recovered EEPROM)*/
+        return CMOS_Ram_Error_No_Data_Recovered_;
+        break;
+    case CMOS_Ram_Error_Bad_device: /*CMOS RAM ERROR(bad device)*/
+        return CMOS_Ram_Error_Bad_device_;
+        break;
+    case Billete_falso: /* Billete falso  detectado*/
+        return Billete_falso_;
+        break;
+    case EEPROM_Error_data: /*EEPROM error (data error)*/
+        return EEPROM_Error_data_;
+        break;
+    case EEPROM_Error_Bad_device: /*EEPROM error (bad device)*/
+        return EEPROM_Error_Bad_device_;
+        break;
+    case EEPROM_Error_Diferent_checksum_vchanged: /*EEPROM error (diffent checksum version changed)*/
+        return EEPROM_Error_Diferent_checksum_vchanged_;
+        break;
+    case EEPROM_Error_Bad_checksum_compare: /*EPROM error bad checksum compare*/
+        return EEPROM_Error_Bad_checksum_compare_;
+        break;
+    case Partitioned_EEPROM_Error_Bad_checksum_v: /*Partitioned EEPROM error (checksum version changed)*/
+        return Partitioned_EEPROM_Error_Bad_checksum_v_;
+        break;
+    case Partitioned_EEPROM_Error_Bad_checksum_c: /*Partitioned EEPROM error (bad checksum compare)*/
+        return Partitioned_EEPROM_Error_Bad_checksum_c_;
+        break;
+    case Memory_Error_Reset: /*Memory error reset (operador used self test)*/
+        return Memory_Error_Reset_;
+        break;
     default:
         return Evento_No_Identificado_;
         break;
@@ -145,4 +200,15 @@ void Tabla_Eventos::Init_Tabla_Eventos(void)
     Caja_Dinero_removida_="Caja del dinero removida";
     Caja_dinero_Instalada_="Caja del dinero instalada";
     Validador_billetes_Reset_="Validador de billetes Totales han sido reseteados";
+    CMOS_Ram_Error_Data_Recovered_="Datos de error de RAM CMOS recuperados";
+    CMOS_Ram_Error_No_Data_Recovered_="Error de RAM CMOS sin datos recuperados";
+    CMOS_Ram_Error_Bad_device_="CMOS RAM error mal dispositivo";
+    Billete_falso_="Ingreso de billete falso";
+    EEPROM_Error_data_="Datos de error de EEPROM";
+    EEPROM_Error_Bad_device_="Error de EEPROM dispositivo malo";
+    EEPROM_Error_Diferent_checksum_vchanged_="Error de EEPROM version de checksum cambiada";
+    EEPROM_Error_Bad_checksum_compare_="Error de EEPROM checksum incorrecta";
+    Partitioned_EEPROM_Error_Bad_checksum_v_="Error de EEPROM particionado de versión de checksum incorrecta";
+    Partitioned_EEPROM_Error_Bad_checksum_c_="Comparación de checksum incorrecta Error de EEPROM particionado";
+    Memory_Error_Reset_="Error reinicio de memoria";
 }

@@ -206,7 +206,7 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Bootloader_Enable=false;
     SD_INSERT_=false;
     Flag_Memoria_SD_Full_=false;
-    
+    Reset_Handay_OK_=0x04;
 
 }
 
@@ -259,6 +259,26 @@ void Variables_Globales::Set_Variable_Global_String(int Filtro, String Dato)
         break;
     case Temperatura_procesador:
         Temperatura_procesador_=Dato;
+        break;
+    }
+}
+
+void Variables_Globales::Set_Variable_Global_Char(int filtro,char Dato)
+{
+    switch (filtro)
+    {
+    case Reset_Handay_OK:
+        Reset_Handay_OK_=Dato;
+        break;
+    }
+}
+
+char Variables_Globales::Get_Variable_Global_Char(int filtro)
+{
+    switch (filtro)
+    {
+    case Reset_Handay_OK:
+        return Reset_Handay_OK_;
         break;
     }
 }

@@ -80,6 +80,51 @@ bool Eventos_SAS::Set_evento(char evento)
         Evento_SAS = evento;
         return true;
         break;
+    case 0x31: /*CMOS RAM ERROR (data recovered EEPROM)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x32: /*CMOS RAM ERROR (no data recovered EEPROM)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x33: /*CMOS RAM ERROR(bad device)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x2C: /* Billete falso  detectado*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x34: /*EEPROM error (data error)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x35: /*EEPROM error (bad device)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x36: /*EEPROM error (diffent checksum version changed)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x37: /*EPROM error bad checksum compare*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x38: /*Partitioned EEPROM error (checksum version changed)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x39: /*Partitioned EEPROM error (bad checksum compare)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+    case 0x3A: /*Memory error reset (operador used self test)*/
+        Evento_SAS = evento;
+        return true;
+        break;
+
     default:
         Evento_SAS = 0x00;
         return false;

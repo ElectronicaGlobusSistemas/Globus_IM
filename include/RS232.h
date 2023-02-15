@@ -97,6 +97,8 @@ void Calcula_Cancel_Credit_IRT(void);
 void Calcula_Bill_In_550(void);
 void Escribe_Tarjeta_Mecanica(char *buf);
 void Interroga_Info_Cashless(void);
+void Transmite_Reset_Handpay(void);
+bool Reset_HandPay(void);
 extern unsigned long Bandera_RS232;
 extern unsigned long Bandera_RS232_F;
 //---------------------------------------------------------------------------------------------------------------
@@ -125,7 +127,7 @@ bool Act_Current_Credits = false;
 #define flag_encuesta_premio 3
 #define escribe_tarjeta_mecanica 4
 #define Encuesta_Info_Cashless   5
-
+#define Flag_Reset_Handpay       6
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
@@ -318,6 +320,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           #endif
           ACK_Maq = true;
         }
+        
+      }
+      if (buffer[3] == 0xF3 && buffer[4] == 0x07||buffer[3]==0xE1 &&buffer[4]==0x24)
+      {
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK,buffer[2]);
       }
 
       if (buffer[0] == 0x01 && conta_bytes > 1)
@@ -918,6 +925,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               }
 
             }
+            
 
             else if (buffer[1] == 0x1B)
             {
@@ -1180,6 +1188,11 @@ void Encuestas_Maquina(void *pvParameters)
           Interroga_Info_Cashless();
           Handle_Maquina = 0;
           Serial.println("Encuesta info Cashless");
+          break;
+        case Flag_Reset_Handpay:
+          Transmite_Reset_Handpay();
+          Handle_Maquina = 0;
+          Serial.println("Transmite reset Handpay");
           break;
         default:
           Handle_Maquina = 0;
@@ -2209,8 +2222,6 @@ void Interroga_Info_Cashless(void)
   Transmite_Poll_Long(0x00);
   Transmite_Poll_Long(0xC6);
   Transmite_Poll_Long(0x68);
-  
- 
 }
 
 
@@ -2255,6 +2266,29 @@ bool Verifica_Premio_1B(void)
   {
     return false;
   }
+}
+
+bool Reset_HandPay(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = Flag_Reset_Handpay;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+void Transmite_Reset_Handpay(void)
+{
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x94);
+  Transmite_Poll_Long(0x75);
+  Transmite_Poll_Long(0xCB);
 }
 
 void Encuesta_contador_1B(void)

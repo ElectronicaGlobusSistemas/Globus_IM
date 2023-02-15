@@ -35,7 +35,7 @@ Tabla_Eventos Tabla_Evento;
 #include "Config_Perifericos.h"
 
 /*--------------------------------------->Debug Comunicación Maquina <------------------------------*/
-//#define Debug_Comunicacion_MQ
+#define Debug_Comunicacion_MQ
 //#define Debug_Memoria_SD
 /*--------------------------------------------------------------------------------------------------*/
 
@@ -54,7 +54,7 @@ unsigned long Timeout_RS232=8000;
 unsigned long Excepcion=0;
 bool Fallo_Comunicacion=false;
 void Check_Comunicacion_Maq(void);
-
+bool Ftp_Out=false;
 
 void setup()
 {

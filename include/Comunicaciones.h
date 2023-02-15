@@ -2,6 +2,7 @@
 #include "Memory_SD.h"
 #include <iostream>
 #include <string>
+#include <nvs_flash.h>
 #define ID_Contadores_Accounting 3
 #define ID_Billetes 4
 #define ID_Eventos 5
@@ -55,6 +56,10 @@ unsigned long Start_Timer=0;
 unsigned long Finally_Timer=0;
 unsigned long Inter_Timer=60000; // 1 minuto
 
+unsigned Start_=0;
+unsigned Finally_=0;
+unsigned Inter_=20000; 
+bool Flash_OK=false;
 #define Hopper_Enable 14
 
 void Task_Procesa_Comandos(void *parameter);
@@ -1213,7 +1218,7 @@ void Task_Procesa_Comandos(void *parameter)
                 else
                     Transmite_Confirmacion('A', '0');
                 break;
-            
+                
             case 5:
                 Serial.println("Solicitud de Eventos SAS");
                 Transmite_Eventos();
@@ -1422,7 +1427,7 @@ void Task_Procesa_Comandos(void *parameter)
                     Transmite_Confirmacion('A', '9');
                 break;
             
-            case 320:
+            case 502:
                 if (res[4] - 48 < 3 && res[4] - 48 != 0)
                 {
                     Serial.println("Solicitud de configuración Puerto COM RS232");
@@ -1435,6 +1440,50 @@ void Task_Procesa_Comandos(void *parameter)
                 {
                     Serial.println("Puerto COM no existe!");
                 }
+                break;
+            case 320:
+                if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                {
+                    Reset_HandPay();
+                    switch (Variables_globales.Get_Variable_Global_Char(Reset_Handay_OK))
+                    {
+                    
+                    case 0x00: /*Reset realizado con exito*/
+                        Transmite_Confirmacion('C','0');
+                        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK,0x04);
+                        break;
+                    case 0x01: /*No existe condición de reset*/
+                        Transmite_Confirmacion('C','1');
+                        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK,0x04);
+                        break;
+                    case 0x02:/*Imposible realizar reset*/
+                        Transmite_Confirmacion('C','2');
+                        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK,0x04);
+                        break;
+
+                    case 0x04: /* No  hay respuesta de la maquina*/
+                        Transmite_Confirmacion('C','4');
+                        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK,0x04);
+                        break;
+                    }
+                }else
+                    Transmite_Confirmacion('A', '0');
+                break;
+            case 500:
+                //Finally_ = Start_;
+                nvs_flash_erase();
+                nvs_flash_init();
+                while (Flash_OK==false)
+                {
+                    Start_ = millis();
+                    if ((Start_ - Finally_) >= Inter_)
+                    {
+                         ESP.restart();
+                         Flash_OK=true;
+                         Finally_ = Start_;
+                    }
+                }
+                ESP.restart();
                 break;
             default:
                 Serial.println(Comando_Recibido());

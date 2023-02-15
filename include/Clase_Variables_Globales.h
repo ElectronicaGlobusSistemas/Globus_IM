@@ -37,6 +37,7 @@ using namespace std;
 #define Consulta_Info_Cashless_OK   29
 #define SD_INSERT                   35  /*Estado de memoria insertada [1] no insertada [0]*/
 #define Flag_Memoria_SD_Full        36 /*Estado de memoria llena [1] o libre [0]*/
+#define Reset_Handay_OK             37 /*estado de handpay*/
 class Variables_Globales
 {
 private:
@@ -71,6 +72,7 @@ private:
     bool Consulta_info_Cashless_OK_;
     bool SD_INSERT_;
     bool Flag_Memoria_SD_Full_;
+    char Reset_Handay_OK_;
 public:
     void Init_Variables_Globales();
     void Set_Variable_Global(int Filtro, bool Change_estado);
@@ -78,4 +80,6 @@ public:
     String Get_Encabezado_Maquina(int Filtro);
     String Get_Variables_Global_String(int filtro);
     void Set_Variable_Global_String(int Filtro, String Dato);
+    void Set_Variable_Global_Char(int filtro,char Dato);
+    char Get_Variable_Global_Char(int filtro);
 };

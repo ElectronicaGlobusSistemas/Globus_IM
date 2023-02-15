@@ -52,6 +52,18 @@ uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 void Init_Config(void)
 
 {
+    pinMode(16,INPUT_PULLDOWN);
+    pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
+    pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
+    pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
+    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
+    pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
+    pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
+    pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
+    pinMode(33,OUTPUT);
+    pinMode(32,OUTPUT);
+    
+    Init_Indicadores_LED();         //  Reset Indicadores LED'S LOW.
     //---------------------------> Version de programa <----------------
     Inicializa_Buffer_Eventos(); /*Inicializa Buffer de Eventos*/
     //------------------------------------------------------------------
@@ -63,27 +75,6 @@ void Init_Config(void)
    // pinMode(5, OUTPUT); // Define como salida Selector de Esclavo SPI SS1 SD.
     
    // digitalWrite(5,HIGH); // Desactiva  Esclavo SPI SS1 SD.
-    pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
-    pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
-    pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
-    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
-    pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
-    pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
-    
-    pinMode(33,OUTPUT);
-    pinMode(32,OUTPUT);
-    digitalWrite(33,HIGH);
-    digitalWrite(32,HIGH);
-    /*
-    pinMode(0,INPUT_PULLUP);
-   
-    pinMode(33,OUTPUT);
-    pinMode(32,OUTPUT);
-    */
-    Init_Indicadores_LED();         //  Reset Indicadores LED'S LOW.
-    pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
-    
-
     
     //---------------------------------------------------------------
 
@@ -341,6 +332,8 @@ void Init_Indicadores_LED(void)
     digitalWrite(MCU_Status_2, LOW);
     digitalWrite(WIFI_Status, LOW);
     digitalWrite(MCU_Status_2,LOW);
+    digitalWrite(33,HIGH);
+    digitalWrite(32,HIGH);
 }
 
 void Init_Configuracion_Inicial(void)
@@ -460,8 +453,8 @@ void Init_Configuracion_Inicial(void)
     if (!NVS.isKey("PASS_DESA")) // Configura PASSWORD de conexion WIFI
     {
         Serial.println("Guardando Password por defecto...");
-        String password = "Globus#OnlineW324";
-       // String password = "Globus2020*";
+          String password = "Globus#OnlineW324";
+        //String password = "Globus2020*";
         NVS.putString("PASS_DESA", password);
     }
 
@@ -702,6 +695,10 @@ void FromFloatTobyte(byte* bytes, float dato)
 void Config_Red_Serial(String Comando)
 {
     String Red="";
+    bool Flash_OK_=false;
+    unsigned long Tm=0;
+    unsigned long Tf=0;
+    int inter_v=20000;
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
     {
 
@@ -893,6 +890,23 @@ void Config_Red_Serial(String Comando)
                 Serial.println(Ssd);
         }
         */
+        else if(Comando=="FLASHOK")
+        {
+            nvs_flash_erase();
+            nvs_flash_init();
+            while (1)
+            {
+                Serial.println("Borrando datos...");
+                Tm = millis();
+                if ((Tm - Tf) >= inter_v)
+                {
+                    Tf=Tm;
+                    ESP.restart();
+                    break;
+                }
+            }
+            ESP.restart();
+        }
         else if(Comando[0]=='P' &&Comando[1]=='U'&&Comando[2]=='E'&&Comando[3]=='R'&&Comando[4]=='T'&&Comando[5]=='O')
         {
             if(Comando[6]==49)
