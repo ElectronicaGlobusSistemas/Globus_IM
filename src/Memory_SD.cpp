@@ -46,7 +46,7 @@ char Archivo_LOG_copy[100];
 extern bool Archivos_Ready;
 int Valida_Archivos_Eliminados=0;
 int Mes_Limite=4;
-
+bool Borrado_completado=false;
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Objetos Extern <------------------------------------------
@@ -579,58 +579,76 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
       
       if (Espacio_Usado_MB >= Limite_MB || Variables_globales.Get_Variable_Global(Libera_Memoria_OK) == true) // 80%  del espacio de Memoria Utilizada.
       {
-        if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+        if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)&&Variables_globales.Get_Variable_Global(SD_INSERT)==true)
         {
+          Borrado_completado=false;
           Variables_globales.Set_Variable_Global(Libera_Memoria_OK, true);
           Contador_Dias++;
-          int Eliminar_Mes = 1 - Mes_Limite;
+
+           if(Contador_Dias>31)
+          {
+            Mes_Limite++;
+            Contador_Dias=1;
+          }
+          /* 6-4*/
+          int Eliminar_Mes = month_copy - Mes_Limite;
           int Eliminar_year = year_copy;
-          if (Eliminar_Mes < 0)
+          int Limite_Mes=month_copy-3;
+          if(Limite_Mes<=0)
+          {
+            Limite_Mes=Limite_Mes+12;
+          }
+
+          if (Eliminar_Mes <=0)
           {
             Eliminar_Mes = Eliminar_Mes + 12;
             Eliminar_year = Eliminar_year - 1;
           }
-          if (Eliminar_Mes == 0)
+          
+          if(Eliminar_Mes<=0)
           {
-            Eliminar_Mes = 1;
             Mes_Limite=4;
+            Borrado_completado=true;
           }
 
-          String Name_Archivo_Contadores = "Contadores-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
-          String Name_Archivo_Eventos = "Eventos-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
-          String Name_Archivo_LOG = "Log-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".TXT";
-          strcpy(Archivo_CSV_Contadores_copy, Name_Archivo_Contadores.c_str());
-          strcpy(Archivo_CSV_Eventos_copy, Name_Archivo_Eventos.c_str());
-          strcpy(Archivo_LOG_copy, Name_Archivo_LOG.c_str());
+          if (Eliminar_Mes != month_copy && Borrado_completado==false&& Eliminar_Mes>0 && Eliminar_Mes<13)
+          {
+            String Name_Archivo_Contadores = "Contadores-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
+            String Name_Archivo_Eventos = "Eventos-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
+            String Name_Archivo_LOG = "Log-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".TXT";
+            strcpy(Archivo_CSV_Contadores_copy, Name_Archivo_Contadores.c_str());
+            strcpy(Archivo_CSV_Eventos_copy, Name_Archivo_Eventos.c_str());
+            strcpy(Archivo_LOG_copy, Name_Archivo_LOG.c_str());
 
-          if (Remove_Archive(Archivo_CSV_Contadores_copy))
-          {
-            Valida_Archivos_Eliminados++;
-          }
-          if (Remove_Archive(Archivo_CSV_Eventos_copy))
-          {
-            Valida_Archivos_Eliminados++;
-          }
-          if (Remove_Archive(Archivo_LOG_copy))
-          {
-            Valida_Archivos_Eliminados++;
-          }
-
-          if (Contador_Dias >= 2)
-          {
-            Contador_Dias = 0;
-            if (Valida_Archivos_Eliminados >=80 && Espacio_Usado_MB < Limite_MB)
+            if (Remove_Archive(Archivo_CSV_Contadores_copy))
             {
+              Valida_Archivos_Eliminados++;
+            }
+            if (Remove_Archive(Archivo_CSV_Eventos_copy))
+            {
+              Valida_Archivos_Eliminados++;
+            }
+            if (Remove_Archive(Archivo_LOG_copy))
+            {
+              Valida_Archivos_Eliminados++;
+            }
+          }
 
+          if (Espacio_Usado_MB <= (Limite_MB / 2)||Espacio_Usado_MB<=(Limite_MB*0.6))
+          {
+            Variables_globales.Set_Variable_Global(Libera_Memoria_OK, false);
+            if(Variables_globales.Get_Variable_Global(Libera_Memoria_OK)==false)
+            {
+              Borrado_completado=true;
+              Mes_Limite = 4;
               Valida_Archivos_Eliminados = 0;
-              Variables_globales.Set_Variable_Global(Libera_Memoria_OK, false);
+              Contador_Dias = 0;
               #ifdef Debug_Escritura
               Serial.println("Memoria Liberada");
               #endif
               return 0;
-            }else{
-              Mes_Limite++;
             }
+            return 0;
           }
           return 1;
         }

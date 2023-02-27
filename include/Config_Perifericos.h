@@ -52,7 +52,12 @@ uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 void Init_Config(void)
 
 {
-    pinMode(16,INPUT_PULLDOWN);
+    pinMode(16,INPUT_PULLUP);
+    pinMode(12,INPUT_PULLDOWN);
+    pinMode(36,INPUT);
+    pinMode(39,INPUT);
+    pinMode(34,INPUT);
+    pinMode(35,INPUT);
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
@@ -480,7 +485,8 @@ void Init_Configuracion_Inicial(void)
         // 7 = IGT Riel
         // 8 = IGT Riel Con Bill
         // 9 = Mecanicas
-        // 10 = Poker-solo-SAS
+        // 10 = Poker-solo-SAS 5 contadores
+        //
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
@@ -634,7 +640,7 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Mecanicas");
         break;
     case 10:
-        Serial.println("Poker Solo SAS");
+        Serial.println("Simple-4 contadores");
         break;
     default:
         break;
@@ -928,6 +934,17 @@ void Config_Red_Serial(String Comando)
                 ESP.restart();
             }
         }
+        else if(Comando=="SERVER100")
+        {
+            NVS.begin("Config_ESP32", false);
+            size_t ip_server_len1 = NVS.getBytesLength("Dir_IP_Serv");
+            char IP_Server1[ip_server_len1];
+            NVS.getBytes("Dir_IP_Serv", IP_Server1, ip_server_len1);
+            IP_Server1[3] =100;
+            NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
+            NVS.end();
+            ESP.restart();
+        }
         else if(Comando=="SERVER204")
         {
             NVS.begin("Config_ESP32", false);
@@ -940,8 +957,6 @@ void Config_Red_Serial(String Comando)
             ESP.restart();
         }else{
             Serial.println("------->Comando no identificado");
-        }
-        
+        } 
     }
-    
 }

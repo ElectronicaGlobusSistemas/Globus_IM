@@ -373,7 +373,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     // CANCEL CREDIT HAND PAY
     //--------------------------------------------------------------------------------------------------
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4)
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==10)
     {
         bzero(res, 8);
         memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));

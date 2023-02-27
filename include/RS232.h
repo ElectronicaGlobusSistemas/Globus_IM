@@ -82,7 +82,7 @@ void Encuestas_Maquinas_EFT(void);
 void Encuestas_Maquinas_IGT_Riel(void);
 void Encuestas_Maquinas_IGT_Riel_Bill(void);
 void Encuestas_Mecanicas(void);
-
+void Encuestas_Maquinas_Simple(void);
 void Encuesta_Billetes(void);
 bool Inactiva_Maquina(void);
 void Transmite_Inactiva_Maquina(void);
@@ -99,6 +99,8 @@ void Escribe_Tarjeta_Mecanica(char *buf);
 void Interroga_Info_Cashless(void);
 void Transmite_Reset_Handpay(void);
 bool Reset_HandPay(void);
+void _Transmite_Encuesta_Creditos_D_Premio(void);
+bool Encuesta_Creditos_Premio(void);
 extern unsigned long Bandera_RS232;
 extern unsigned long Bandera_RS232_F;
 //---------------------------------------------------------------------------------------------------------------
@@ -128,6 +130,7 @@ bool Act_Current_Credits = false;
 #define escribe_tarjeta_mecanica 4
 #define Encuesta_Info_Cashless   5
 #define Flag_Reset_Handpay       6
+#define Flag_Creditos_Premio     7
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
@@ -145,7 +148,7 @@ void Init_UART2()
   };
 
   uart_param_config(NUMERO_PORTA_SERIALE, &Configurazione_UART2);
-  ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
+ // ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
 
    // Inicializa configuracion tipo de maquina
     NVS.begin("Config_ESP32", false);
@@ -163,6 +166,7 @@ void Init_UART2()
 
   //uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
+  
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
   xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 5048, NULL, configMAX_PRIORITIES, &RecepcionRS232, 1); // Máx Priority principal
   xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 15, &Encuestas, 1);
@@ -1194,6 +1198,13 @@ void Encuestas_Maquina(void *pvParameters)
           Handle_Maquina = 0;
           Serial.println("Transmite reset Handpay");
           break;
+
+        case Flag_Creditos_Premio:
+          _Transmite_Encuesta_Creditos_D_Premio();
+          Handle_Maquina=0;
+          Serial.println("Encuesta creditos..");
+          Variables_globales.Set_Variable_Global(Flag_Creditos_D_P,true);
+          break;
         default:
           Handle_Maquina = 0;
           break;
@@ -1235,8 +1246,9 @@ void Encuestas_Maquina(void *pvParameters)
           Encuestas_Mecanicas();
           break;
         case 10:
-          Encuestas_Maquinas_Genericas();
+          Encuestas_Maquinas_Simple();
           break;
+
         default:
           break;
         }
@@ -1345,7 +1357,76 @@ void Add_String_Hora_EVEN(String Horario)
   SD_EVEN += String(","); // Add Separador
 }
 //---------------------------- Maneja Encuestas Maquina - Tipo MAQ ----------------------------------------------
+void Encuestas_Maquinas_Simple(void)
+{
+  Conta_Encuestas++;
+  switch (Conta_Encuestas)
+  {
 
+  case 1:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
+    Transmite_Poll(0x10);
+    break;
+  case 2:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    Transmite_Poll(0x11);
+    break;
+  case 3:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    Transmite_Poll(0x12);
+    break;
+  case 4:
+    #ifdef Debug_Encuestas
+    Serial.println("Jackpot"); // Jackpot
+    #endif
+    Transmite_Poll(0x14);
+    break;
+  case 5:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Drop"); // total drop
+    #endif
+    Transmite_Poll(0x13);
+    break;
+  case 6:
+    #ifdef Debug_Encuestas
+    Serial.println("Current Credits");
+    #endif
+    Transmite_Poll(0x1A);
+    break;
+  case 7:
+    #ifdef Debug_Encuestas
+    Serial.println("Games Played"); // Games played
+    #endif
+    Transmite_Poll(0x15);
+    break;
+  case 8:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 1C - Door Open Metter");
+    #endif
+    Transmite_Poll(0x1C);
+    break;
+  case 9:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
+    Transmite_Poll(0x18);
+    break;
+  case 10:
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+    Transmite_Poll(0x1F);
+    Conta_Encuestas = 0;
+    flag_ultimo_contador_Ok = true;
+    break;
+  }
+}
 // Encuestas Maquinas Genericas
 void Encuestas_Maquinas_Genericas(void)
 {
@@ -2210,6 +2291,31 @@ bool Activa_Maquina(void)
   }
 }
 
+
+bool  Encuesta_Creditos_Premio(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = Flag_Creditos_Premio;
+  delay(600);
+
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+} 
+
+void _Transmite_Encuesta_Creditos_D_Premio(void)
+{
+   #ifdef Debug_Encuestas
+    Serial.println("Encuesta Current Credits");
+    #endif
+    Transmite_Poll(0x1A);
+}
 //------------------------------> Transmite info cashless <---------------------------------------
 
 void Interroga_Info_Cashless(void)

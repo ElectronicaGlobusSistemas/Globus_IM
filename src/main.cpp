@@ -74,11 +74,12 @@ void Check_Comunicacion_Maq(void)
 {
   Bandera_RS232 = millis();
   Msg_RS232 = millis();
-
+  
   if (Excepcion == 0)
   {
     Excepcion = 1;
-    Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+   // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+   Fallo_Comunicacion=true;
   }
 
   if (Bandera_RS232 - Bandera_RS232_F >= Timeout_RS232)

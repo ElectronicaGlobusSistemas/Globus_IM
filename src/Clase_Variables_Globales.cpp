@@ -82,6 +82,10 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Memoria_SD_Full: 
         return Flag_Memoria_SD_Full_;
         break;
+
+    case Flag_Creditos_D_P:
+        return Flag_Creditos_D_Premio_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -163,6 +167,10 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Memoria_SD_Full:
         Flag_Memoria_SD_Full_=Change_estado;
         break;
+
+    case Flag_Creditos_D_P:
+        Flag_Creditos_D_Premio_=Change_estado;
+        break;
     }
 }
 
@@ -207,7 +215,7 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     SD_INSERT_=false;
     Flag_Memoria_SD_Full_=false;
     Reset_Handay_OK_=0x04;
-
+    Flag_Creditos_D_Premio_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
