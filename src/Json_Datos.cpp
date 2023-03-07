@@ -34,7 +34,7 @@ String Buffer_Json_info_IM(
     Comando["Version_Firmware"]=Version_Firware;
     Comando["Fecha_Bootlader"]=Fecha_Bl;
     Comando["Hopper_Enable"]=Hopper;
-    JsonObject INFOTARJETA_0_Info_Memoria = Comando.createNestedObject("Info Memoria");
+    JsonObject INFOTARJETA_0_Info_Memoria = Comando.createNestedObject("Info_Memoria");
     // Info SD
     INFOTARJETA_0_Info_Memoria["Estatus_SD"]=Status_SD;
     INFOTARJETA_0_Info_Memoria["Memoria"] = EM;
@@ -72,7 +72,7 @@ String Buffer_Json_info_Cashless(
 
     String Buffer_Out;
     JsonObject Comando;
-    Comando = doc["INFO CASHLESS"].createNestedObject();
+    Comando = doc["INFO_CASHLESS"].createNestedObject();
 
     //INFO GENERAL
     Comando["AFT_l"]=AFT_Game_Lock_and_Status;

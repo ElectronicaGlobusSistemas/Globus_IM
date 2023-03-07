@@ -12,7 +12,13 @@ unsigned long count2 = 0;
 #define Debug_Escritura
 #define Info_SD
 extern char Archivo_LOG[100];
-
+#define FLASH_RESET_Pin  35
+#define MCU_Status      2
+#define WIFI_Status     15
+#define Reset_Config    27
+#define Hopper_Enable   14
+#define MCU_Status_2    25
+#define Unlock_Machine  26
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Archivos Header <-----------------------------------------
@@ -27,7 +33,7 @@ extern char Archivo_LOG[100];
 #include "ESP32Time.h"
 #include "time.h"
 #include "ESP32FtpServer.h"
-
+#include "nvs_flash.h"
 
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
@@ -62,6 +68,10 @@ extern int year_copy;
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
 extern bool Ftp_Out;
+int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
+
+#include "Configuracion.h"
+extern Configuracion_ESP32 Configuracion;
 void Init_SD(void)
 {
   
@@ -76,8 +86,9 @@ void Init_SD(void)
     Variables_globales.Set_Variable_Global(SD_INSERT,false);
     digitalWrite(SD_Status,LOW);
   }
-  
-  xTaskCreatePinnedToCore(
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+  {
+    xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_SD, //  Función a implementar la tarea.
       "SD_Check",                //  Nombre de la tarea
       10000,                     //  Tamaño de stack en palabras (memoria)
@@ -86,6 +97,8 @@ void Init_SD(void)
       &SD_CHECK,                 //  Manejador de la tarea.
       1);                        //  Core donde se ejecutara.
       int T=100;
+  }
+  
   
 }
 //------------------------------------------------------------------------------------------------------
@@ -152,7 +165,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
   #ifdef Info_SD
   Serial.println("Verificador de Memoria SD Activado");
   #endif
-  int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
+ 
   for (;;)
   {
     if(Ftp_Out==true)
@@ -187,6 +200,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
         Serial.println(Intento_Connect_SD);   // Imprime conteo de Fallos.
         #endif
         Intento_Connect_SD++;
+        
         digitalWrite(SD_Status, LOW); // Apaga Indicador LED SD Status.
         Variables_globales.Set_Variable_Global(Enable_SD, false);
         Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, "0000");
@@ -194,6 +208,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
         Variables_globales.Set_Variable_Global_String(Size_SD, "0000");
         //Sd_Mont = false;
         Variables_globales.Set_Variable_Global(SD_INSERT,false);
+        
       }
     }
     else
@@ -248,7 +263,7 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       }
       
     }
-    vTaskDelay(10000); // Pausa Tarea 10000ms
+    vTaskDelay(9000); // Pausa Tarea 10000ms
   }
   vTaskDelay(10);
 }
@@ -668,3 +683,28 @@ void Nueva_Carpeta(char *Carpeta)
   SD.mkdir(Carpeta);
 }
 //--------------------------------------------------------------------------------------------------------
+void FLASH_RESET(void)
+{
+   bool RESET_FLASH = LOW;
+    while (digitalRead(FLASH_RESET_Pin) == LOW)
+    {
+        if (millis() > 10000)
+        {
+          digitalWrite(WIFI_Status,  LOW);
+          Serial.println ("FLASHOK..................");
+          for (int i = 0; i < 50; i++)
+          {
+            nvs_flash_erase();
+            nvs_flash_init();
+            RESET_FLASH = !RESET_FLASH;
+            digitalWrite(MCU_Status,   !RESET_FLASH);
+            digitalWrite(SD_Status,    !RESET_FLASH);
+            digitalWrite(MCU_Status_2, !RESET_FLASH);
+            digitalWrite(WIFI_Status,  !RESET_FLASH);
+            delay(100);
+          }
+          ESP.restart();
+        }
+    }
+    return;
+}

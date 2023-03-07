@@ -1082,7 +1082,18 @@ bool Buffers::Set_buffer_info_tarjeta(int Com)
     Fecha_Bootlader=String(char(Datos_Fecha_B[6]))+String(char(Datos_Fecha_B[7]))+String(char(Datos_Fecha_B[8]))+String(char(Datos_Fecha_B[9]))+String(char(Datos_Fecha_B[10]))+String(char(Datos_Fecha_B[11]));
    // Serial.println(Fecha_Bootlader);
     /*Status SD*/
-
+    if(req[30]==NULL&& req[33]==NULL&&req[36]==NULL)
+    {
+        req[30] = '0';
+        req[31] = '0';
+        req[32] = '|';
+        req[33] = '0';
+        req[34] = '0';
+        req[35] = '|';
+        req[36] = '0';
+        req[37] = '0';
+        req[38] = '|';
+    }
     req[39]=convert(Variables_globales.Get_Variable_Global(Estado_Escritura));
     req[40]='|';
     /*Información de memoria*/
@@ -1123,6 +1134,7 @@ bool Buffers::Set_buffer_info_tarjeta(int Com)
         req[51] = '0';
         req[52] = '0';
     }
+    
     req[53]='|';
     /*MODO FTP */
     req[54]=convert(Variables_globales.Get_Variable_Global(Ftp_Mode));

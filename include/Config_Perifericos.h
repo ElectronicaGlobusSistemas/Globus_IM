@@ -6,13 +6,14 @@
 #include <SD.h>
 
 //-------------------> Parametros <-------------------------------
-#define Clock_frequency 80//240//
+#define Clock_frequency 240//240//
 #define MCU_Status      2
 #define WIFI_Status     15
 #define Reset_Config    27
 #define Hopper_Enable   14
 #define MCU_Status_2    25
 #define Unlock_Machine  26
+#define FLASH_RESET_Pin  35
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
@@ -52,21 +53,26 @@ uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 void Init_Config(void)
 
 {
-    pinMode(16,INPUT_PULLUP);
+    /* Define entradas */
+   // pinMode(16,INPUT_PULLUP);
     pinMode(12,INPUT_PULLDOWN);
     pinMode(36,INPUT);
     pinMode(39,INPUT);
     pinMode(34,INPUT);
-    pinMode(35,INPUT);
+    pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
+    pinMode(Hopper_Enable, INPUT_PULLDOWN);  // Reset_Config como Entrada.
+    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
+    /* Define Salidas*/
     pinMode(SD_Status, OUTPUT);     // SD Status Como Salida.
     pinMode(MCU_Status, OUTPUT);    // MCU_Status Como Salida.
     pinMode(WIFI_Status, OUTPUT);   // Wifi_Status como Salida.
-    pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
-    pinMode(Hopper_Enable, INPUT);  // Reset_Config como Entrada.
+    
+    pinMode(33, OUTPUT);  
+    digitalWrite(33,HIGH);
+
     pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
     pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
-    pinMode(33,OUTPUT);
-    pinMode(32,OUTPUT);
+
     
     Init_Indicadores_LED();         //  Reset Indicadores LED'S LOW.
     //---------------------------> Version de programa <----------------
@@ -87,12 +93,13 @@ void Init_Config(void)
     RTC.setTime(0, 12, 10, 9, 6, 2022);
    
     //---------------------------------------------------------------
+    FLASH_RESET(); /* FLASH Reset  Manual*/
     //-------------------> Reset valores NVS <-----------------------
     Reset_Configuracion_Inicial();
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
-
+   
     //-----------------> Config Comunicación Maquina <---------------
     Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
     //---------------------------------------------------------------
@@ -103,6 +110,9 @@ void Init_Config(void)
     //------------------> Init Memoria SD <--------------------------
     Init_SD(); // Inicializa Memoria SD.
     //---------------------------------------------------------------
+   // SD_FORMATT();
+    
+
     CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
     init_Comunicaciones(); // Inicializa Tareas TCP
     //--------------------> Task  SERVER <---------------------------
@@ -317,11 +327,12 @@ static void ManagerTasks(void *parameter)
             Variables_globales.Set_Variable_Global(Ftp_Mode, false);
             vTaskSuspend(Ftp_SERVER);
         }
-        if (WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
+        
+        if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
         {
-            ArduinoOTA.handle2();
+           ArduinoOTA.handle2();
         }
-
+        
         delay(100);
         vTaskDelay(1000);
     }
@@ -330,13 +341,12 @@ static void ManagerTasks(void *parameter)
 
 void Init_Indicadores_LED(void)
 {
+    digitalWrite(WIFI_Status, HIGH);
     digitalWrite(Unlock_Machine,HIGH);
-    digitalWrite(SD_ChipSelect, LOW);
+   // digitalWrite(SD_ChipSelect, LOW);
     digitalWrite(SD_Status, LOW);
     digitalWrite(MCU_Status, LOW);
-    digitalWrite(MCU_Status_2, LOW);
-    digitalWrite(WIFI_Status, LOW);
-    digitalWrite(MCU_Status_2,LOW);
+    digitalWrite(MCU_Status_2, HIGH);
     digitalWrite(33,HIGH);
     digitalWrite(32,HIGH);
 }
@@ -656,6 +666,7 @@ void Reset_Configuracion_Inicial(void)
     bool MCU_State = LOW;
     while (digitalRead(Reset_Config) == LOW)
     {
+        digitalWrite(WIFI_Status,LOW);
         if (millis() > 10000)
         {
             Serial.println("Reset activado............................");

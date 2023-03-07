@@ -123,14 +123,16 @@ bool Act_Coin_in_Poker = false;
 bool Act_Coin_out_Poker = false;
 bool Act_Bill_Poker = false;
 bool Act_Current_Credits = false;
+int Cuenta_Save_Mecanicas=0;
 
-#define flag_bloquea_Maquina 1
-#define flag_desbloquea_Maquina 2
-#define flag_encuesta_premio 3
+#define flag_bloquea_Maquina     1
+#define flag_desbloquea_Maquina  2
+#define flag_encuesta_premio     3
 #define escribe_tarjeta_mecanica 4
 #define Encuesta_Info_Cashless   5
 #define Flag_Reset_Handpay       6
 #define Flag_Creditos_Premio     7
+#define Actualiza_Machine        8
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
@@ -145,6 +147,7 @@ void Init_UART2()
       .parity = UART_PARITY_DISABLE,
       .stop_bits = UART_STOP_BITS_1,
       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+     // .rx_flow_ctrl_thresh = 122, /* Add Flow*/
   };
 
   uart_param_config(NUMERO_PORTA_SERIALE, &Configurazione_UART2);
@@ -309,7 +312,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           conta_bytes++;
         }
         //        Serial.println();
-        Bandera_RS232_F=Bandera_RS232;
+       
+        
       }
       
       
@@ -361,6 +365,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           {
             if (Buffer.Verifica_buffer_Mecanicas(&buffer[0], conta_bytes))
             {
+              Cuenta_Save_Mecanicas++;
               numero_contador++;
               int j = 1;
               for (size_t k = 0; k < 4; k++)
@@ -411,7 +416,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                       }
                       if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
                       {
-                        Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                        if(Cuenta_Save_Mecanicas>=30)
+                        {
+                          Cuenta_Save_Mecanicas=0;
+                          Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                        }
                       }
                       for (int i = 0; i < Max_Encuestas; i++)
                       {
@@ -465,8 +474,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
         {
+          
           if (Buffer.Verifica_buffer_Maq(buffer, conta_bytes))
           {
+            Bandera_RS232_F=Bandera_RS232;
             numero_contador++;
 
             for (int index = 0; index < conta_bytes; index++)
@@ -496,12 +507,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               switch (buffer_contadores[1])
               {
               case 10:
-               
-                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 {
-                  contadores.Set_Contadores(Copia_Cancel_Credit,contador);   
+                  contadores.Set_Contadores(Copia_Cancel_Credit, contador);
                 }
-                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
                 {
                   contadores.Set_Contadores(Total_Cancel_Credit, contador);
                 }
@@ -518,7 +529,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               case 11:
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                {
                   Act_Coin_in_Poker = true;
+                }
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
                 {
                   Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ IGT Riel
@@ -535,7 +548,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               case 12:
                 contadores.Set_Contadores(Coin_Out, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                {
                   Act_Coin_out_Poker = true;
+                }
                 Add_Contador(contador, Coin_Out, false);
                 break;
               case 13:
@@ -555,6 +570,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   }
                 }
                 Add_Contador(contador, Total_Drop, false);
+                Add_Contador(contador, Bill_Amount, false);
                 break;
               case 14:
                 contadores.Set_Contadores(Jackpot, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
@@ -574,8 +590,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   contadores.Set_Contadores(Bill_Amount, res);
                 }
                 else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
-                  Calcula_Bill_In_550();
-
+                {
+                   Calcula_Bill_In_550();
+                }
                 Add_Contador(contador, Bill_Amount, false);
                 break;
               }
@@ -584,7 +601,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contadores.Set_Contadores(Current_Credits, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 Add_Contador(contador, Current_Credits, false);
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
+                {
                   Act_Current_Credits = true;
+                }
+                 
               }
             }
 
@@ -676,7 +696,14 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   }
                   if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
                   {
-                    Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina,0)==6&& Variables_globales.Get_Variable_Global(Flag_Hopper_Enable)==false)
+                    {
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                    }
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
+                    {
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                    }
                   }
                   for (int i = 0; i < Max_Encuestas; i++)
                   {
@@ -960,7 +987,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           }
           else
           {
-            // bzero(buffer, 128);
+             bzero(buffer, 128);
             #ifdef Debug_Contadores
             Serial.println("Error de CRC en contadores...");
             #endif
@@ -981,8 +1008,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
           if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN))
           {
-            try
-            {
               // Guarda Evento En Memoria SD.
               int Evento = eventos.Get_evento();
               String Descrip = Tabla_Evento.Get_Descrip_Eventos(Evento);
@@ -990,23 +1015,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Add_String_EVEN(String(Evento), true);                                                         // Agrega Tipo de Evento a String
               Add_String_EVEN(Descrip, false);                                                               // Agrega Descripción  de Evento a String
               Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
-
-            }
-            catch (const std::exception &e)
-            {
-              Serial.println(e.what());
-              // std::cerr << e.what() << '\n';
-            }
           }
         }
       }
-      bzero(buffer, 128); // Pone el buffer en 0
+      bzero(buffer, 128); // Pone el buffer en 0 /*Descomentar*/
+      
     }
-
-    else
-    {
-    }
-
     // If you want to break out of the loop due to certain conditions, set exit condition to true
     if (exit_condition)
     {
@@ -1015,6 +1029,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
   }
   vTaskDelay(10);
   free(UART2_data);
+  vTaskDelete(NULL);
 }
 //----------------------------------------------------------------------------------------------------------------------------
 unsigned long tiemp=0;
@@ -1119,7 +1134,7 @@ void Encuestas_Maquina(void *pvParameters)
       */
       break;
     case 9:
-      /*
+      
       if (numero_encuesta > 5) // Numero de encuestas realizadas a la maquina
       {
         if (numero_contador < 3) // Numero de respuestas recibidas por la maquina
@@ -1129,7 +1144,7 @@ void Encuestas_Maquina(void *pvParameters)
         numero_encuesta = 0;
         numero_contador = 0;
       }
-      */
+      
       break;
 
     case 10:
@@ -2315,6 +2330,18 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
     Serial.println("Encuesta Current Credits");
     #endif
     Transmite_Poll(0x1A);
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+    {
+      /*Encuesta para actualizar todos los contadores*/
+      Transmite_Poll(0x11);
+      delay(100);
+      Transmite_Poll(0x12);
+      delay(100);
+      Transmite_Poll(0x14);
+      delay(100);
+      Transmite_Poll(0x13);
+    }
 }
 //------------------------------> Transmite info cashless <---------------------------------------
 
