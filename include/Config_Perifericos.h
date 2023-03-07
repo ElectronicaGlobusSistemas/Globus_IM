@@ -53,13 +53,14 @@ uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 void Init_Config(void)
 
 {
+    pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
     /* Define entradas */
    // pinMode(16,INPUT_PULLUP);
     pinMode(12,INPUT_PULLDOWN);
     pinMode(36,INPUT);
     pinMode(39,INPUT);
     pinMode(34,INPUT);
-    pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
+    
     pinMode(Hopper_Enable, INPUT_PULLDOWN);  // Reset_Config como Entrada.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     /* Define Salidas*/
@@ -93,7 +94,7 @@ void Init_Config(void)
     RTC.setTime(0, 12, 10, 9, 6, 2022);
    
     //---------------------------------------------------------------
-    FLASH_RESET(); /* FLASH Reset  Manual*/
+  //  FLASH_RESET(); /* FLASH Reset  Manual*/
     //-------------------> Reset valores NVS <-----------------------
     Reset_Configuracion_Inicial();
     //--------------------> Init NVS Datos <-------------------------
