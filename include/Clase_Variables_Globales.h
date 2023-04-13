@@ -39,6 +39,12 @@ using namespace std;
 #define Flag_Memoria_SD_Full        36 /*Estado de memoria llena [1] o libre [0]*/
 #define Reset_Handay_OK             37 /*estado de handpay*/
 #define Flag_Creditos_D_P           38
+
+#define Flag_Trama_Completa         39
+#define Flag_Type_excepcion         40
+#define Flag_Crea_Archivos          41
+#define Flag_Archivos_OK            42
+
 class Variables_Globales
 {
 private:
@@ -75,6 +81,10 @@ private:
     bool Flag_Memoria_SD_Full_;
     char Reset_Handay_OK_;
     bool Flag_Creditos_D_Premio_;
+    bool Flag_Trama_Completa_;
+    int Flag_Type_excepcion_;
+    bool Flag_Crea_Archivos_;
+    bool Flag_Archivos_OK_;
 public:
     void Init_Variables_Globales();
     void Set_Variable_Global(int Filtro, bool Change_estado);
@@ -84,4 +94,6 @@ public:
     void Set_Variable_Global_String(int Filtro, String Dato);
     void Set_Variable_Global_Char(int filtro,char Dato);
     char Get_Variable_Global_Char(int filtro);
+    int Get_Variable_Global_Int(int filtro);
+    void Set_Variable_Global_Int(int filtro, int Change_estado);
 };

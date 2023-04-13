@@ -11,7 +11,6 @@ unsigned long count2 = 0;
 #define Debug_Status_SD
 #define Debug_Escritura
 #define Info_SD
-extern char Archivo_LOG[100];
 #define FLASH_RESET_Pin  35
 #define MCU_Status      2
 #define WIFI_Status     15
@@ -34,7 +33,7 @@ extern char Archivo_LOG[100];
 #include "time.h"
 #include "ESP32FtpServer.h"
 #include "nvs_flash.h"
-
+#include <esp_task_wdt.h>
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
 
@@ -45,14 +44,32 @@ FtpServer ftpSrv;           //  Objeto servidor FTP
 TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
 int Contador_Escrituras=0;
 int Contador_Dias=0;
-char Archivo_CSV_Contadores_copy[100];
-char Archivo_CSV_Eventos_copy[100];
-char Archivo_LOG_copy[100];
+
+char Archivo_CSV_Contadores_copy[200];
+char Archivo_CSV_Eventos_copy[200];
+char Archivo_LOG_copy[200];
+
+
+extern char Archivo_CSV_Contadores[200];
+extern char Archivo_CSV_Eventos[200];
+extern char Archivo_LOG[200];
+
 //int Sd_Mont=false;
 extern bool Archivos_Ready;
 int Valida_Archivos_Eliminados=0;
 int Mes_Limite=4;
 bool Borrado_completado=false;
+
+
+unsigned long Timeout_FTP=0;
+unsigned long Timeout_FTP_Previous=0;
+unsigned long Deshabilita_FTP=600000;
+
+unsigned long InicialTime = 0;
+unsigned long FinalTime = 0;
+int Conteo = 0;
+bool SD_State = LOW;
+bool Set_WATCHDOG=false;
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Objetos Extern <------------------------------------------
@@ -67,7 +84,6 @@ extern int year_copy;
 //------------------------------------------------------------------------------------------------------
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
-extern bool Ftp_Out;
 int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
 
 #include "Configuracion.h"
@@ -86,56 +102,29 @@ void Init_SD(void)
     Variables_globales.Set_Variable_Global(SD_INSERT,false);
     digitalWrite(SD_Status,LOW);
   }
-  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
-  {
-    xTaskCreatePinnedToCore(
-      Task_Verifica_Conexion_SD, //  Función a implementar la tarea.
-      "SD_Check",                //  Nombre de la tarea
-      10000,                     //  Tamaño de stack en palabras (memoria)
-      NULL,                      //  Entrada de parametros
-      5,                         //  Prioridad de la tarea.
-      &SD_CHECK,                 //  Manejador de la tarea.
-      1);                        //  Core donde se ejecutara.
-      int T=100;
-  }
-  
-  
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------------> Inicializa Servidor FTP <------------------------------------
 void Init_FTP_SERVER()
 {
-  xTaskCreatePinnedToCore(
-      Rum_FTP_SERVER,             //  Función a implementar la tarea.
-      "Ftp_SERVER",               //  Nombre de la tarea.
-      10000,                      //  Tamaño de stack en palabras (memoria)
-      NULL,                       //  Entrada de parametros.
-      configMAX_PRIORITIES - 10,  //  Prioridad de la tarea.
-      &Ftp_SERVER,                //  Manejador de la tarea.
-      0);                         //  Core donde se ejecutara.
-}
-//------------------------------------------------------------------------------------------------------
-//---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
-static void Rum_FTP_SERVER(void *parameter)
-{
   if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
-    ftpSrv.begin("GlobusAmin", "Globussistemas23","SuperGlobusAdmin","SuperG2023"); // Usuario y Contraseña..
-    //"esp32", "esp32","esp3232","esp3232"
+    ftpSrv.begin("GlobusAmin", "Globussistemas23","SuperGlobusAdmin","SuperG2023");
+  }
+}
+//------------------------------------------------------------------------------------------------------
+//---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
+void Rum_FTP_Server(void)
+{
+ 
+  if(Set_WATCHDOG==false)
+  {
+    esp_task_wdt_init(10000, true);
+    Set_WATCHDOG=true;
   }
 
-  unsigned long InicialTime = 0;
-  unsigned long FinalTime = 0;
-  int Conteo = 0;
-  bool SD_State = LOW;
-  vTaskSuspend(Ftp_SERVER);     //  Tarea Suspendida Control por manager.
-  //ftpSrv.begin("esp32", "esp32"); // Usuario y Contraseña..
-  #ifdef Debug_FTP
-  Serial.println("Modo FTP Activado");
-  #endif
-  for (;;)
-  {
+   esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
     Conteo++;
     InicialTime = millis();
     if ((InicialTime - FinalTime) > 100)
@@ -147,15 +136,9 @@ static void Rum_FTP_SERVER(void *parameter)
         digitalWrite(SD_Status, !SD_State);
       }
     }
-    else if (Conteo == 10)
-    {
-      Conteo = 0;
-    }
-    
     ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+    esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
     vTaskDelay(10);
-  }
-  vTaskDelay(10);
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -168,17 +151,6 @@ static void Task_Verifica_Conexion_SD(void *parameter)
  
   for (;;)
   {
-    if(Ftp_Out==true)
-    {
-      Variables_globales.Set_Variable_Global(Ftp_Mode,false);
-      Ftp_Out=false;
-      if(Variables_globales.Get_Variable_Global(Ftp_Mode)==false)
-      {
-        Ftp_Out=false;
-        Serial.println("------------------>>>FTP OUT");
-        vTaskSuspend(Ftp_SERVER);
-      }
-    }
     uint8_t Temperatura_Procesador_GPU = temperatureRead();
     Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
     if (!SD.begin(SD_ChipSelect)) // SD Desconectada...
@@ -236,6 +208,22 @@ static void Task_Verifica_Conexion_SD(void *parameter)
       // Serial.println("Memoria SD Conectada");
       if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
       {
+
+        if (Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
+        {
+          Serial.println("Creado Archivos......");
+          /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
+          Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+          delay(100);
+          Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+          delay(100);
+          Create_ARCHIVE_Txt(Archivo_LOG);
+          delay(100);
+          Serial.println("OK Archivos Listos..");
+          Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
+          Variables_globales.Set_Variable_Global(Flag_Archivos_OK,true);
+          /*--------------------------------------------------------------------------------------------*/
+        }
 
         int Total_SD= SD.totalBytes() / (1024 * 1024);
         int Usado_SD=SD.usedBytes() / (1024 * 1024);
@@ -305,7 +293,7 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
       #ifdef Debug_Status_SD
       Serial.println("No se pudo Crear Archivo LOG");
       #endif
-      Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,true);
+   //   Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,true);
     }
     else
     {
@@ -322,8 +310,8 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
     #ifdef Debug_Status_SD
     Serial.println("El Archivo Existia.. Continua Guardando en: " + String(ARCHIVO));
     #endif
-    Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
-    Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+  //  Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
+  //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }
 //------------------------------------------------------------------------------------------------------
@@ -399,7 +387,7 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
       #ifdef Debug_Escritura
       Serial.println("No Fue Posible Crear el Archivo");
       #endif
-      Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,true);
+    //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,true);
     }
     else
     {
@@ -408,8 +396,8 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
       #ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
       #endif
-      Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
-      Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+    //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
+    //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
     }
   }
   else if (SD.exists("/"+String(ARCHIVO)))
@@ -417,8 +405,8 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
     #ifdef Debug_Escritura
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO);
     #endif
-    Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
-    Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+   // Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
+   // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }
 void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
@@ -432,7 +420,7 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
       #ifdef Debug_Escritura
       Serial.println("No Fue Posible Crear el Archivo");
       #endif
-      Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,true);
+     // Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,true);
     }
     else
     {
@@ -441,8 +429,8 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
       #ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
       #endif
-      Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
-      Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+    //  Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
+    //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
     }
   }
   else if (SD.exists("/"+String(ARCHIVO)))
@@ -450,8 +438,8 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
     #ifdef Debug_Escritura
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO + ".csv");
     #endif
-    Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
-    Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+  //  Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
+  //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }
 //--------------------------------------------------------------------------------------------------------

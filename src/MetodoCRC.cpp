@@ -34,6 +34,13 @@ bool MetodoCRC::Verifica_CRC_Wifi(String str_CRC)
 
     //    Serial.println("\nComparando CRC...");
 
+    /*
+    Serial.println("------------------------------------------");
+    Serial.println(crcval);
+    Serial.println("------------------------------------------");
+    Serial.println(CRC_Recibido);
+    Serial.println("------------------------------------------");
+    */
     if (CRC_Recibido == crcval)
     {
         //        Serial.println("\nCRC OK...");

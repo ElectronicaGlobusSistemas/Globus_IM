@@ -86,6 +86,18 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Creditos_D_P:
         return Flag_Creditos_D_Premio_;
         break;
+
+    case Flag_Trama_Completa:
+        return Flag_Trama_Completa_;
+        break;
+     
+    case Flag_Crea_Archivos:
+        return Flag_Crea_Archivos_;
+        break;
+
+    case Flag_Archivos_OK:
+        return Flag_Archivos_OK_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -171,6 +183,18 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Creditos_D_P:
         Flag_Creditos_D_Premio_=Change_estado;
         break;
+
+    case Flag_Trama_Completa:
+        Flag_Trama_Completa_=Change_estado;
+        break;
+
+    case Flag_Crea_Archivos:
+        Flag_Crea_Archivos_=Change_estado;
+        break;
+
+    case Flag_Archivos_OK:
+        Flag_Archivos_OK_=Change_estado;
+        break;
     }
 }
 
@@ -216,6 +240,10 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Memoria_SD_Full_=false;
     Reset_Handay_OK_=0x04;
     Flag_Creditos_D_Premio_=false;
+    Flag_Trama_Completa_=false;
+    Flag_Type_excepcion_=0;
+    Flag_Crea_Archivos_=false;
+    Flag_Archivos_OK_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
@@ -289,4 +317,25 @@ char Variables_Globales::Get_Variable_Global_Char(int filtro)
         return Reset_Handay_OK_;
         break;
     }
+}
+
+void Variables_Globales::Set_Variable_Global_Int(int filtro, int Change_estado)
+{
+    switch (filtro)
+    {
+    case Flag_Type_excepcion:
+        Flag_Type_excepcion_=Change_estado;
+        break;
+    }
+
+
+}
+int Variables_Globales::Get_Variable_Global_Int(int filtro)
+{
+    switch (filtro)
+    {
+    case Flag_Type_excepcion:
+        return Flag_Type_excepcion_;
+        break;
+    }  
 }

@@ -15,6 +15,12 @@ private:
     char buffer_ACK_encriptado[258];
     char buffer_ACK_final[258];
 
+    /* Buffer de ACK + INFO*/
+
+    char buffer_ACK_Info_inicio[258];
+    char buffer_ACK_Info_encriptado[258];
+    char buffer_ACK_Info_final[258];
+
     /* Buffer de Recepcion Servidor */
     char buffer_recepcion[258];
 
@@ -76,6 +82,10 @@ public:
         bzero(buffer_ACK_inicio, 258);
         bzero(buffer_ACK_encriptado, 258);
         bzero(buffer_ACK_final, 258);
+
+        bzero(buffer_ACK_Info_inicio, 258);
+        bzero(buffer_ACK_Info_encriptado, 258);
+        bzero(buffer_ACK_Info_final, 258);
     }
 
     /* Buffer de ACK */
@@ -83,6 +93,14 @@ public:
     bool Set_buffer_ACK_encriptado(void);
     bool Set_buffer_ACK_CRC(void);
     char *Get_buffer_ACK(void);
+
+
+    /*Buffer de ACK +INFO*/
+
+    bool Set_buffer_ACK_Info(int, char, char);
+    bool Set_buffer_ACK_Info_encriptado(void);
+    bool Set_buffer_ACK_Info_CRC(void);
+    char *Get_buffer_Info_ACK(void);
 
     /* Buffer de Maquina */
     bool Verifica_buffer_Maq(char[], int);

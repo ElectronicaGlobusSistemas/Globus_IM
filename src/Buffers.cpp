@@ -85,6 +85,77 @@ char *Buffers::Get_buffer_ACK(void)
     return buffer_ACK_final;
 }
 
+
+bool Buffers::Set_buffer_ACK_Info(int Com, char High, char Low)
+{
+    char req[258] = {};
+    int32_t Aux1;
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+
+    req[4] = {High};
+    req[5] = {Low};
+    req[6] = {'|'};
+
+
+    req[7]='0';
+    req[8]='0';
+    req[9]='0';
+    req[10]='0';
+    req[11]='0';
+    req[12]='0';
+    req[13]='0';
+    req[14]='0';
+    req[15] = {'|'};
+
+    memcpy(buffer_ACK_Info_inicio, req, 258);
+
+    if (Set_buffer_ACK_Info_encriptado())
+    {
+        if (Set_buffer_ACK_Info_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_ACK_Info_encriptado(void)
+{
+    memcpy(buffer_ACK_Info_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_ACK_Info_inicio), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_ACK_Info_CRC(void)
+{
+    memcpy(buffer_ACK_Info_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_ACK_Info_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_Info_ACK(void)
+{
+    return buffer_ACK_Info_final;
+}
+
+
 /**********************************************************************************/
 /*                    BUFFER DE RECEPCION DE DATOS MAQUINA                        */
 /**********************************************************************************/
@@ -267,7 +338,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[pos] = '|'; // 57
 
     //--------------------------------------------------------------------------------------------------
-    // PHYSICAL COIN OUT
+    // PHYSICAL COIN OUTJ
     //--------------------------------------------------------------------------------------------------
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_Out), sizeof(res) / sizeof(res[0]));
@@ -500,14 +571,15 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[pos] = '|'; // 216
 
     // ID Jugador
-    req[217] = '0';
-    req[218] = '0';
-    req[219] = '0';
-    req[220] = '0';
-    req[221] = '0';
-    req[222] = '0';
-    req[223] = '0';
-    req[224] = '0';
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Client_ID(), sizeof(res) / sizeof(res[0]));
+
+    pos = 217;
+    for (int i = 0; i < 8; i++)
+    {
+        req[pos] = res[i];
+        pos++;
+    }
     req[225] = '|'; // 225
 
     String Hora = RTC.getTime();
@@ -585,16 +657,17 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[246] = '0';
     req[247] = '|'; // 247
 
-    // ID Operador
-    req[248] = '0';
-    req[249] = '0';
-    req[250] = '0';
-    req[251] = '0';
-    req[252] = '0';
-    req[253] = '0';
-    req[254] = '0';
-    req[255] = '0'; // 255
 
+    // ID Operador
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Operador_ID(), sizeof(res) / sizeof(res[0]));
+
+    pos = 248;
+    for (int i = 0; i < 8; i++)
+    {
+        req[pos] = res[i];
+        pos++;
+    }
     // CRC
     req[256] = '9'; // 256
     req[257] = '9'; // 257

@@ -44,6 +44,7 @@ void LOG_ESP(char *ARCHIVO,bool Enable);
 bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB);
 void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado);
 void FLASH_RESET(void);
+void Rum_FTP_Server(void);
 //------------------------------------------------------------------------------------------
 
 

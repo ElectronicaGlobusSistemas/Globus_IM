@@ -124,6 +124,11 @@ bool Eventos_SAS::Set_evento(char evento)
         Evento_SAS = evento;
         return true;
         break;
+        
+    case 0x26: /* Usuario  presiono el boton cashout*/
+        Evento_SAS=evento;
+        return true;
+        break;
 
     default:
         Evento_SAS = 0x00;

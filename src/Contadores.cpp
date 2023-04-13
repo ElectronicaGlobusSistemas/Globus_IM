@@ -1,6 +1,6 @@
 #include <iostream>
 #include "Contadores.h"
-
+#include "Arduino.h"
 using namespace std;
 
 int Convert_Char_To_Int(char buffer[]);
@@ -625,4 +625,102 @@ int Convert_Char_To_Int(char buffer[])
                   ((buffer[4] - 48) * 1000) + ((buffer[5] - 48) * 100) +
                   ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
   return resultado;
+}
+
+
+
+bool Contadores_SAS::Set_Operador_ID(char Operador[])
+{
+
+
+
+  for (int i = 0; i < 8; i++)
+  {
+   ID_Operador[i]='0';
+  }
+
+  if(Operador[4]==NULL||Operador[5]==NULL||Operador[6]==NULL||Operador[7]==NULL||Operador[8]==NULL||Operador[9]==NULL||Operador[10]==NULL||Operador[11]==NULL)
+  {
+   for (int i = 0; i < 8; i++)
+   {
+     ID_Operador[i] = '0';
+   }
+   return false;
+  }else{
+   ID_Operador[0] = Operador[4];
+   ID_Operador[1] = Operador[5];
+   ID_Operador[2] = Operador[6];
+   ID_Operador[3] = Operador[7];
+   ID_Operador[4] = Operador[8];
+   ID_Operador[5] = Operador[9];
+   ID_Operador[6] = Operador[10];
+   ID_Operador[7] = Operador[11];
+  }
+ 
+  return true;
+}
+
+byte *Contadores_SAS::Get_Operador_ID(void)
+{
+return ID_Operador;
+}
+
+bool Contadores_SAS::Close_ID_Operador(void)
+{
+  /* Cierra Sesión operador*/
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Operador[i] = '0';
+  }
+  /*Verifica Cierre de Sesión Operador*/
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Operador[i] != 48)
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool Contadores_SAS::Set_Client_ID(byte Cliente[])
+{
+  for (int i = 0; i < 8; i++)
+  {
+   ID_Client[i]='0';
+  }
+  ID_Client[0]=Cliente[0];
+  ID_Client[1]=Cliente[1];
+  ID_Client[2]=Cliente[2];
+  ID_Client[3]=Cliente[3];
+  ID_Client[4]=Cliente[4];
+  ID_Client[5]=Cliente[5];
+  ID_Client[6]=Cliente[6];
+  ID_Client[7]=Cliente[7];
+  return true;
+}
+
+byte *Contadores_SAS::Get_Client_ID(void)
+{
+return ID_Client;
+}
+
+bool Contadores_SAS::Close_ID_Client(void)
+{
+  /* Cierra Sesión Cliente*/
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Client[i] = '0';
+  }
+  /*Verifica Cierre de Sesión Cliente*/
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Client[i] != 48)
+    {
+      return false;
+    }
+  }
+
+  return true;
 }

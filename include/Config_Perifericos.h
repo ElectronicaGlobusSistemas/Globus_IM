@@ -6,13 +6,13 @@
 #include <SD.h>
 
 //-------------------> Parametros <-------------------------------
-#define Clock_frequency 240//240//
-#define MCU_Status      2
-#define WIFI_Status     15
-#define Reset_Config    27
-#define Hopper_Enable   14
-#define MCU_Status_2    25
-#define Unlock_Machine  26
+#define Clock_frequency  240//240//
+#define MCU_Status       2
+#define WIFI_Status      15
+#define Reset_Config     27
+#define Hopper_Enable    14
+#define MCU_Status_2     25
+#define Unlock_Machine   26
 #define FLASH_RESET_Pin  35
 //-----------------------------------------------------------------
 
@@ -31,7 +31,7 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 extern char Archivo_CSV[100];
 //extern int Sd_Mont;
 
-bool Archivos_Ready;
+
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
 //------------------------------------------------------------------
@@ -44,6 +44,10 @@ void TaskManager();
 static void ManagerTasks(void *parameter);
 void FromFloatTobyte(byte* bytes, float dato);
 void Config_Red_Serial(String Comando);
+
+extern char Archivo_CSV_Contadores[200];
+extern char Archivo_CSV_Eventos[200];
+extern char Archivo_LOG[200];
 //------------------------------------------------------------------
 
 //---------------------------> Version de programa <----------------
@@ -53,7 +57,7 @@ uint8_t Version_Firmware_[]={1,0,1,1}; // 1000--> en  server 1.0
 void Init_Config(void)
 
 {
-    pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
+   // pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
     /* Define entradas */
    // pinMode(16,INPUT_PULLUP);
     pinMode(12,INPUT_PULLDOWN);
@@ -101,10 +105,7 @@ void Init_Config(void)
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
    
-    //-----------------> Config Comunicación Maquina <---------------
-    Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
-    //---------------------------------------------------------------
-    
+   
    
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
@@ -115,7 +116,13 @@ void Init_Config(void)
     
 
     CONNECT_SERVER_TCP();  // Inicializa Servidor TCP
+
     init_Comunicaciones(); // Inicializa Tareas TCP
+    
+    //-----------------> Config Comunicación Maquina <---------------
+    Init_UART2(); // Inicializa Comunicación Maquina Puerto #2
+    //---------------------------------------------------------------
+    
     //--------------------> Task  SERVER <---------------------------
     Init_FTP_SERVER();
     //---------------------------------------------------------------
@@ -164,36 +171,8 @@ static void ManagerTasks(void *parameter)
             digitalWrite(MCU_Status, !MCU_State);
             digitalWrite(MCU_Status_2,!MCU_State);
         }
-
-        // if (!card.init(SPI_FULL_SPEED,SD_ChipSelect) && !SD.begin(SD_ChipSelect,MOSI,MISO,CLK))
-        // {
-        //     if (eTaskGetState(SD_CHECK) == eRunning)
-        //     {
-        //         Serial.println("------->>>>> Rum Task   SD CHECK");
-        //         continue;
-        //     }
-        //     else if (eTaskGetState(SD_CHECK) == eSuspended)
-        //     {
-        //         Serial.println("------->>>>> Resume Task  SD CHECK");
-        //         vTaskResume(SD_CHECK); // Inicia Tarea SD.
-        //     }
-        // }
-        if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true && Variables_globales.Get_Variable_Global(SD_INSERT) == true && eTaskGetState(Ftp_SERVER) == eSuspended)
-        {
-            if (eTaskGetState(Ftp_SERVER) == eRunning)
-            {
-                
-                Serial.println("------->>>>> Run Task   Ftp SERVER ");
-            }
-            else if (eTaskGetState(Ftp_SERVER) == eSuspended)
-            {
-                Serial.println("------->>>>> Resume Task  Ftp SERVER");
-                vTaskResume(Ftp_SERVER); // Inicia Modo FTP SERVER.
-            }
-        }
         if (WiFi.status() != WL_CONNECTED && eTaskGetState(Status_WIFI) == eSuspended)
         {
-
             if (eTaskGetState(Status_WIFI) == eRunning)
             {
                 Serial.println("------->>>>> Rum Task   Status WIFI");
@@ -291,42 +270,16 @@ static void ManagerTasks(void *parameter)
                 }
             }
         }
-        if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Archivos_Ready == false &&Variables_globales.Get_Variable_Global(SD_INSERT) == true)
-        {
-            // Serial.println("Preparando Archivos...");
-            if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == false && Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == false)
-            {
-                Archivos_Ready = true;
-                Serial.println("OK Archivos Listos..");
-            }
-            if (Variables_globales.Get_Variable_Global(SD_INSERT) == true)
-            {
-                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_COM) == true)
-                {
-                    Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-                    
-                }
-
-                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_EVEN) == true)
-                {
-                    Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-                   
-                }
-
-                if (Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG) == true)
-                {
-                    Create_ARCHIVE_Txt(Archivo_LOG);
-    
-                }
-            }
-        }
-        
-        if (Variables_globales.Get_Variable_Global(SD_INSERT) == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true && eTaskGetState(Ftp_SERVER) == eBlocked)
+        if (Variables_globales.Get_Variable_Global(SD_INSERT) == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
         {
             Serial.println("Memoria SD Desconectada..");
             Serial.println("Desconecta Modo FTP");
             Variables_globales.Set_Variable_Global(Ftp_Mode, false);
-            vTaskSuspend(Ftp_SERVER);
+        }
+
+        if(WiFi.status() != WL_CONNECTED&&Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
+        {
+            Variables_globales.Set_Variable_Global(Ftp_Mode, false);
         }
         
         if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
@@ -358,18 +311,9 @@ void Init_Configuracion_Inicial(void)
     
     Serial.println("\n");
     Serial.println("Inicializando modulo...");
-    // Borrar particiones creadas en NVS
-    // nvs_flash_erase();
-    // nvs_flash_init();
 
     NVS.begin("Config_ESP32", false);
 
-    if(!NVS.isKey("Fecha_Boot"))
-    {   uint8_t Fecha[]={0,0,0,0,0,0,0,0,0,0,0,0};// Indica que no se ha iniciado un modo Bootloader.
-        Serial.println("Guarda espacio de memoria para fecha por defecto");
-        NVS.putBytes("Fecha_Boot",Fecha,sizeof(Fecha));
-    }
-   
     if(!NVS.isKey("Ver_Fir")) // Configura versión firmware actual.
     {
         Serial.println("Guarda Version de firmware actual");
@@ -387,11 +331,17 @@ void Init_Configuracion_Inicial(void)
         if(Version[1]!=0){Serial.print(Version[1]);}
         Serial.println();
 
+        if (NVS.isKey("Fecha_Boot"))
+        {
         size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
         uint8_t Datos_Fecha_B[Fecha_len];
         NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
-        String Fecha_Bootlader = String(char(Datos_Fecha_B[6])) + String(char(Datos_Fecha_B[7]))+"/" + String(char(Datos_Fecha_B[8])) + String(char(Datos_Fecha_B[9])) +"/"+ String(char(Datos_Fecha_B[10])) + String(char(Datos_Fecha_B[11]));
-        Serial.println("Ultima fecha Bootloader: "+Fecha_Bootlader);
+        String Fecha_Bootlader = String(char(Datos_Fecha_B[6])) + String(char(Datos_Fecha_B[7])) + "/" + String(char(Datos_Fecha_B[8])) + String(char(Datos_Fecha_B[9])) + "/" + String(char(Datos_Fecha_B[10])) + String(char(Datos_Fecha_B[11]));
+        if (Fecha_Bootlader != NULL)
+        {
+           Serial.println("Ultima fecha Bootloader: " + Fecha_Bootlader);
+        }
+        }
 
         if(int(Version[0])!=int(Version_Firmware_[0]) || int(Version[1])!=int(Version_Firmware_[1]) || int(Version[2])!=int(Version_Firmware_[2]) ||int(Version[3])!=int(Version_Firmware_[3])) //  Si la version guardada en memoria es diferente a la actual del codigo
         {
@@ -717,6 +667,7 @@ void Config_Red_Serial(String Comando)
     unsigned long Tm=0;
     unsigned long Tf=0;
     int inter_v=20000;
+
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
     {
 
@@ -759,6 +710,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus2020*";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
              else if(Comando[3]==49)
@@ -769,6 +721,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             else if(Comando[3]==50)
@@ -779,6 +732,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             else if(Comando[3]==51)
@@ -789,6 +743,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             else if(Comando[3]==52)
@@ -799,6 +754,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             else if(Comando[3]==53)
@@ -809,6 +765,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             else if(Comando[3]==54)
@@ -819,6 +776,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
              else if(Comando[3]==55)
@@ -829,6 +787,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
              else if(Comando[3]==56)
@@ -839,6 +798,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
              else if(Comando[3]==57)
@@ -849,6 +809,7 @@ void Config_Red_Serial(String Comando)
                 String password = "Globus#OnlineW324";
                 NVS.putString("PASS_DESA", password);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }else{
                 Serial.println("------->Comando no identificado");
@@ -867,6 +828,7 @@ void Config_Red_Serial(String Comando)
             IP_Server1[3] =200;
             NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
             NVS.end();
+            delay(500);
             ESP.restart();
         }
         /*
@@ -919,10 +881,12 @@ void Config_Red_Serial(String Comando)
                 if ((Tm - Tf) >= inter_v)
                 {
                     Tf=Tm;
+                    delay(500);
                     ESP.restart();
                     break;
                 }
             }
+            delay(500);
             ESP.restart();
         }
         else if(Comando[0]=='P' &&Comando[1]=='U'&&Comando[2]=='E'&&Comando[3]=='R'&&Comando[4]=='T'&&Comando[5]=='O')
@@ -934,6 +898,7 @@ void Config_Red_Serial(String Comando)
                 uint16_t Port_COM = 1;
                 NVS.putUInt("COM", Port_COM);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
             if(Comando[6]==50)
@@ -943,6 +908,7 @@ void Config_Red_Serial(String Comando)
                 uint16_t Port_COM = 2;
                 NVS.putUInt("COM", Port_COM);
                 NVS.end();
+                delay(500);
                 ESP.restart();
             }
         }
@@ -955,6 +921,7 @@ void Config_Red_Serial(String Comando)
             IP_Server1[3] =100;
             NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
             NVS.end();
+            delay(500);
             ESP.restart();
         }
         else if(Comando=="SERVER204")
@@ -966,6 +933,7 @@ void Config_Red_Serial(String Comando)
             IP_Server1[3] =204;
             NVS.putBytes("Dir_IP_Serv", IP_Server1, sizeof(IP_Server1));
             NVS.end();
+            delay(500);
             ESP.restart();
         }else{
             Serial.println("------->Comando no identificado");

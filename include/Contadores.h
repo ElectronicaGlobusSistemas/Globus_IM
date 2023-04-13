@@ -7,7 +7,7 @@
 #include "Stream.h"
 #include <iostream>
 using namespace std;
-
+#include "Arduino.h"
 #define Total_Cancel_Credit 1
 #define Coin_In 2
 #define Coin_Out 3
@@ -85,6 +85,10 @@ private: // Variables Privadas Para contadores
   char Billetes_20k_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Billetes_50k_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Premio_1B_[11] = {'0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
+
+  byte ID_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
+  byte ID_Client[8]={'0', '0', '0', '0','0','0','0','0'};
+
   char Vacio;
 
   int Serie_Trama_Int = 0;
@@ -95,4 +99,15 @@ public:
   string Get_Contadores_String(int Filtro_Contador); // Metodo Get Contadores
   bool Set_Contadores(int Filtro_Contador, char[]);  // Metodo Set Contadores
   bool Incrementa_Serie_Trama();                     // Metodo Set Contadores
+
+
+  bool Set_Operador_ID(char Operador[]);
+  byte* Get_Operador_ID(void);
+  bool Close_ID_Operador(void);
+
+
+  bool Set_Client_ID(byte Cliente[]);
+  byte* Get_Client_ID(void);
+  bool Close_ID_Client(void);
+
 };

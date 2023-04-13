@@ -119,6 +119,7 @@ void CONNECT_WIFI(void)
     Serial.print("ESP Mac Address: ");
     Serial.println(WiFi.macAddress());
     digitalWrite(WIFI_Status, HIGH);
+   // Serial.println(WiFi.RSSI());
   }
   else
   {
@@ -152,8 +153,13 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       Serial.print("Conectando a... ");
       Serial.println(SSID_Wifi);
       WiFi.disconnect(); // desconecta red
-      WiFi.reconnect();  // intenta reconectar
-      // WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
+     // WiFi.reconnect();  // intenta reconectar
+      WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
+
+      if(WiFi.status() != WL_CONNECTED)
+      {
+        digitalWrite(WIFI_Status, LOW);
+      }
       tiempo_inicial = millis();
       while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
       {
