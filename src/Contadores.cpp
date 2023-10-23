@@ -7,6 +7,8 @@ int Convert_Char_To_Int(char buffer[]);
 
 char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
 {
+
+  delay(1);
   switch (Filtro_Contador)
   {
   case 1:
@@ -117,6 +119,11 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
   case 53:
     return Copia_Cancel_Credit_;
     break;
+
+  case 54:
+    return Copia_Bill_Amount_;
+    break;
+
   default:
     return 0x00;
     break;
@@ -562,6 +569,19 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     memcpy(Copia_Cancel_Credit_, Data_Contador, sizeof(Copia_Cancel_Credit_) / sizeof(Copia_Cancel_Credit_[0]));
     return true;
     break;
+
+   case 54: // Bloque de instrucciones 13;
+    memcpy(Copia_Bill_Amount_, Data_Contador, sizeof(Copia_Bill_Amount_) / sizeof(Copia_Bill_Amount_[0]));
+    return true;
+    break;
+
+   case 55:
+   memcpy(Copia_Bill_Amount_2_, Data_Contador, sizeof(Copia_Bill_Amount_2_) / sizeof(Copia_Bill_Amount_2_[0]));
+   return true;
+   break;
+
+   
+
   }
   return false;
 }
@@ -629,11 +649,266 @@ int Convert_Char_To_Int(char buffer[])
 
 
 
-bool Contadores_SAS::Set_Operador_ID(char Operador[])
+bool Contadores_SAS::Set_ID_Cliente_Temp(byte Cliente_t[])
+{
+  for (int i = 0; i < 8; i++)
+  {
+   ID_Client_Temp[i]='0';
+  }
+  ID_Client_Temp[0]=Cliente_t[0];
+  ID_Client_Temp[1]=Cliente_t[1];
+  ID_Client_Temp[2]=Cliente_t[2];
+  ID_Client_Temp[3]=Cliente_t[3];
+  ID_Client_Temp[4]=Cliente_t[4];
+  ID_Client_Temp[5]=Cliente_t[5];
+  ID_Client_Temp[6]=Cliente_t[6];
+  ID_Client_Temp[7]=Cliente_t[7];
+  
+  for (int i = 0; i < 8; i++)
+  {
+      if(ID_Client_Temp[i]==NULL)
+      {
+        return false;
+      }
+  }
+  return true;
+}
+
+bool Contadores_SAS::Close_ID_Client_Temp(void)
+{
+  /* Elimina ID Cliente Cashless*/
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Client_Temp[i] = '0';
+  }
+  /*Verifica */
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Client_Temp[i] != 48)
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+byte* Contadores_SAS::Get_Client_ID_Temp(void)
+{
+  return ID_Client_Temp;
+}
+
+bool  Contadores_SAS::Verify_Client(void)
+{
+  delay(50);
+  unsigned int Verify=0;
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Client_Temp[i] == 48)
+    {
+      Verify++;
+    }
+  }
+  
+  /* Cliente 00000000*/
+  if(Verify>=8)
+  {
+    return false; /* Buffer de tarjeta vacio*/
+  }
+
+  /*00000001*/
+  else if(Verify<8)
+  {
+    return true; /* Buffer de tarjeta valido*/
+  }
+}
+
+/* Verifica si el  buffer temporal de datos de la Tarjeta ID contiene un usuario no valido 00000000*/
+bool  Contadores_SAS::Verify_Client_ID(byte Buffer_Tarjeta[])
+{
+  delay(50);
+  unsigned int Verify_Cliente=0;
+  for (int i = 0; i < 8; i++)
+  {
+    if (Buffer_Tarjeta[i] == 48)
+    {
+      Verify_Cliente++;
+    }
+  }
+  
+  /* Cliente 00000000*/
+  if(Verify_Cliente>=8)
+  {
+    return false; /* Buffer de tarjeta vacio*/
+  }
+
+  /*00000001*/
+  else if(Verify_Cliente<8)
+  {
+    return true; /* Buffer de tarjeta valido*/
+  }
+}
+/* Verifica si  en las espacios 1 y 4 de la tarjeta RFID contiene datos Nulos*/
+bool Contadores_SAS::Verity_ID_NOT_NULL(byte Buffer[],char Type)
+{
+  delay(50);
+
+  if (Type == 'C' || Type == 'O')
+  {
+    if (Buffer[0] == NULL || Buffer[0] == 48)
+    {
+      return false;
+    }
+
+    return true;
+  }
+  else
+  {
+    for (int i = 0; i < 8; i++)
+    {
+      if (Buffer[i] == NULL)
+      {
+        return false;
+      }
+    }
+
+    return true; /* Buffer de tarjeta valido*/
+  }
+}
+bool Contadores_SAS::Set_Operador_ID_Temp_APP(char Operador_[])
+{
+   for (int i = 0; i < 8; i++)
+  {
+   ID_Operador_Temp[i]='0';
+  }
+
+  if(Operador_[4]==NULL||Operador_[5]==NULL||Operador_[6]==NULL||Operador_[7]==NULL||Operador_[8]==NULL||Operador_[9]==NULL||Operador_[10]==NULL||Operador_[11]==NULL)
+  {
+   for (int i = 0; i < 8; i++)
+   {
+     ID_Operador_Temp[i] = '0';
+   }
+   return false;
+  }else{
+   ID_Operador_Temp[0] = Operador_[4];
+   ID_Operador_Temp[1] = Operador_[5];
+   ID_Operador_Temp[2] = Operador_[6];
+   ID_Operador_Temp[3] = Operador_[7];
+   ID_Operador_Temp[4] = Operador_[8];
+   ID_Operador_Temp[5] = Operador_[9];
+   ID_Operador_Temp[6] = Operador_[10];
+   ID_Operador_Temp[7] = Operador_[11];
+  }
+ 
+  return true;
+}
+bool Contadores_SAS:: Set_Operador_ID_Temp(char Operador_[])
+{
+  int contador=0;
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Operador_Temp[i] = '0';
+  }
+  /*Limpia y escribe  el ID operador */
+  ID_Operador_Temp[0] = Operador_[0];
+  ID_Operador_Temp[1] = Operador_[1];
+  ID_Operador_Temp[2] = Operador_[2];
+  ID_Operador_Temp[3] = Operador_[3];
+  ID_Operador_Temp[4] = Operador_[4];
+  ID_Operador_Temp[5] = Operador_[5];
+  ID_Operador_Temp[6] = Operador_[6];
+  ID_Operador_Temp[7] = Operador_[7];
+
+  for(int i=0; i<8;i++)
+  {
+    if(ID_Operador_Temp[i]==Operador_[i])
+    {
+      contador++;
+    }
+  }
+  
+  if(contador>=7)
+  {
+    return true;
+  }
+  return false;
+}
+
+/* Agrega ID de operador en trama 
+return (false) Si no se agrego el ID  a la trama de contadores
+return (true) Si  se agrego el ID a la trama de contadores
+*/
+bool Contadores_SAS:: Copy_Operator_In_(void)
+{
+  int contador=0;
+  ID_Operador[0]=ID_Operador_Temp[0];
+  ID_Operador[1]=ID_Operador_Temp[1];
+  ID_Operador[2]=ID_Operador_Temp[2];
+  ID_Operador[3]=ID_Operador_Temp[3];
+  ID_Operador[4]=ID_Operador_Temp[4];
+  ID_Operador[5]=ID_Operador_Temp[5];
+  ID_Operador[6]=ID_Operador_Temp[6];
+  ID_Operador[7]=ID_Operador_Temp[7];
+
+  for(int i=0; i<8;i++)
+  {
+    if(ID_Operador[i]==ID_Operador_Temp[i])
+    {
+      contador++;
+    }
+  }
+  
+  if(contador>=7)
+  {
+    return true;
+  }
+  return false;
+}
+
+/* Limpia ID operador temporal  00000000 */
+bool Contadores_SAS::Delete_Operator_ID_Temp(void)
+{
+  for (int i = 0; i < 8; i++)
+  {
+   ID_Operador_Temp[i] = '0';
+  }
+
+  if(ID_Operador_Temp[0]==48&&ID_Operador_Temp[1]==48&&ID_Operador_Temp[2]==48&&ID_Operador_Temp[3]==48&&ID_Operador_Temp[4]==48&&ID_Operador_Temp[5]==48&&ID_Operador_Temp[6]==48&&ID_Operador_Temp[7]==48)
+  {
+    return true;
+  }else{
+    return false;
+  }
+}
+
+/* Verifica si el buffer es diferente de 00000000
+Return (True) Buffer Cliente/Operador Cerrado
+Return (False) Buffer Cliente/Operador / Abierto*/
+bool Contadores_SAS::Verify_Close(byte Cliente_Operador[])
 {
 
+  int Valida=0;
 
+  for(int i=0; i<8;i++)
+  {
+    if(Cliente_Operador[i]==48)
+    {
+      Valida++;
+    }
+  }
+  
+  if(Valida>=8)
+  {
+    return true;
+  }else{
+     return false;
+  }
 
+}
+
+/* Agrega ID operador en trama  de contadores */
+bool Contadores_SAS::Set_Operador_ID(char Operador[])
+{
   for (int i = 0; i < 8; i++)
   {
    ID_Operador[i]='0';
@@ -660,6 +935,32 @@ bool Contadores_SAS::Set_Operador_ID(char Operador[])
   return true;
 }
 
+bool Contadores_SAS::Set_Operador_ID_RFID(char Operador[])
+{
+  for (int i = 0; i < 8; i++)
+  {
+   ID_Operador[i]='0';
+  }
+
+  if(Operador[0]==NULL||Operador[1]==NULL||Operador[2]==NULL||Operador[3]==NULL||Operador[4]==NULL||Operador[5]==NULL||Operador[6]==NULL||Operador[7]==NULL)
+  {
+   for (int i = 0; i < 8; i++)
+   {
+     ID_Operador[i] = '0';
+   }
+   return false;
+  }else{
+   ID_Operador[0] = Operador[0];
+   ID_Operador[1] = Operador[1];
+   ID_Operador[2] = Operador[2];
+   ID_Operador[3] = Operador[3];
+   ID_Operador[4] = Operador[4];
+   ID_Operador[5] = Operador[5];
+   ID_Operador[6] = Operador[6];
+   ID_Operador[7] = Operador[7];
+  }
+  return true;
+}
 byte *Contadores_SAS::Get_Operador_ID(void)
 {
 return ID_Operador;
@@ -672,10 +973,22 @@ bool Contadores_SAS::Close_ID_Operador(void)
   {
     ID_Operador[i] = '0';
   }
+
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Operador_Temp[i] = '0';
+  }
   /*Verifica Cierre de Sesión Operador*/
   for (int i = 0; i < 8; i++)
   {
     if (ID_Operador[i] != 48)
+    {
+      return false;
+    }
+  }
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Operador_Temp[i] != 48)
     {
       return false;
     }
@@ -698,6 +1011,14 @@ bool Contadores_SAS::Set_Client_ID(byte Cliente[])
   ID_Client[5]=Cliente[5];
   ID_Client[6]=Cliente[6];
   ID_Client[7]=Cliente[7];
+  
+  for (int i = 0; i < 8; i++)
+  {
+      if(ID_Client[i]==NULL)
+      {
+        return false;
+      }
+  }
   return true;
 }
 
@@ -723,4 +1044,31 @@ bool Contadores_SAS::Close_ID_Client(void)
   }
 
   return true;
+}
+
+/*Verifica si existe operador en trama de contadores 
+Return (false) No existe operador
+Return (True) Existe Operador
+*/
+bool Contadores_SAS::Verify_ID_Op(void)
+{
+
+  int Conteo=0;
+  
+
+  for(int i=0; i<8; i++)
+  {
+    if(ID_Operador[i]==48)
+    {
+      Conteo++;
+    }
+  }
+
+  if(Conteo>=8) /*00000000*/
+  {
+    return false;
+  }
+
+  return true; /*00000001*/
+  /* Existe ID */ 
 }

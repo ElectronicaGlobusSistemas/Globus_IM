@@ -6,13 +6,21 @@
 using namespace std;
 #include <stdio.h>
 #include <stdlib.h>
+#include "Utilidades_Maquina.h"
+#include "CRC_Kermit.h"
+int Envio=0;
+char Prueba_AFT[128];
+char Data_TX_AFT[33];
+/*-------------------> Cashless <------------------------------------------------------------------------*/
 
+/*-------------------------------------------------------------------------------------------------------*/
 
 /*---------------------------------------->Debug<---------------------------------------------------------*/
-#define Debug_Contadores
-#define Debug_Encuestas
-#define Debug_Eventos
+//#define Debug_Contadores
+//#define Debug_Encuestas
+//#define Debug_Eventos
 //#define Debug_ACK_MSG
+//#define Debug_SD_CARD
 //--------------------------------------> Define UART <-----------------------------------------------------
 #define NUMERO_PORTA_SERIALE UART_NUM_2
 #define BUF_SIZE (1024 * 2)
@@ -52,6 +60,9 @@ extern bool Archivos_Ready;
 String SD_Cont;
 String SD_EVEN;
 
+
+
+
 int bandera = 0;
 int contador = 0;
 long numero_contador = 0;
@@ -61,6 +72,7 @@ int Max_Encuestas = 27;
 bool Datos_OK=false;
 bool Counter_Final=false;
 bool Ultimo_Counter_=false;
+bool Prueba=false;
 String Encabezado_Contadores = "Hora,Total Cancel Credit,Coin In,Coin Out,Jackpot,Total Drop, Cancel Credit Hand Pay,Bill Amount, Casheable In, Casheable Restricted In, Casheable Non Restricted In, Casheable Out, Casheable Restricted Out,Casheable Nonrestricted Out,Games Played,Coin In Fisico,Coin Out Fisico,Total Coin Drop,Machine Paid Progresive Payout,Machine Paid External Bonus Payout,Attendant Paid Progresive Payout,Attendant Paid External Payout,Ticket In,Ticket Out,Current Credits,Contador 1C - Door Open Metter,Contador 18 - Games Since Last Power Up";
 String Estructura_CSV[27] = {"n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a"};
 //------------------------------------> Prototipo de Funciones <------------------------------------------------
@@ -77,7 +89,7 @@ void Store_Eventos_SD(char *ARCHIVO, bool Enable);
 void Add_String_Hora_EVEN(String Horario);
 void Add_String_EVEN(String EVENTO, bool Separador);
 //---------------------------------------
-
+void Encuestas_Maquinas_Simple_No_Cancel(void);
 void Encuestas_Maquinas_Genericas(void);
 void Encuestas_Maquinas_Poker(void);
 void Encuestas_Maquinas_IRT(void);
@@ -104,6 +116,14 @@ void Transmite_Reset_Handpay(void);
 bool Reset_HandPay(void);
 void _Transmite_Encuesta_Creditos_D_Premio(void);
 bool Encuesta_Creditos_Premio(void);
+bool Transmite_Registro_AFT_Maq(void);
+bool Transmite_AFT_Registro_Machine(void);
+void Transmite_Cancela_Registro_MQ(void);
+bool Transmite_Init_Registro(void);
+void Encuestas_Aristocrat_Australiana(void);
+void Transmite_Encuesta_Creditos(void);
+void Transmite_Encuesta_Maquina_Juego(void);
+void Transmite_Encuesta_ROM(void);
 extern unsigned long Bandera_RS232;
 extern unsigned long Bandera_RS232_F;
 //---------------------------------------------------------------------------------------------------------------
@@ -136,10 +156,19 @@ int Cuenta_Save_Mecanicas=0;
 #define Flag_Reset_Handpay       6
 #define Flag_Creditos_Premio     7
 #define Actualiza_Machine        8
+
+#define Interroga_Est_Reg_AFT    9
+#define Cancela_Registro_AFT_MQ  10
+#define Init_Reg_AFT             11 
+#define Registra_Maquina_AFT     12
+#define Creditos_machine         13
+#define Flag_Encuesta_Maquina_Juego 14
+#define Flag_Encuesta_ROM        15
+
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
 // Eventos_SAS eventos;
-
+int Contador_Save_Data=0;
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 void Init_UART2()
 {
@@ -407,10 +436,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   contadores.Set_Contadores(Bill_Amount, contador);
                   Add_Contador(contador, Bill_Amount, false);
 
+                  Selector_Modo_SD(); // Ftp o Storage
                   
-                    Selector_Modo_SD(); // Ftp o Storage
                     if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
                     {
+
                       for (int i = 0; i < Max_Encuestas; i++)
                       {
                         SD_Cont = SD_Cont + Estructura_CSV[i];
@@ -436,6 +466,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                       }
                       Delete_Trama();
                     }
+                  
                   break;
                 }
               }
@@ -472,6 +503,24 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               buffer_contadores[index] = buffer_contadores_string.toInt();
             }
 
+            if (buffer_contadores[0] == 0x01 && buffer[1] == 0x73 && buffer[3] == 0x01)
+            {
+              #ifdef Debug_Contadores
+              Serial.println("Genial.........>>>>>");
+              #endif
+
+              Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
+            }
+              if (buffer[0] == 0x01 && buffer[1] == 0x73)
+              {
+                #ifdef Debug_Contadores
+                Serial.println("Genial.........>>>>>");
+                #endif
+                Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
+              }
+             
+             
+
             if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
             {
               char contador[7] = {};
@@ -506,11 +555,17 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 //              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 //                Calcula_Cancel_Credit_IRT();
                 //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10)
                 {
                   Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ Generica
                 }
                 Add_Contador(contador, Total_Cancel_Credit, false);
+
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10)
+                {
+                  contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+                  Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+                }
                 break;
               case 11:
                 contadores.Set_Contadores(Coin_In, contador); //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
@@ -541,7 +596,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 break;
               case 13:
                 contadores.Set_Contadores(Total_Drop, contador);
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6|| Configuracion.Get_Configuracion(Tipo_Maquina,0)==12)
                   contadores.Set_Contadores(Bill_Amount, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
                 {
@@ -557,6 +612,14 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 }
                 Add_Contador(contador, Total_Drop, false);
                 Add_Contador(contador, Bill_Amount, false);
+
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10)
+                {
+                  contadores.Set_Contadores(Total_Drop, contador);
+                  contadores.Set_Contadores(Bill_Amount, contador);
+                  
+                }
+
                 break;
               case 14:
                 contadores.Set_Contadores(Jackpot, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
@@ -618,6 +681,37 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               case 0x2A:
                 contadores.Set_Contadores(Physical_Coin_In, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
                 Add_Contador(contador, Physical_Coin_In, false);
+
+                if(Configuracion.Get_Configuracion(Tipo_Maquina,0)==11)
+                {
+                  Selector_Modo_SD();
+                  Contador_Save_Data++;
+                  for (int i = 0; i < Max_Encuestas; i++)
+                  {
+                    SD_Cont = SD_Cont + Estructura_CSV[i];
+                  }
+                  if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
+                  {
+                    if(Contador_Save_Data>=3)
+                    {
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      Contador_Save_Data=0;
+                    }
+                  }
+
+                  for (int i = 0; i < Max_Encuestas; i++)
+                  {
+                    if (i == Max_Encuestas - 1)
+                    {
+                        Estructura_CSV[i] = "n/a";
+                    }
+                    else
+                    {
+                        Estructura_CSV[i] = "n/a,";
+                    }
+                  }
+                  Delete_Trama();
+                }
                 break;
               case 0x2B:
                 contadores.Set_Contadores(Physical_Coin_Out, contador);
@@ -670,24 +764,34 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               contadores.Set_Contadores(Door_Open, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
               Add_Contador(contador, Door_Open, false);
               Selector_Modo_SD(); // Ftp o Storage
-              
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7
-                ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
+                ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10 )
                 {
-
+                  Contador_Save_Data++;
                   for (int i = 0; i < Max_Encuestas; i++)
                   {
                     SD_Cont = SD_Cont + Estructura_CSV[i];
                   }
                   if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
                   {
+
                     if(Configuracion.Get_Configuracion(Tipo_Maquina,0)==6&& Variables_globales.Get_Variable_Global(Flag_Hopper_Enable)==false)
                     {
-                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      if(Contador_Save_Data>=9)
+                      {
+                        Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                        Contador_Save_Data=0;
+                      }
+                      
                     }
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10 )
                     {
-                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+
+                      if(Contador_Save_Data>=4)
+                      {
+                        Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));  
+                        Contador_Save_Data=0;
+                      }
                     }
                   }
                   for (int i = 0; i < Max_Encuestas; i++)
@@ -703,6 +807,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   }
                   Delete_Trama();
                 }
+              
+              
             }
 
             else if (buffer[1] == 0x18)
@@ -731,18 +837,39 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               contador[7] = unidades + '0';
               contadores.Set_Contadores(Games_Since_Last_Power_Up, contador); // ? Serial.println("Guardado con exito") : Serial.println("No se pudo guardar");
               Add_Contador(contador, Games_Since_Last_Power_Up, true);
-              Selector_Modo_SD(); // Ftp o Storage
+            
               
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 ||
                 Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==2)
                 {
+
+                  Contador_Save_Data++;
                   for (int i = 0; i < Max_Encuestas; i++)
                   {
                     SD_Cont = SD_Cont + Estructura_CSV[i];
                   }
                   if (Variables_globales.Get_Variable_Global(Ftp_Mode) == false)
                   {
-                    Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                    if(Contador_Save_Data>=4&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                    {
+                      Selector_Modo_SD();
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      Contador_Save_Data=0;
+                    }
+
+                    if(Contador_Save_Data>1&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
+                    {
+                      Selector_Modo_SD();
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      Contador_Save_Data=0;
+                    }
+
+                    if(Contador_Save_Data>1&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
+                    {
+                      Selector_Modo_SD();
+                      Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
+                      Contador_Save_Data=0;
+                    }
                   }
                   for (int i = 0; i < Max_Encuestas; i++)
                   {
@@ -757,21 +884,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   }
                   Delete_Trama();
                 }
-
-              else
-              {
-                for (int i = 0; i < Max_Encuestas; i++)
-                {
-                  if (i == Max_Encuestas - 1)
-                  {
-                    Estructura_CSV[i] = "n/a";
-                  }
-                  else
-                  {
-                    Estructura_CSV[i] = "n/a,";
-                  }
-                }
-              }
             }
             else if (buffer[1] == 0x1F)
             {
@@ -915,7 +1027,14 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Serial.println(contador);
               #endif
 
-              contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+              
+              if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 12)
+              {
+                contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+                contadores.Set_Contadores(Total_Cancel_Credit, contador);
+              }else{
+                contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+              }
               Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
             }
 
@@ -964,28 +1083,46 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             #endif
           }
         }
+
+       
       }
       else if (buffer[0] != 0x00 && buffer[0] != 0x01 && buffer[0] != 0x1F)
       {
 
         if (eventos.Set_evento(buffer[0]))
         {
-          Bandera_RS232_F=Bandera_RS232; // Si comunica.
           #ifdef Debug_Eventos
           Serial.println("Es un evento");
           Serial.println("--------------------------------------------------");
           Serial.println();
           #endif
+         // Bandera_RS232_F=Bandera_RS232;
           Selector_Modo_SD(); // Ftp o Storage
           Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
-         
+              
               // Guarda Evento En Memoria SD.
               int Evento = eventos.Get_evento();
-              String Descrip = Tabla_Evento.Get_Descrip_Eventos(Evento);
-              Add_String_Hora_EVEN(RTC.getTime());                                                           // Agrega Hora de Evento a String
-              Add_String_EVEN(String(Evento), true);                                                         // Agrega Tipo de Evento a String
-              Add_String_EVEN(Descrip, false);                                                               // Agrega Descripción  de Evento a String
-              Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
+
+              if(Evento!=0x00&& Datos_OK==true)
+              {
+                Bandera_RS232_F=Bandera_RS232;
+              }
+
+              if(Evento==0x4F)
+              {
+                Variables_globales.Set_Variable_Global(Billete_Insert,true);
+              }
+
+              if (Evento != 0x6A && Evento!=0x8C&& Evento!=0x00)
+              {
+                delay(10);
+                String Descrip = Tabla_Evento.Get_Descrip_Eventos(Evento);
+
+                Add_String_Hora_EVEN(RTC.getTime());                                                           // Agrega Hora de Evento a String
+                Add_String_EVEN(String(Evento), true);                                                         // Agrega Tipo de Evento a String
+                Add_String_EVEN(Descrip, false);                                                               // Agrega Descripción  de Evento a String
+                Store_Eventos_SD(Archivo_CSV_Eventos, Variables_globales.Get_Variable_Global(Enable_Storage)); // Envia String Completo.
+              }  
         }
       }
       bzero(buffer, 128); // Pone el buffer en 0 /*Descomentar*/
@@ -1011,6 +1148,16 @@ void Encuestas_Maquina(void *pvParameters)
 {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = pdMS_TO_TICKS(100);
+
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+  {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(3000);
+  }else{
+    TickType_t xLastWakeTime;
+  const TickType_t xFrequency = pdMS_TO_TICKS(100);
+  }
+
   for (;;)
   {
     // Verifica cada 10 segundos aproximadamente si hay comunicacion con la maquina
@@ -1131,21 +1278,27 @@ void Encuestas_Maquina(void *pvParameters)
     // Get the actual execution tick
     xLastWakeTime = xTaskGetTickCount();
     // Switch the led
-    if (bandera == 0 && Conta_Poll < 5)
+    int Vel_Poll=5;
+
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+    {
+        Vel_Poll=15;
+    }
+    if (bandera == 0 && Conta_Poll < Vel_Poll)
     {
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
         sendDataa(dat, sizeof(dat)); // transmite sincronización
       bandera = 1;
       Conta_Poll++;
     }
-    else if (bandera == 1 && Conta_Poll < 5)
+    else if (bandera == 1 && Conta_Poll < Vel_Poll)
     {
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
         Transmite_Poll(0x00); // Transmite Poll
       bandera = 0;
       Conta_Poll++;
     }
-    else if (Conta_Poll >= 5)
+    else if (Conta_Poll >= Vel_Poll)
     {
       numero_encuesta++;
       Conta_Poll = 0;
@@ -1176,12 +1329,12 @@ void Encuestas_Maquina(void *pvParameters)
         case Encuesta_Info_Cashless:
           Interroga_Info_Cashless();
           Handle_Maquina = 0;
-          Serial.println("Encuesta info Cashless");
+         // Serial.println("Encuesta info Cashless");
           break;
         case Flag_Reset_Handpay:
           Transmite_Reset_Handpay();
           Handle_Maquina = 0;
-          Serial.println("Transmite reset Handpay");
+         // Serial.println("Transmite reset Handpay");
           break;
 
         case Flag_Creditos_Premio:
@@ -1190,6 +1343,40 @@ void Encuestas_Maquina(void *pvParameters)
           //Serial.println("Encuesta creditos..");
           Variables_globales.Set_Variable_Global(Flag_Creditos_D_P,true);
           break;
+        case Interroga_Est_Reg_AFT:
+          Transmite_Registro_AFT_Maq();
+          Handle_Maquina=0;
+          break;
+        case Cancela_Registro_AFT_MQ:
+          Transmite_Cancela_Registro_MQ();
+          Handle_Maquina=0;
+        break;
+        case Init_Reg_AFT:
+          Transmite_Init_Registro();
+        Handle_Maquina=0;
+        break;
+
+        case Registra_Maquina_AFT:
+          Transmite_AFT_Registro_Machine();
+          Handle_Maquina=0;
+          break;
+
+        case Creditos_machine:
+          Transmite_Encuesta_Creditos();
+          Handle_Maquina=0;
+          break;
+
+        case Flag_Encuesta_Maquina_Juego:
+          Transmite_Encuesta_Maquina_Juego();
+          Handle_Maquina=0;
+          break;
+
+        case Flag_Encuesta_ROM:
+
+          Transmite_Encuesta_ROM();
+          Handle_Maquina=0;
+          break;
+
         default:
           Handle_Maquina = 0;
           break;
@@ -1233,7 +1420,13 @@ void Encuestas_Maquina(void *pvParameters)
         case 10:
           Encuestas_Maquinas_Simple();
           break;
+        case 11:
+          Encuestas_Aristocrat_Australiana();
+          break;
 
+        case 12:
+          Encuestas_Maquinas_Simple_No_Cancel();
+          break;  
         default:
           break;
         }
@@ -1242,7 +1435,14 @@ void Encuestas_Maquina(void *pvParameters)
       //  Serial.println(numero_encuesta);
     }
     // Ejecuta   Taraea Encuestas_Maquina Cada 100ms
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==4)
+    {
+      vTaskDelay(250); // Pausa Tarea 10000ms
+    }else{
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+    
   }
   vTaskDelay(10);
 }
@@ -1263,7 +1463,9 @@ void Storage_Contadores_SD(char *ARCHIVO, String Encabezado1, bool Enable)
   }
   else
   {
+    #ifdef Debug_SD_CARD
     Serial.println("Guardado SD Deshabilitado..");
+    #endif
     for (int i = 0; i <= SD_Cont.length(); i++)
     {
       SD_Cont.remove(i);
@@ -1283,7 +1485,10 @@ void Store_Eventos_SD(char *ARCHIVO, bool Enable)
   }
   else
   {
+
+    #ifdef Debug_SD_CARD
     Serial.println("Guardado SD Deshabilitado..");
+    #endif
     for (int i = 0; i <= SD_EVEN.length(); i++)
     {
       SD_EVEN.remove(i);
@@ -1353,6 +1558,85 @@ void Encuestas_Maquinas_Simple(void)
     Serial.println("Total Cancel Credit"); // total cancel credit
     #endif
     Transmite_Poll(0x10);
+    break;
+  case 2:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    Transmite_Poll(0x11);
+    break;
+  case 3:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    Transmite_Poll(0x12);
+    break;
+  case 4:
+    #ifdef Debug_Encuestas
+    Serial.println("Jackpot"); // Jackpot
+    #endif
+    Transmite_Poll(0x14);
+    break;
+  case 5:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Drop"); // total drop
+    #endif
+    Transmite_Poll(0x13);
+    break;
+  case 6:
+    #ifdef Debug_Encuestas
+    Serial.println("Current Credits");
+    #endif
+    Transmite_Poll(0x1A);
+    break;
+  case 7:
+    #ifdef Debug_Encuestas
+    Serial.println("Games Played"); // Games played
+    #endif
+    Transmite_Poll(0x15);
+    break;
+  case 8:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 1C - Door Open Metter");
+    #endif
+    Transmite_Poll(0x1C);
+    break;
+  case 9:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
+    Transmite_Poll(0x18);
+    break;
+  case 10:
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+    Transmite_Poll(0x1F);
+    Conta_Encuestas = 0;
+    flag_ultimo_contador_Ok = true;
+    break;
+  }
+}
+
+
+
+void Encuestas_Maquinas_Simple_No_Cancel(void)
+{
+  Conta_Encuestas++;
+  switch (Conta_Encuestas)
+  {
+
+  case 1:
+
+    #ifdef Debug_Encuestas
+    Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+    #endif
+    sendDataa(dat4, sizeof(dat4));             // Transmite DIR
+    Transmite_Poll_Long(0x2D);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0xFF);
+    Transmite_Poll_Long(0xE0);
     break;
   case 2:
     #ifdef Debug_Encuestas
@@ -1694,6 +1978,77 @@ void Encuestas_Maquinas_Genericas(void)
   }
 }
 
+/* Australiana*/
+void Encuestas_Aristocrat_Australiana(void)
+{
+  Conta_Encuestas++;
+  switch (Conta_Encuestas)
+  {
+  case 1:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
+    Transmite_Poll(0x10);
+    break;
+  case 3:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    Transmite_Poll(0x11);
+    break;
+  case 5:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    Transmite_Poll(0x12);
+    break;
+  case 7:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
+    Transmite_Poll(0x2A);
+    break;
+  case 9:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
+    Transmite_Poll(0x2B);
+    break;
+  case 13:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 1C - Door Open Metter");
+    #endif
+    Transmite_Poll(0x1C);
+    break;
+  case 15:
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
+    Transmite_Poll(0x18);
+    break;
+  case 17:
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+    Transmite_Poll(0x1F);
+    break;
+  case 19:
+    #ifdef Debug_Encuestas
+    Serial.println("ROM Signature");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
+    Conta_Encuestas = 0;
+    flag_ultimo_contador_Ok = true;
+    break;
+  }
+}
+
+
 // Encuestas Maquinas Poker
 void Encuestas_Maquinas_Poker(void)
 {
@@ -1747,6 +2102,17 @@ void Encuestas_Maquinas_Poker(void)
     Serial.println("ID Machine");
     #endif
     Transmite_Poll(0x1F);
+    break;
+  case 9:
+#ifdef Debug_Encuestas
+    Serial.println("ROM Signature");
+#endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
     break;
@@ -1765,73 +2131,73 @@ void Encuestas_Maquinas_IRT(void)
     #endif
     Transmite_Poll(0x10);
     break;
-  case 2:
+  case 3:
     #ifdef Debug_Encuestas
     Serial.println("Coin In"); // Coin in
     #endif
     Transmite_Poll(0x11);
     break;
-  case 3:
+  case 6:
     #ifdef Debug_Encuestas
     Serial.println("Coin Out"); // Coin out
     #endif
     Transmite_Poll(0x12);
     break;
-  case 4:
+  case 9:
     #ifdef Debug_Encuestas
     Serial.println("Jackpot"); // Jackpot
     #endif
     Transmite_Poll(0x14);
     break;
-  case 5:
+  case 12:
     #ifdef Debug_Encuestas
     Serial.println("Total Drop"); // total drop
     #endif
     Transmite_Poll(0x13);
     break;
-  case 6:
+  case 15:
     #ifdef Debug_Encuestas
     Serial.println("Games Played"); // Games played
     #endif
     Transmite_Poll(0x15);
     break;
-  case 7:
+  case 18:
     #ifdef Debug_Encuestas
     Serial.println("Coin In Fisico"); // Physical coin in
     #endif
     Transmite_Poll(0x2A);
     break;
-  case 8:
+  case 21:
     #ifdef Debug_Encuestas
     Serial.println("Coin Out Fisico"); // Physical coin out
     #endif
     Transmite_Poll(0x2B);
     break;
-  case 9:
+  case 24:
     #ifdef Debug_Encuestas
     Serial.println("Current Credits");
     #endif
     Transmite_Poll(0x1A);
     break;
-  case 10:
+  case 27:
     #ifdef Debug_Encuestas
     Serial.println("Contador 1C - Door Open Metter");
     #endif
     Transmite_Poll(0x1C);
     break;
-  case 11:
+  case 30:
     #ifdef Debug_Encuestas
     Serial.println("Contador 18 - Games Since Last Power Up");
     #endif
     Transmite_Poll(0x18);
     break;
-  case 12:
+  case 33:
     #ifdef Debug_Encuestas
     Serial.println("ID Machine");
     #endif
     Transmite_Poll(0x1F);
     break;
-  case 13:
+  case 36:
     #ifdef Debug_Encuestas
     Serial.println("ROM Signature");
     #endif
@@ -1842,11 +2208,11 @@ void Encuestas_Maquinas_IRT(void)
     Transmite_Poll_Long(0x5C);
     Transmite_Poll_Long(0x45);
     break;
-  case 14:
+  case 39:
     #ifdef Debug_Encuestas
     Serial.println("Encuesta Billetes");
     #endif
-    Encuesta_Billetes();
+   // Encuesta_Billetes();
     Conta_Encuestas = 0;
     flag_ultimo_contador_Ok = true;
   }
@@ -2252,6 +2618,22 @@ bool Inactiva_Maquina(void)
   }
 }
 
+bool Actualiza_Maquina_En_Juego(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = Flag_Encuesta_Maquina_Juego;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
 void Transmite_Inactiva_Maquina(void)
 {
   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
@@ -2277,6 +2659,41 @@ bool Activa_Maquina(void)
 }
 
 
+
+
+
+bool Encuesta_ROM(void)
+{
+  flag_handle_maquina = true;
+  Handle_Maquina = Flag_Encuesta_ROM;
+  delay(600);
+
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+
+void Transmite_Encuesta_ROM(void)
+{
+  #ifdef Debug_Encuestas
+    Serial.println("ROM Signature");
+  #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
+    
+}
+
 bool  Encuesta_Creditos_Premio(void)
 {
   flag_handle_maquina = true;
@@ -2297,21 +2714,309 @@ bool  Encuesta_Creditos_Premio(void)
 void _Transmite_Encuesta_Creditos_D_Premio(void)
 {
 
+  if(Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion==1)&& Configuracion.Get_Configuracion(Tipo_Maquina,0)==2)
+  {
+    #ifdef Debug_Encuestas
+    Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
+    Transmite_Poll(0x10);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    Transmite_Poll(0x11);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    Transmite_Poll(0x12);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Jackpot"); // Jackpot
+    #endif
+    Transmite_Poll(0x14);
+    
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Total Drop"); // total drop
+    #endif
+    Transmite_Poll(0x13);
+   
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+    #endif
+    sendDataa(dat4, sizeof(dat4));             // Transmite DIR
+    Transmite_Poll_Long(0x2D);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0xFF);
+    Transmite_Poll_Long(0xE0);
+    
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+  
+    #ifdef Debug_Encuestas
+    Serial.println("Bill amount");
+    #endif
+    Transmite_Poll(0x46); // Bill amount
+   
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    #ifdef Debug_Encuestas
+    Serial.println("Games Played"); // Games played
+    #endif
+    Transmite_Poll(0x15);
+    
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
+    Transmite_Poll(0x2A);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    Transmite_Poll(0x2B);
+   
+
+    #ifdef Debug_Encuestas
+    Serial.println("Total Coin Drop");
+    #endif
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x24);
+    Transmite_Poll_Long(0xAD);
+    Transmite_Poll_Long(0x4C);
+   
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Machine Paid Progresive Payout");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1D);
+    Transmite_Poll_Long(0xEF);
+    Transmite_Poll_Long(0xE0);
+    
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Machine Paid External Bonus Payout");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1E);
+    Transmite_Poll_Long(0x74);
+    Transmite_Poll_Long(0xD2);
+   
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Attendant Paid Progresive Payout");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x20);
+    Transmite_Poll_Long(0x89);
+    Transmite_Poll_Long(0x0A);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+ 
+    #ifdef Debug_Encuestas
+    Serial.println("Attendant Paid External Payout");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x1B);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+ 
+    #ifdef Debug_Encuestas
+    Serial.println("Ticket In");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x0D);
+    Transmite_Poll_Long(0x6E);
+    Transmite_Poll_Long(0xF0);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+ 
+    #ifdef Debug_Encuestas
+    Serial.println("Ticket Out");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x2F);
+    Transmite_Poll_Long(0x03);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x0E);
+    Transmite_Poll_Long(0xF5);
+    Transmite_Poll_Long(0xC2);
+   
+    #ifdef Debug_Encuestas
+    Serial.println("Current Credits");
+    #endif
+
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    Transmite_Poll(0x1A);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 1C - Door Open Metter");
+    #endif
+    Transmite_Poll(0x1C);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
+    Transmite_Poll(0x18);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+  
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+    Transmite_Poll(0x1F);
+   delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("ROM Signature");
+    #endif
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
+    delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+   
+    Counter_Final=true;
+  }
+
+  if(Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 2&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+  {
+    #ifdef Debug_Encuestas
+      Serial.println("Current Credits");
+    #endif
+    
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+      Transmite_Poll(0x1A);
+      delay(100);
+  }
   if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 1 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
   {
     /* Actualiza Mq Poker*/
-    Serial.println("Encuesta Completa Poker.......");
 
+    #ifdef Debug_Encuestas     
+    Serial.println("Encuesta Completa Poker.......");
+    #endif
     Transmite_Poll(0x1A);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x11);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x12);
     delay(100);
+     sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x14);
     delay(100);
     Transmite_Poll(0x13);
     delay(100);
+     sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
 
     sendDataa(dat4, sizeof(dat4)); // Transmite DIR
     Transmite_Poll_Long(0x2F);
@@ -2324,22 +3029,38 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
     delay(100);
     Transmite_Poll(0x1F);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Counter_Final=true;
   }
 
   if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 0 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
   {
     /* Actualiza Mq Poker*/
+    #ifdef Debug_Encuestas 
     Serial.println("Encuesta Completa Poker.......");
-
+    #endif
     Transmite_Poll(0x1A);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x11);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x12);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x14);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
     Transmite_Poll(0x13);
     delay(100);
 
@@ -2352,47 +3073,137 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
     Transmite_Poll_Long(0xAD);
     Transmite_Poll_Long(0x4C);
     delay(100);
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    Counter_Final=true;
   }
 
-  if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 0 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
+  if(Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 3 &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
   {
-    /*Actualiza Creditos Generica*/
-
-    Serial.println("Encuesta Creditos Generica....... ");
-
-    Transmite_Poll(0x1A);
-    delay(100);
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
-    Transmite_Poll(0x10);
-    delay(100);
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
-    sendDataa(dat4, sizeof(dat4));             // Transmite DIR
-    Transmite_Poll_Long(0x2D);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0x00);
-    Transmite_Poll_Long(0xFF);
-    Transmite_Poll_Long(0xE0);
-    delay(100);
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
-    Transmite_Poll(0x11);
-    delay(100);
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
     Transmite_Poll(0x12);
     delay(100);
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
-    Transmite_Poll(0x13);
   }
 
+  if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 0)
+  {
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
+    {
+      /*Actualiza Creditos Generica*/
+      #ifdef Debug_Encuestas
+      Serial.println("Encuesta Creditos Generica....... ");
+      #endif
+      Transmite_Poll(0x1A);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      Transmite_Poll(0x10);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      sendDataa(dat4, sizeof(dat4));             // Transmite DIR
+      Transmite_Poll_Long(0x2D);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0xFF);
+      Transmite_Poll_Long(0xE0);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      Transmite_Poll(0x11);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      Transmite_Poll(0x12);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      Transmite_Poll(0x13);
+    }
+  }
+
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 12)
+  {
+    if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) >= 0)
+    {
+#ifdef Debug_Encuestas
+      Serial.println("Encuesta Simple no Cancel.......");
+#endif
+
+#ifdef Debug_Encuestas
+      Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2D);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0xFF);
+      Transmite_Poll_Long(0xE0);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x11);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Coin Out"); // Coin out
+#endif
+      Transmite_Poll(0x12);
+      delay(100);
+       sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Jackpot"); // Jackpot
+#endif
+      Transmite_Poll(0x14);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Total Drop"); // total drop
+#endif
+      Transmite_Poll(0x13);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Current Credits");
+#endif
+      Transmite_Poll(0x1A);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Games Played"); // Games played
+#endif
+      Transmite_Poll(0x15);
+      delay(100);
+
+#ifdef Debug_Encuestas
+      Serial.println("Contador 1C - Door Open Metter");
+#endif
+      Transmite_Poll(0x1C);
+      delay(100);
+
+#ifdef Debug_Encuestas
+      Serial.println("Contador 18 - Games Since Last Power Up");
+#endif
+      Transmite_Poll(0x18);
+      delay(100);
+
+#ifdef Debug_Encuestas
+      Serial.println("ID Machine");
+#endif
+      Transmite_Poll(0x1F);
+      delay(100);
+      Counter_Final = true;
+    }
+  }
   if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 1 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
   {
     /*Actualiza  Completa Mq Generica*/
@@ -2402,6 +3213,18 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
 #ifdef Debug_Encuestas
       Serial.println("Total Cancel Credit"); // total cancel credit
 #endif
+
+      #ifdef Debug_Encuestas
+      Serial.println("ROM Signature");
+      #endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x21);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x5C);
+      Transmite_Poll_Long(0x45);
+      delay(100);
+
       Transmite_Poll(0x10);
       delay(100);
 
@@ -2734,67 +3557,722 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
       Counter_Final=true;
   }
 
-  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10)
+  if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 1 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
   {
-      Serial.println("Encuesta Completa............");
-      Transmite_Poll(0x1A);
+    /*Actualiza  Completa Mq Generica*/
+#ifdef Debug_Encuestas
+    Serial.println("Encuesta Completa.......");
+#endif
+#ifdef Debug_Encuestas
+      Serial.println("Total Cancel Credit"); // total cancel credit
+#endif
+
+      #ifdef Debug_Encuestas
+      Serial.println("ROM Signature");
+      #endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x21);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x5C);
+      Transmite_Poll_Long(0x45);
       delay(100);
+
       Transmite_Poll(0x10);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+#ifdef Debug_Encuestas
+      Serial.println("Coin In"); // Coin in
+#endif
       Transmite_Poll(0x11);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+#ifdef Debug_Encuestas
+      Serial.println("Coin Out"); // Coin out
+#endif
       Transmite_Poll(0x12);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Jackpot"); // Jackpot
+#endif
       Transmite_Poll(0x14);
       delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Total Drop"); // total drop
+#endif
+      Transmite_Poll(0x13);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+#ifdef Debug_Encuestas
+      Serial.println("Cancel Credit Hand Paid"); // Cancel credit hand paid
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2D);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0xFF);
+      Transmite_Poll_Long(0xE0);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Bill amount");
+#endif
+      Transmite_Poll(0x46); // Bill amount
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable In"); // Casheable in
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x2E);
+      Transmite_Poll_Long(0xF7);
+      Transmite_Poll_Long(0xE3);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable Restricted In"); // Casheable restricted in
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x7E);
+      Transmite_Poll_Long(0xF2);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x30);
+      Transmite_Poll_Long(0x08);
+      Transmite_Poll_Long(0x1A);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable Out"); // Casheable out
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x32);
+      Transmite_Poll_Long(0x1A);
+      Transmite_Poll_Long(0x39);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable Restricted Out"); // Casheable restricted out
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x33);
+      Transmite_Poll_Long(0x93);
+      Transmite_Poll_Long(0x28);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x34);
+      Transmite_Poll_Long(0x2C);
+      Transmite_Poll_Long(0x5C);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Games Played"); // Games played
+#endif
+      Transmite_Poll(0x15);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Coin In Fisico"); // Physical coin in
+#endif
+      Transmite_Poll(0x2A);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Coin Out Fisico"); // Physical coin out
+#endif
+      Transmite_Poll(0x2B);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Total Coin Drop");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x24);
+      Transmite_Poll_Long(0xAD);
+      Transmite_Poll_Long(0x4C);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Machine Paid Progresive Payout");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x1D);
+      Transmite_Poll_Long(0xEF);
+      Transmite_Poll_Long(0xE0);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Machine Paid External Bonus Payout");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x1E);
+      Transmite_Poll_Long(0x74);
+      Transmite_Poll_Long(0xD2);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Attendant Paid Progresive Payout");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x20);
+      Transmite_Poll_Long(0x89);
+      Transmite_Poll_Long(0x0A);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Attendant Paid External Payout");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x21);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x1B);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Ticket In");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x0D);
+      Transmite_Poll_Long(0x6E);
+      Transmite_Poll_Long(0xF0);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Ticket Out");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x2F);
+      Transmite_Poll_Long(0x03);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x0E);
+      Transmite_Poll_Long(0xF5);
+      Transmite_Poll_Long(0xC2);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Current Credits");
+#endif
+      Transmite_Poll(0x1A);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Contador 1C - Door Open Metter");
+#endif
+      Transmite_Poll(0x1C);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("Contador 18 - Games Since Last Power Up");
+#endif
+      Transmite_Poll(0x18);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("ID Machine");
+#endif
+      Transmite_Poll(0x1F);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+#ifdef Debug_Encuestas
+      Serial.println("ROM Signature");
+#endif
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x21);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x5C);
+      Transmite_Poll_Long(0x45);
+      delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+      Counter_Final=true;
+  }
+
+
+  if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 0 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 11)
+  {
+#ifdef Debug_Encuestas
+      Serial.println("Total Cancel Credit"); // total cancel credit
+#endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x10);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Coin In"); // Coin in
+#endif
+      Transmite_Poll(0x11);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Coin Out"); // Coin out
+#endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x12);
+      delay(100);
+
+#ifdef Debug_Encuestas
+      Serial.println("Coin In Fisico"); // Physical coin in
+#endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x2A);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Coin Out Fisico"); // Physical coin out
+#endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x2B);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Contador 1C - Door Open Metter");
+#endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x1C);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("Contador 18 - Games Since Last Power Up");
+#endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x18);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("ID Machine");
+#endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+
+      Transmite_Poll(0x1F);
+      delay(100);
+#ifdef Debug_Encuestas
+      Serial.println("ROM Signature");
+#endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+      Transmite_Poll_Long(0x21);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x00);
+      Transmite_Poll_Long(0x5C);
+      Transmite_Poll_Long(0x45);
+      Counter_Final = true;
+  }
+  if (Variables_globales.Get_Variable_Global_Int(Flag_Type_excepcion) == 1 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 11)
+  {
+
+    
+    #ifdef Debug_Encuestas
+    Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x10);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x11);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x12);
+    delay(100);
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In Fisico"); // Physical coin in
+    #endif
+    Transmite_Poll(0x2A);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out Fisico"); // Physical coin out
+    #endif
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x2B);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 1C - Door Open Metter");
+    #endif
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x1C);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("Contador 18 - Games Since Last Power Up");
+    #endif
+    Transmite_Poll(0x18);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x1F);
+    delay(100);
+    #ifdef Debug_Encuestas
+    Serial.println("ROM Signature");
+    #endif
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x21);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0x5C);
+    Transmite_Poll_Long(0x45);
+    Counter_Final=true;
+  }
+
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10)
+  {
+      #ifdef Debug_Encuestas
+      Serial.println("Encuesta Completa............");
+      #endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x1A);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x10);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x11);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x12);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
+      Transmite_Poll(0x14);
+      delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x13);
       Counter_Final=true;
   }
   if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
   {
+      #ifdef Debug_Encuestas
       Serial.println("Encuesta Completa............");
+      #endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x1A);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x2A);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x10);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x2B);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x2A);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x11);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x12);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x14);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x13);
       Counter_Final=true;
   }
   if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7)
   {
+      #ifdef Debug_Encuestas
       Serial.println("Encuesta Completa............");
+      #endif
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x11);
       delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x12);
       delay(100);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x14);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x1F);
       Counter_Final=true;
   }
   if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8)
   {
+      #ifdef Debug_Encuestas
       Serial.println("Encuesta Completa............");
+      #endif
       Transmite_Poll(0x11);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x12);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x14);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x13);
       delay(100);
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x00);
+      delay(50);
+
       Transmite_Poll(0x1F);
       Counter_Final=true;
   }
@@ -2886,13 +4364,13 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
 
   void Selector_Modo_SD(void)
   {
-    if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false)
+    if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false||Variables_globales.Get_Variable_Global(Falla_MicroSD))
     {
       Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita  Guardado SD.
     }
     else
     {
-      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false && Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == false && Variables_globales.Get_Variable_Global(SD_INSERT) == true && Variables_globales.Get_Variable_Global(Flag_Archivos_OK)==true)
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false && Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == false && Variables_globales.Get_Variable_Global(SD_INSERT) == true && Variables_globales.Get_Variable_Global(Flag_Archivos_OK)==true&& !Variables_globales.Get_Variable_Global(Falla_MicroSD))
       {
         Variables_globales.Set_Variable_Global(Enable_Storage, true);
       }
@@ -2914,7 +4392,26 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
                     ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
     return resultado;
   }
-  void Calcula_Cancel_Credit_IRT(void)
+
+  int Convert_Char_To_Int15(char buffer[]) {
+    int resultado = 0;
+    int factor = 1;
+    int longitud = strlen(buffer);
+    int primerDigito = 0;
+
+    for (int i = 0; i < longitud; i++) {
+        if (buffer[i] >= '0' && buffer[i] <= '9') {
+            if (buffer[i] != '0' || primerDigito) {
+                resultado = resultado * 10 + (buffer[i] - '0');
+                primerDigito = 1;
+            }
+        }
+    }
+
+    return resultado;
+  }
+  
+void Calcula_Cancel_Credit_IRT(void)
   {
     int Total_Cancel_Credit_IRT, Cancel_Credit_IRT, Coin_Out_IRT, Residuo, Total_Cancel_Credit_IRT_2;
     int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
@@ -2922,18 +4419,17 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
     bzero(Contador_Cancel_Credit_IRT, 9);
 
     // Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
-    Cancel_Credit_IRT = Convert_Char_To_Int3(contadores.Get_Contadores_Char(Copia_Cancel_Credit));
+    Cancel_Credit_IRT = Convert_Char_To_Int15(contadores.Get_Contadores_Char(Copia_Cancel_Credit));
     // Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
-    Coin_Out_IRT = Convert_Char_To_Int3(contadores.Get_Contadores_Char(Physical_Coin_Out));
+    Coin_Out_IRT =Convert_Char_To_Int15(contadores.Get_Contadores_Char(Physical_Coin_Out));
     // Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
+
+
+
     Total_Cancel_Credit_IRT = Cancel_Credit_IRT + Coin_Out_IRT;
 
-    if (Total_Cancel_Credit_IRT < (Cancel_Credit_IRT + Coin_Out_IRT) || Coin_Out_IRT <= 0)
-    {
-      Serial.println("ERROR CALCULO PREMIO");
-    }
-    else
-    {
+    
+    
       Total_Cancel_Credit_IRT_2 = Total_Cancel_Credit_IRT;
       Serial.print("contador cancel credit int IRT es: ");
       Serial.println(Total_Cancel_Credit_IRT);
@@ -2971,7 +4467,7 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
 
       Serial.print("contador cancel credit char IRT es: ");
       Serial.println(Contador_Cancel_Credit_IRT);
-      if (Convert_Char_To_Int3(Contador_Cancel_Credit_IRT) != Total_Cancel_Credit_IRT_2)
+      if (Convert_Char_To_Int15(Contador_Cancel_Credit_IRT) != Total_Cancel_Credit_IRT_2)
       {
         Serial.println("Error en calculo premio IRT");
       }
@@ -2980,8 +4476,8 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
         contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
         // contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
       }
-    }
-  }
+      contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
+}
 
   void Calcula_Bill_In_550(void)
   {
@@ -3058,3 +4554,304 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
       return false;
     }
   }
+
+/* ----------------------------------------> SESION CASHLESS <---------------------------------*/
+
+bool Interroga_Estado_registro_AFT(void)
+{
+    flag_handle_maquina = true;
+    Handle_Maquina = Interroga_Est_Reg_AFT;
+    delay(600);
+    if (ACK_Maq)
+    {
+      ACK_Maq = false;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+}
+
+bool Inicializa_Registro_AFT(void)
+{
+    flag_handle_maquina = true;
+    Handle_Maquina = Init_Reg_AFT;
+    delay(600);
+    if (ACK_Maq)
+    {
+      ACK_Maq = false;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+}
+
+bool Registra_MAQ_AFT(void)
+{
+    flag_handle_maquina = true;
+    Handle_Maquina = Registra_Maquina_AFT;
+    delay(600);
+    if (ACK_Maq)
+    {
+      ACK_Maq = false;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+}
+bool Creditos_Machine(void)
+{
+  flag_handle_maquina = true;
+    Handle_Maquina = Creditos_machine;
+    delay(600);
+    if (ACK_Maq)
+    {
+      ACK_Maq = false;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+}
+
+void Transmite_Encuesta_Creditos(void)
+{
+  Transmite_Poll(0x1A);
+  delay(100);
+  Transmite_Poll(0x1A);
+}
+
+void Transmite_Encuesta_Maquina_Juego(void)
+{
+
+
+  Transmite_Poll(0x1A);
+  delay(100);
+  Transmite_Poll(0x11);
+  delay(100);
+  Transmite_Poll(0x12);
+  delay(100);
+
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==11)
+  {
+    Transmite_Poll(0x2A);
+  }else{
+    Transmite_Poll(0x13);
+  }
+  delay(100);
+}
+
+bool Transmite_AFT_Registro_Machine(void)
+{
+    Serial.println("REGISTRA MAQUINA....");
+    Data_TX_AFT[0] = 0x01;
+    Data_TX_AFT[1] = 0x73;
+    Data_TX_AFT[2] = 0x1D;
+    Data_TX_AFT[3] = 0x01;
+    /* Asset*/
+    Data_TX_AFT[4] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0];
+    Data_TX_AFT[5] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1];
+    Data_TX_AFT[6] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2];
+    Data_TX_AFT[7] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3];
+
+    /*Key */
+    /*Asset*/
+    Data_TX_AFT[8] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0];
+    Data_TX_AFT[9] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1];
+    Data_TX_AFT[10] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2];
+    Data_TX_AFT[11] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3];
+    /*POS ID*/
+    Data_TX_AFT[12] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[4];
+    Data_TX_AFT[13] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[5];
+    Data_TX_AFT[14] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[6];
+    Data_TX_AFT[15] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[7];
+    /*MAC*/
+    Data_TX_AFT[16] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[8];
+    Data_TX_AFT[17] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[9];
+    Data_TX_AFT[18] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[10];
+    Data_TX_AFT[19] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[11];
+    Data_TX_AFT[20] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[12];
+    Data_TX_AFT[21] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[13];
+    /*FECHA*/
+    Data_TX_AFT[22] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[14];
+    Data_TX_AFT[23] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[15];
+    Data_TX_AFT[24] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[16];
+    Data_TX_AFT[25] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[17];
+    Data_TX_AFT[26] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[18];
+    Data_TX_AFT[27] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19];
+    /*POS ID*/
+    Data_TX_AFT[28] = 0x01;
+    Data_TX_AFT[29] = 0x00;
+    Data_TX_AFT[30] = 0x00;
+    Data_TX_AFT[31] = 0x00;
+
+    calcularCRC_Registro_AFT();
+
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(Data_TX_AFT[1]);
+    Transmite_Poll_Long(Data_TX_AFT[2]);
+    Transmite_Poll_Long(Data_TX_AFT[3]);
+    Transmite_Poll_Long(Data_TX_AFT[4]);
+    Transmite_Poll_Long(Data_TX_AFT[5]);
+    Transmite_Poll_Long(Data_TX_AFT[6]);
+    Transmite_Poll_Long(Data_TX_AFT[7]);
+    Transmite_Poll_Long(Data_TX_AFT[8]);
+    Transmite_Poll_Long(Data_TX_AFT[9]);
+    Transmite_Poll_Long(Data_TX_AFT[10]);
+    Transmite_Poll_Long(Data_TX_AFT[11]);
+    Transmite_Poll_Long(Data_TX_AFT[12]);
+    Transmite_Poll_Long(Data_TX_AFT[13]);
+    Transmite_Poll_Long(Data_TX_AFT[14]);
+    Transmite_Poll_Long(Data_TX_AFT[15]);
+    Transmite_Poll_Long(Data_TX_AFT[16]);
+    Transmite_Poll_Long(Data_TX_AFT[17]);
+    Transmite_Poll_Long(Data_TX_AFT[18]);
+    Transmite_Poll_Long(Data_TX_AFT[19]);
+    Transmite_Poll_Long(Data_TX_AFT[20]);
+    Transmite_Poll_Long(Data_TX_AFT[21]);
+    Transmite_Poll_Long(Data_TX_AFT[22]);
+    Transmite_Poll_Long(Data_TX_AFT[23]);
+    Transmite_Poll_Long(Data_TX_AFT[24]);
+    Transmite_Poll_Long(Data_TX_AFT[25]);
+    Transmite_Poll_Long(Data_TX_AFT[26]);
+    Transmite_Poll_Long(Data_TX_AFT[27]);
+    Transmite_Poll_Long(Data_TX_AFT[28]);
+    Transmite_Poll_Long(Data_TX_AFT[29]);
+    Transmite_Poll_Long(Data_TX_AFT[30]);
+    Transmite_Poll_Long(Data_TX_AFT[31]);
+    Transmite_Poll_Long(Data_TX_AFT[32]);
+    Transmite_Poll_Long(Data_TX_AFT[33]);
+    return true;
+}
+
+bool Cancela_Registro_AFT(void)
+{
+    flag_handle_maquina = true;
+    Handle_Maquina = Cancela_Registro_AFT_MQ;
+    delay(600);
+    if (ACK_Maq)
+    {
+      ACK_Maq = false;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+}
+
+void Transmite_Cancela_Registro_MQ(void)
+{
+  Serial.println("Transmite Cancela Reg AFT");
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x73);
+  Transmite_Poll_Long(0x01);
+  Transmite_Poll_Long(0x80);
+  Transmite_Poll_Long(0xD7);
+  Transmite_Poll_Long(0xEE);
+
+}
+
+
+bool Transmite_Init_Registro(void)
+{
+  Serial.println("INICIALIZA REGISTRO....");
+  Data_TX_AFT[0] = 0x01;
+  Data_TX_AFT[1] = 0x73;
+  Data_TX_AFT[2] = 0x1D;
+  Data_TX_AFT[3] = 0x00;
+  /* Asset*/
+  Data_TX_AFT[4] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0];
+  Data_TX_AFT[5] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1];
+  Data_TX_AFT[6] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2];
+  Data_TX_AFT[7] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3];
+
+  /*Key */
+  /*Asset*/
+  Data_TX_AFT[8] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0];
+  Data_TX_AFT[9] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1];
+  Data_TX_AFT[10] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2];
+  Data_TX_AFT[11] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3];
+  /*POS ID*/
+  Data_TX_AFT[12] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[4];
+  Data_TX_AFT[13] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[5];
+  Data_TX_AFT[14] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[6];
+  Data_TX_AFT[15] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[7];
+  /*MAC*/
+  Data_TX_AFT[16] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[8];
+  Data_TX_AFT[17] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[9];
+  Data_TX_AFT[18] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[10];
+  Data_TX_AFT[19] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[11];
+  Data_TX_AFT[20] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[12];
+  Data_TX_AFT[21] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[13];
+  /*FECHA*/
+  Data_TX_AFT[22] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[14];
+  Data_TX_AFT[23] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[15];
+  Data_TX_AFT[24] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[16];
+  Data_TX_AFT[25] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[17];
+  Data_TX_AFT[26] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[18];
+  Data_TX_AFT[27] = Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19];
+  /*POS ID*/
+  Data_TX_AFT[28] = 0x01;
+  Data_TX_AFT[29] = 0x00;
+  Data_TX_AFT[30] = 0x00;
+  Data_TX_AFT[31] = 0x00;
+
+  calcularCRC_Registro_AFT();
+
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(Data_TX_AFT[1]);
+  Transmite_Poll_Long(Data_TX_AFT[2]);
+  Transmite_Poll_Long(Data_TX_AFT[3]);
+  Transmite_Poll_Long(Data_TX_AFT[4]);
+  Transmite_Poll_Long(Data_TX_AFT[5]);
+  Transmite_Poll_Long(Data_TX_AFT[6]);
+  Transmite_Poll_Long(Data_TX_AFT[7]);
+  Transmite_Poll_Long(Data_TX_AFT[8]);
+  Transmite_Poll_Long(Data_TX_AFT[9]);
+  Transmite_Poll_Long(Data_TX_AFT[10]);
+  Transmite_Poll_Long(Data_TX_AFT[11]);
+  Transmite_Poll_Long(Data_TX_AFT[12]);
+  Transmite_Poll_Long(Data_TX_AFT[13]);
+  Transmite_Poll_Long(Data_TX_AFT[14]);
+  Transmite_Poll_Long(Data_TX_AFT[15]);
+  Transmite_Poll_Long(Data_TX_AFT[16]);
+  Transmite_Poll_Long(Data_TX_AFT[17]);
+  Transmite_Poll_Long(Data_TX_AFT[18]);
+  Transmite_Poll_Long(Data_TX_AFT[19]);
+  Transmite_Poll_Long(Data_TX_AFT[20]);
+  Transmite_Poll_Long(Data_TX_AFT[21]);
+  Transmite_Poll_Long(Data_TX_AFT[22]);
+  Transmite_Poll_Long(Data_TX_AFT[23]);
+  Transmite_Poll_Long(Data_TX_AFT[24]);
+  Transmite_Poll_Long(Data_TX_AFT[25]);
+  Transmite_Poll_Long(Data_TX_AFT[26]);
+  Transmite_Poll_Long(Data_TX_AFT[27]);
+  Transmite_Poll_Long(Data_TX_AFT[28]);
+  Transmite_Poll_Long(Data_TX_AFT[29]);
+  Transmite_Poll_Long(Data_TX_AFT[30]);
+  Transmite_Poll_Long(Data_TX_AFT[31]);
+  Transmite_Poll_Long(Data_TX_AFT[32]);
+  Transmite_Poll_Long(Data_TX_AFT[33]);
+  return true;
+}
+bool Transmite_Registro_AFT_Maq(void)
+{
+
+  Serial.println("Consulta Registro AFT....");
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x73);
+  Transmite_Poll_Long(0x01);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0xA7);
+  Transmite_Poll_Long(0x65);
+
+  return true;
+}
+/*---------------------------------------------------------------------------------------------*/

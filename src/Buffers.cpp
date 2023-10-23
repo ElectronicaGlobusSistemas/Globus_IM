@@ -5,6 +5,10 @@
 #include "Buffer_Cashless.h"
 #include "Json_Datos.h"
 
+
+/*-------------------------------->Debug Buffer<----------------------------*/
+//#define Debug_Buffer
+
 extern Configuracion_ESP32 Configuracion;
 extern Preferences NVS;
 using namespace std;
@@ -20,6 +24,19 @@ void Almacena_Evento(unsigned char Evento,ESP32Time RTC);
 char Hex_Ascci_H(char Hex_Val);
 char Hex_Ascci_L(char Hex_Val);
 void  Escribe_Tiempo_Eventos(unsigned short N_Evento, ESP32Time RTC);
+
+unsigned char Serial_Cashless_UniMil;
+unsigned char Serial_Cashless_Centenas;
+unsigned char Serial_Cashless_Decenas;
+unsigned char Serial_Cashless_Unidades;
+unsigned char Ant_Serial_Cashless_UniMil;
+unsigned char Ant_Serial_Cashless_Centenas;
+unsigned char Ant_Serial_Cashless_Decenas;
+unsigned char Ant_Serial_Cashless_Unidades;
+unsigned char New_Serial_Cashless_UniMil;
+unsigned char New_Serial_Cashless_Centenas;
+unsigned char New_Serial_Cashless_Decenas;
+unsigned char New_Serial_Cashless_Unidades;
 
 /**********************************************************************************/
 /*                              BUFFERS DE ACK                                    */
@@ -68,6 +85,8 @@ bool Buffers::Set_buffer_ACK(int Com, char High, char Low)
     return false;
 }
 
+
+
 bool Buffers::Set_buffer_ACK_encriptado(void)
 {
     memcpy(buffer_ACK_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_ACK_inicio), 258);
@@ -84,6 +103,72 @@ char *Buffers::Get_buffer_ACK(void)
 {
     return buffer_ACK_final;
 }
+
+/**********************************************************************************/
+/*                              BUFFERS DE ACK CASHLESS                           */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_ACK_Cashless(int Com, char High, char Medium,char Low)
+{
+    char req[258] = {};
+    int32_t Aux1;
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+
+    req[4] = {High};
+    req[5]= {Medium};
+    req[6] = {Low};
+    req[7] = {'|'};
+
+    memcpy(buffer_ACK_inicio_Cashless, req, 258);
+
+    if (Set_buffer_ACK_encriptado_Cashless())
+    {
+        if (Set_buffer_ACK_CRC_Cashless())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+
+
+bool Buffers::Set_buffer_ACK_encriptado_Cashless(void)
+{
+    memcpy(buffer_ACK_encriptado_Cashless, Metodo_AES.Encripta_Mensaje_Servidor(buffer_ACK_inicio_Cashless), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_ACK_CRC_Cashless(void)
+{
+    memcpy(buffer_ACK_final_Cashless, Metodo_CRC.Calcula_CRC_Wifi(buffer_ACK_encriptado_Cashless), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_ACK_Cashless(void)
+{
+    return buffer_ACK_final_Cashless;
+}
+
 
 
 bool Buffers::Set_buffer_ACK_Info(int Com, char High, char Low)
@@ -154,6 +239,140 @@ char *Buffers::Get_buffer_Info_ACK(void)
 {
     return buffer_ACK_Info_final;
 }
+
+
+/**********************************************************************************/
+/*                              BUFFERS DE REGISTRO MAQ CASHLESS                  */
+/**********************************************************************************/
+bool Buffers::Set_buffer_Registro_MQ_encriptado(void)
+{
+    memcpy(buffer_Registro_MQ_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_Registro_MQ), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_Registro_MQ_CRC(void)
+{
+    memcpy(buffer_Registro_MQ_encriptado, Metodo_CRC.Calcula_CRC_Wifi(buffer_Registro_MQ_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_Registro_MQ(void)
+{
+    return buffer_Registro_MQ_final;
+}
+
+bool Buffers::Set_buffer_Registro_MQ(int Com)
+{
+    char req[258] = {};
+    int32_t Aux1;
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+
+    /*Asset NUMBER*/
+    req[4] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0]);
+    req[5] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[0]);
+    req[6] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1]);
+    req[7] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[1]);
+    req[8] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2]);
+    req[9] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[2]);
+    req[10] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3]);
+    req[11] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[3]);
+
+    req[12]='|';
+
+     /*POST ID*/
+    req[13] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[4]);
+    req[14] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[4]);
+    req[15] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[5]);
+    req[16] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[5]);
+    req[17] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[6]);
+    req[18] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[6]);
+    req[19] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[7]);
+    req[20] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[7]);
+
+    req[21]='|';
+    /*Key*/
+    req[22]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[8]);
+    req[23]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[8]);
+
+    req[24]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[9]);
+    req[25]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[9]);
+
+    req[26]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[10]);
+    req[27]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[10]);
+
+    req[28]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[11]);
+    req[29]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[11]);
+
+
+    req[30]=Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[12]);
+    req[31]=Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[12]);
+
+    req[32] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[13]);
+    req[33] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[13]);
+
+    req[34] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[14]);
+    req[35] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[14]);
+
+    req[36] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[15]);
+    req[37] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[15]);
+
+    req[38] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[16]);
+    req[39] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[16]);
+
+    req[40] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[17]);
+    req[41] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[17]);
+
+    req[42] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[18]);
+    req[43] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[18]);
+    req[44] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19]);
+    req[45] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19]);
+   // req[46]='|';
+
+    memcpy(buffer_Registro_MQ, req, 258);
+
+    #ifdef Debug_Buffer
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_Registro_MQ[indice]);
+    }
+    Serial.println();
+    #endif
+
+    memcpy(buffer_Registro_MQ, req, 258);
+
+    if (Set_buffer_Registro_MQ_encriptado())
+    {
+        if (Set_buffer_Registro_MQ_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+
+
+
+
 
 
 /**********************************************************************************/
@@ -240,6 +459,8 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     bzero(req, 258);
     int32_t Aux1;
 
+    char Firma[2] = {};
+
     Aux1 = Com;
     Aux1 = (Aux1 & 0x000000FF);
     req[0] = Aux1;
@@ -301,15 +522,30 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     // TOTAL DROP
     //--------------------------------------------------------------------------------------------------
-    bzero(res, 8);
-    memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
-    pos = 31;
-    for (int i = 0; i < 8; i++) // Total Cancel Credit
+
+    if( Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
     {
-        req[pos] = res[i];
-        pos++;
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_In), sizeof(res) / sizeof(res[0]));
+        pos = 31;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 39
+    }else{
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
+        pos = 31;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 39
     }
-    req[pos] = '|'; // 39
+   
 
     //--------------------------------------------------------------------------------------------------
     // JACKPOT
@@ -485,7 +721,9 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     //--------------------------------------------------------------------------------------------------
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Games_Since_Last_Power_Up), sizeof(res) / sizeof(res[0]));
+    #ifdef Debug_Buffer
     Serial.println(res);
+    #endif
     pos = 152;
     for (int i = 0; i < 8; i++) // Total Cancel Credit
     {
@@ -540,6 +778,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[191] = '0';
     req[192] = '0'; // 192
 
+   
     // Bytes libres
     req[193] = '0';
     req[194] = '0';
@@ -551,12 +790,40 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     req[200] = '0';
     req[201] = '0';
     req[202] = '0';
-    req[203] = '0';
-    req[204] = '0';
-    req[205] = '0';
-    req[206] = '0';
-    req[207] = '|'; // 207
+   
+   
+    //    Serial.println(res[0], HEX);
+    
+    
+    
+    memcpy(Firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
+    //    Serial.println(res[0], HEX);
+
+    String string_dato = String(Firma[0], HEX);
+
+    (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
+    (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
+
+    //    Serial.println(res[1], HEX);
+
+    String string_dato1 = String(Firma[1], HEX);
+
+    (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
+    (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
+
+
+    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0')
+    {
+        req[203]='0';
+        req[204]='0';
+        req[205]='0';
+        req[206]='0';
+    }
+    
+    
+    
+    req[207] = '|'; // 207
     //--------------------------------------------------------------------------------------------------
     // SERIE TRAMA
     //--------------------------------------------------------------------------------------------------
@@ -677,12 +944,14 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     // char res[9] = {};
     // bzero(res, 9);
     // memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
+
+    #ifdef Debug_Buffer
     for (int indice3 = 0; indice3 < 256; indice3++)
     {
         Serial.print(buffer_contadores_ACC[indice3]);
     }
     Serial.println();
-
+    #endif
     if (Set_buffer_contadores_ACC_encriptado())
     {
         if (Set_buffer_contadores_ACC_CRC())
@@ -747,12 +1016,13 @@ bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
 
     memcpy(res, contadores.Get_Contadores_Char(Informacion_Maquina), sizeof(res) / sizeof(res[0]));
 
+    #ifdef Debug_Buffer
     for (int i = 0; i < 20; i++)
     {
         Serial.print(res[i]);
     }
     Serial.println();
-
+    #endif
     req[4] = res[0];
     req[5] = res[1];
     req[6] = '|';
@@ -824,12 +1094,13 @@ bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
 
     memcpy(buffer_id_maq, req, 258);
 
+    #ifdef Debug_Buffer
     for (int indice = 0; indice < 256; indice++)
     {
         Serial.print(buffer_id_maq[indice]);
     }
     Serial.println();
-
+    #endif
     if (Set_buffer_id_maq_encriptado())
     {
         if (Set_buffer_id_maq_CRC())
@@ -989,11 +1260,13 @@ bool Buffers::Set_buffer_eventos(int Com, Eventos_SAS eventos, ESP32Time RTC)
 
     memcpy(buffer_eventos, req, 258);
 
+    #ifdef Debug_Buffer
     for (int indice = 0; indice < 256; indice++)
     {
         Serial.print(buffer_eventos[indice]);
     }
     Serial.println();
+    #endif
 
     if (Set_buffer_eventos_encriptado())
     {
@@ -1253,11 +1526,14 @@ bool Buffers::Set_buffer_info_tarjeta(int Com)
 
     memcpy(buffer_info_tarjeta, req, 258);
 
+    #ifdef Debug_Buffer
     for (int indice = 0; indice < 256; indice++)
     {
         Serial.print(buffer_info_tarjeta[indice]);
     }
     Serial.println();
+    #endif
+
     //Reset Variables 
     if (Set_buffer_info_tarjeta_encriptado())
     {
@@ -1286,6 +1562,145 @@ char *Buffers::Get_buffer_info_tarjeta(void)
 {
     return buffer_info_tarjeta_final;
 }
+
+
+
+
+
+
+
+
+/**********************************************************************************/
+/*                           BUFFER DE INFO LECTOR                                */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_info_lector(int Com)
+
+{
+    /* ID Comando */
+    char req[258] = {};
+    bzero(req, 258);
+    char res[2] = {};
+    bzero(res, 2);
+    int32_t Aux1;
+   
+    
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+    
+    
+   
+
+
+    /* Configuracion en memoria  Habilitado (1) Deshabilitado (0) */
+    if(Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
+
+        req[4]='1';
+    else
+        req[4]='0';
+
+    req[5]='|';
+
+    /*  Estado de proceso  (1) Ocupado (0) Libre */
+    if(Variables_globales.Get_Variable_Global(Handle_RFID_Lector))
+        req[6]='1';
+    else
+        req[6]='0';
+
+    req[7]='|';
+
+    /* Estado de  Conexion (1) lector OK (0) lector KO */
+    if(Variables_globales.Get_Variable_Global(Conexion_RFID))
+        req[8]='1';
+    else
+        req[8]='0';
+    
+    req[9]='|';
+
+    /* Sesion  Player tracking (1)  Activa (0) No activa  */
+
+    if(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+        req[10]='1';
+    else
+        req[10]='0';
+
+    req[11]='|';
+
+    /*Tipo de  reset de premio (1) no SAS (0) no SAS */
+    if(Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
+        req[12]='1';
+    else
+        req[12]='0';
+
+   // req[13]='|';
+    /* Sesion playerTracking */
+    for( int i=13; i<258; i++)
+    {
+        req[i]='0';
+    }
+    memcpy(buffer_info_lector, req, 258);
+
+    #ifdef Debug_Buffer
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_info_lector[indice]);
+    }
+    Serial.println();
+    #endif
+
+    //Reset Variables 
+    if (Set_buffer_info_lector_encriptado())
+    {
+        if (Set_buffer_info_lector_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_info_lector_encriptado(void)
+{
+    memcpy(buffer_info_lector_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_info_lector), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_info_lector_CRC(void)
+{
+    memcpy(buffer_info_lector_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_info_lector_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_info_lector(void)
+{
+    return buffer_info_lector_final;
+}
+
+
+
+
+
+
+
+
+
 
 /**********************************************************************************/
 /*                           BUFFER INFO CASHLESS                                 */
@@ -1488,11 +1903,13 @@ bool Buffers::Set_buffer_info_Cashless(int Com)
     }
     memcpy(buffer_info_Cashless, req, 258);
 
+    #ifdef Debug_Buffer
     for (int indice = 0; indice < 256; indice++)
     {
         Serial.print(buffer_info_Cashless[indice]);
     }
     Serial.println();
+    #endif
 
     if (Set_buffer_info_Cashless_encriptado())
     {
@@ -1560,18 +1977,26 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 
     //    Serial.println(res[0], HEX);
 
-    String string_dato = String(res[0], HEX);
 
+    
+    String string_dato = String(res[0], HEX);
     (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
     (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
 
     //    Serial.println(res[1], HEX);
-
     String string_dato1 = String(res[1], HEX);
 
     (string_dato1[0] > 96) ? req[6] = string_dato1[0] - 32 : req[6] = string_dato1[0];
     (string_dato1[1] > 96) ? req[7] = string_dato1[1] - 32 : req[7] = string_dato1[1];
 
+
+    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0')
+    {
+        req[4]='0';
+        req[5]='0';
+        req[6]='0';
+        req[7]='0';
+    }
     req[8] = '|';
 
     for (int i = 9; i < 258; i++)
@@ -1581,12 +2006,13 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 
     memcpy(buffer_ROM_Singnature, req, 258);
 
+    #ifdef Debug_Buffer
     for (int indice = 0; indice < 256; indice++)
     {
         Serial.print(buffer_ROM_Singnature[indice]);
     }
     Serial.println();
-
+    #endif
     if (Set_buffer_ROM_Singnature_encriptado())
     {
         if (Set_buffer_ROM_Singnature_CRC())
@@ -1664,7 +2090,9 @@ bool Buffers::Set_buffer_contadores_CASH(int Com, Contadores_SAS contadores)
     //--------------------------------------------------------------------------------------------------
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Casheable_Restricted_In), sizeof(res) / sizeof(res[0]));
+    #ifdef Debug_Buffer
     Serial.println(res);
+    #endif
     pos = 13;
     for (int i = 0; i < 8; i++) // Total Cancel Credit
     {
@@ -1744,13 +2172,13 @@ bool Buffers::Set_buffer_contadores_CASH(int Com, Contadores_SAS contadores)
     }
 
     memcpy(buffer_contadores_CASH, req, 258);
-
+    #ifdef Debug_Buffer
     for (int indice3 = 0; indice3 < 256; indice3++)
     {
         Serial.print(buffer_contadores_CASH[indice3]);
     }
     Serial.println();
-
+    #endif
     if (Set_buffer_contadores_CASH_encriptado())
     {
         if (Set_buffer_contadores_CASH_CRC())
@@ -1829,7 +2257,9 @@ bool Buffers::Set_buffer_billetes(int Com, Contadores_SAS contadores)
     //--------------------------------------------------------------------------------------------------
     bzero(res, 8);
     memcpy(res, contadores.Get_Contadores_Char(Billetes_5k), sizeof(res) / sizeof(res[0]));
+    #ifdef Debug_Buffer
     Serial.println(res);
+    #endif
     pos = 13;
     for (int i = 0; i < 8; i++) // Total Cancel Credit
     {
@@ -1900,13 +2330,13 @@ bool Buffers::Set_buffer_billetes(int Com, Contadores_SAS contadores)
     }
 
     memcpy(buffer_billetes, req, 258);
-
+    #ifdef Debug_Buffer
     for (int indice3 = 0; indice3 < 256; indice3++)
     {
         Serial.print(buffer_billetes[indice3]);
     }
     Serial.println();
-
+    #endif
     if (Set_buffer_billetes_encriptado())
     {
         if (Set_buffer_billetes_CRC())
@@ -2161,4 +2591,159 @@ void  Escribe_Tiempo_Eventos(unsigned short N_Evento, ESP32Time RTC)
    Tabla_Eventos_[N_Evento][5]=month2;
    Tabla_Eventos_[N_Evento][6]=year;
    Tabla_Eventos_[N_Evento][7]=0x00;
+}
+
+
+/*---------------------------------------------->>> CASHLESS <----------------------------------------------------*/
+
+
+
+
+
+
+bool Buffers::Set_buffer_info_cliente_Encriptado(void)
+{
+    memcpy(buffer_Info_cliente_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_Info_cliente), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_info_cliente_CRC(void)
+{
+    memcpy(buffer_Info_cliente_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_Info_cliente_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_Buffer_info_cliente(void)
+{
+    return buffer_Info_cliente_final;
+}
+
+
+
+void Serializa_Cashless(void)
+{
+
+    Serial_Cashless_Unidades++;
+    if (Serial_Cashless_Unidades == 0x0A)
+    {
+        Serial_Cashless_Unidades = 0x00;
+        Serial_Cashless_Decenas++;
+        if (Serial_Cashless_Decenas == 0x0A)
+        {
+            Serial_Cashless_Decenas = 0x00;
+            Serial_Cashless_Centenas++;
+            if (Serial_Cashless_Centenas == 0x0A)
+            {
+                Serial_Cashless_Centenas = 0x00;
+                Serial_Cashless_UniMil++;
+                if (Serial_Cashless_UniMil == 0x0A)
+                {
+                    Serial_Cashless_Unidades = 0x00;
+                    Serial_Cashless_Decenas = 0x00;
+                    Serial_Cashless_Centenas = 0x00;
+                    Serial_Cashless_UniMil = 0x00;
+                    Serial_Cashless_Unidades++;
+                }
+            }
+        }
+    }
+}
+void Almacena_Serial_Cashless(unsigned int Dato)
+{
+    switch (Dato)
+    {
+    case 1: // Almacena los valores de la nueva serie de transaccion cashless
+        //--------------------------------------------------------------------------
+        Ant_Serial_Cashless_Unidades = Serial_Cashless_Unidades;
+        //--------------------------------------------------------------------------
+        Ant_Serial_Cashless_Decenas = Serial_Cashless_Decenas;
+        //--------------------------------------------------------------------------
+        Ant_Serial_Cashless_Centenas = Serial_Cashless_Centenas;
+        //--------------------------------------------------------------------------
+        Ant_Serial_Cashless_UniMil = Serial_Cashless_UniMil;
+        //--------------------------------------------------------------------------
+        break;
+    case 2:
+        break;
+
+    }
+    
+}
+
+
+bool Buffers::Set_buffer_info_cliente(int Com,Contadores_SAS contadores)
+{
+
+   Serializa_Cashless();
+   Almacena_Serial_Cashless(1);
+   
+   int pos;
+   char req[258] = {};
+   char res[10] = {};
+   bzero(req, 258);
+   int32_t Aux1;
+
+   Aux1 = Com;
+   Aux1 = (Aux1 & 0x000000FF);
+   req[0] = Aux1;
+   //------------------------------------------------------------------------------
+   // Guarda el segundo byte
+   Aux1 = Com;
+   Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+   req[1] = Aux1;
+   //------------------------------------------------------------------------------
+   // Guarda el tercer byte
+   Aux1 = Com;
+   Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+   req[2] = Aux1;
+   //------------------------------------------------------------------------------
+   // Guarda el cuarto byte
+   Aux1 = Com;
+   Aux1 = ((Aux1 & 0xFF000000) >> 24);
+   req[3] = Aux1;
+
+     req[4]=contadores.Get_Client_ID_Temp()[0];
+     req[5]=contadores.Get_Client_ID_Temp()[1];
+     req[6]=contadores.Get_Client_ID_Temp()[2];
+     req[7]=contadores.Get_Client_ID_Temp()[3];
+     req[8]=contadores.Get_Client_ID_Temp()[4];
+     req[9]=contadores.Get_Client_ID_Temp()[5];
+     req[10]=contadores.Get_Client_ID_Temp()[6];
+     req[11]=contadores.Get_Client_ID_Temp()[7];
+     req[12]='|';
+     /* SERIAL CASHLESS*/
+     req[13]='0';
+     req[14]='0';
+     req[15]='0';
+     req[16]='0';
+     req[17]=Serial_Cashless_UniMil + 48;
+     req[18]=Serial_Cashless_Centenas + 48;
+     req[19]=Serial_Cashless_Decenas + 48;
+     req[20]=Serial_Cashless_Unidades + 48;
+     req[21]='|';
+
+     for (int i = 22; i < 258; i++)
+     {
+        req[i] = '0';
+     }
+
+     memcpy(buffer_Info_cliente, req, 258);
+
+    #ifdef Debug_Buffer
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_Info_cliente[indice]);
+    }
+    Serial.println();
+    #endif
+
+     if (Set_buffer_info_cliente_Encriptado())
+     {
+        if (Set_buffer_info_cliente_CRC())
+        {
+            return true;
+        }
+        return false;
+     }
+     return false;
 }

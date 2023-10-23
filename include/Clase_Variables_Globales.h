@@ -45,6 +45,39 @@ using namespace std;
 #define Flag_Crea_Archivos          41
 #define Flag_Archivos_OK            42
 
+#define Flag_Sesion_RFID            43
+#define Conexion_RFID               44
+#define Sig_Estado_RFID             45
+#define Flag_Contadores_Sesion_ON   46
+#define Flag_Contadores_Sesion_OFF  47
+#define Flag_Cashout_Button         48
+#define Operador_Detected           49
+#define Trama_Pendiente             50
+#define Consulta_Info_Cliente       51
+#define Conexion_To_Host            52
+#define Consulta_Conexion_To_Host   53
+#define Handle_RFID_Lector          54
+
+#define Encabezado_Archivo_Sesiones 55
+#define Encabezado_Archivo_Premios  56
+#define Manual_Reset                57
+#define Manual_Detected             58 
+#define Billete_Insert              59
+#define Reset_Handpay_in_Process    60
+#define Type_Hanpay_Reset           61
+
+#define Confirma_Pendiente_Gmaster  62
+
+#define Falla_MicroSD               63
+#define Verify_Modulo_RFID          64
+
+#define Handle_Task_WIFI_CONEXION   65
+#define MARCA_OPERADOR_VALIDO       66
+#define Consulta_Info_Lector_Rfid   67
+#define Excepcion_WIFI              68
+#define ACK_Valido                  69
+
+
 class Variables_Globales
 {
 private:
@@ -64,6 +97,8 @@ private:
     bool Enable_Storage_;
     String Encabezado_Maquina_Generica_;
     String Encabezado_Maquina_Eventos_;
+    String Encabezado_Archivo_Sesiones_;
+    String Encabezado_Archivo_Premios_;
     bool Estado_Escritura_;
     bool Libera_Memoria_OK_;
     bool Primer_Cancel_Credit_;
@@ -85,6 +120,33 @@ private:
     int Flag_Type_excepcion_;
     bool Flag_Crea_Archivos_;
     bool Flag_Archivos_OK_;
+
+    bool Flag_Sesion_RFID_;
+    bool Conexion_RFID_;
+    int Sig_Estado_RFID_;
+    bool Flag_Contadores_Sesion_ON_;
+    bool Flag_Contadores_Sesion_OFF_;
+    bool Flag_Cashout_Button_;
+    bool Operador_Detected_;
+    bool Trama_Pendiente_;
+    bool Consulta_Info_Cliente_;
+    bool Conexion_To_Host_;
+    bool Consulta_Conexion_To_Host_;
+    bool Handle_RFID_Lector_;
+    bool Manual_Reset_;
+    bool Manual_Detected_;
+    bool Billete_Insert_;
+    bool Reset_Handpay_in_Process_;
+    bool Type_Hanpay_Reset_;
+    bool Falla_MicroSD_;
+    bool Verify_Modulo_RFID_;
+    bool Handle_Task_WIFI_;
+    bool MARCA_OPERADOR_VALIDO_;
+    bool Consulta_Info_Lector_Rfid_;
+    bool Excepcion_WIFI_;
+    bool ACK_Valido_;
+    
+
 public:
     void Init_Variables_Globales();
     void Set_Variable_Global(int Filtro, bool Change_estado);

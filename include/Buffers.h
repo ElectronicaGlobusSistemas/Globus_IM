@@ -15,6 +15,11 @@ private:
     char buffer_ACK_encriptado[258];
     char buffer_ACK_final[258];
 
+    /* Buffer de ACK  Cashless*/
+    char buffer_ACK_inicio_Cashless[258];
+    char buffer_ACK_encriptado_Cashless[258];
+    char buffer_ACK_final_Cashless[258];
+
     /* Buffer de ACK + INFO*/
 
     char buffer_ACK_Info_inicio[258];
@@ -49,6 +54,11 @@ private:
     char buffer_info_tarjeta_encriptado[258];
     char buffer_info_tarjeta_final[258];
 
+     /* Buffer info tarjeta */
+    char buffer_info_lector[258];
+    char buffer_info_lector_encriptado[258];
+    char buffer_info_lector_final[258];
+
     /* Buffer info Cashless */
     char buffer_info_Cashless[258];
     char buffer_info_Cashless_encriptado[258];
@@ -71,6 +81,14 @@ private:
     /* Buffer tarjeta mecanica */
     char buffer_tarjeta_mecanica[64];
     char buffer_tarjeta_mecanica_final[64];
+    
+    char buffer_Info_cliente[258];
+    char buffer_Info_cliente_encriptado[258];
+    char buffer_Info_cliente_final[258];
+    
+    char buffer_Registro_MQ[258];
+    char buffer_Registro_MQ_encriptado[258];
+    char buffer_Registro_MQ_final[258];
 
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC;
@@ -94,6 +112,12 @@ public:
     bool Set_buffer_ACK_CRC(void);
     char *Get_buffer_ACK(void);
 
+    /* Buffer de ACK Cashless */
+    bool Set_buffer_ACK_Cashless(int, char, char,char);
+    bool Set_buffer_ACK_encriptado_Cashless(void);
+    bool Set_buffer_ACK_CRC_Cashless(void);
+    char *Get_buffer_ACK_Cashless(void);
+
 
     /*Buffer de ACK +INFO*/
 
@@ -101,6 +125,8 @@ public:
     bool Set_buffer_ACK_Info_encriptado(void);
     bool Set_buffer_ACK_Info_CRC(void);
     char *Get_buffer_Info_ACK(void);
+
+    
 
     /* Buffer de Maquina */
     bool Verifica_buffer_Maq(char[], int);
@@ -156,6 +182,13 @@ public:
     bool Set_buffer_info_tarjeta_CRC(void);
     char *Get_buffer_info_tarjeta(void);
 
+
+    /*Buffer info lector*/
+    bool Set_buffer_info_lector(int);
+    bool Set_buffer_info_lector_encriptado(void);
+    bool Set_buffer_info_lector_CRC(void);
+    char *Get_buffer_info_lector(void);
+
      /*Buffer info Cashless*/
     bool Set_buffer_info_Cashless(int);
     bool Set_buffer_info_Cashless_encriptado(void);
@@ -170,4 +203,16 @@ public:
     bool Set_buffer_tarjeta_mecanica(char buffer[]);
     bool Set_buffer_tarjeta_CRC(void);
     char *Get_buffer_tarjeta_mecanica(void);
+
+    bool Set_buffer_info_cliente(int Com,Contadores_SAS);
+    bool Set_buffer_info_cliente_Encriptado(void);
+    bool Set_buffer_info_cliente_CRC(void);
+    char *Get_Buffer_info_cliente(void);
+
+
+     /* Buffer de ACK Cashless */
+    bool Set_buffer_Registro_MQ(int);
+    bool Set_buffer_Registro_MQ_encriptado(void);
+    bool Set_buffer_Registro_MQ_CRC(void);
+    char *Get_buffer_Registro_MQ(void);
 };

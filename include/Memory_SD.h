@@ -45,6 +45,12 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB);
 void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado);
 void FLASH_RESET(void);
 void Rum_FTP_Server(void);
+void Ftp_handle(void);
+void Storage_Cliente(String archivo, bool Enable,byte *Buffer);
+void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer);
+void Update_Status_SD(void);
+void RESET_SD_2(bool Select);
+void Prueba_LOG(char *ARCHIVO,bool Enable,String Datos);
 //------------------------------------------------------------------------------------------
 
 

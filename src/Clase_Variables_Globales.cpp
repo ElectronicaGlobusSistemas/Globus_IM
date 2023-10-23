@@ -98,6 +98,94 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Archivos_OK:
         return Flag_Archivos_OK_;
         break;
+
+    case Flag_Sesion_RFID:
+        return Flag_Sesion_RFID_;
+        break;
+    case Conexion_RFID:
+        return Conexion_RFID_;
+        break;
+    case Flag_Contadores_Sesion_ON:
+        return Flag_Contadores_Sesion_ON_;
+        break;
+    case Flag_Contadores_Sesion_OFF:
+        return Flag_Contadores_Sesion_OFF_;
+        break;
+    case Flag_Cashout_Button:
+        return Flag_Cashout_Button_;
+        break;  
+    
+    case Operador_Detected:
+        return Operador_Detected_;
+        break; 
+
+    case Trama_Pendiente:
+         return Trama_Pendiente_;
+        break;
+
+    case Consulta_Info_Cliente:
+         return Consulta_Info_Cliente_;
+        break;
+
+    case Conexion_To_Host:
+        return Conexion_To_Host_;
+        break;
+
+    case Consulta_Conexion_To_Host:
+        return Consulta_Conexion_To_Host_;
+        break;
+
+    case Handle_RFID_Lector:
+        return Handle_RFID_Lector_;
+        break;
+
+    case Manual_Reset:
+        return Manual_Reset_;
+        break;
+    case Manual_Detected:
+        return Manual_Detected_;
+        break;
+    
+    case Billete_Insert:
+        return Billete_Insert_;
+        break;
+
+    case Reset_Handpay_in_Process:
+        return Reset_Handpay_in_Process_;
+        break;
+
+    case Type_Hanpay_Reset:
+        return Type_Hanpay_Reset_;
+        break;
+
+    case Falla_MicroSD:
+        return Falla_MicroSD_;
+        break;
+
+    case Verify_Modulo_RFID:
+        return Verify_Modulo_RFID_;
+        break;
+
+    case Handle_Task_WIFI_CONEXION:
+        return Handle_Task_WIFI_;
+        break;
+
+    case MARCA_OPERADOR_VALIDO:
+        return MARCA_OPERADOR_VALIDO_;
+        break;
+
+    case Consulta_Info_Lector_Rfid:
+        return Consulta_Info_Lector_Rfid_;
+        break;
+
+    case Excepcion_WIFI:
+        return Excepcion_WIFI_;
+        break;
+
+
+    case ACK_Valido:
+        return ACK_Valido_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -195,7 +283,95 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Archivos_OK:
         Flag_Archivos_OK_=Change_estado;
         break;
+
+    case Flag_Sesion_RFID:
+        Flag_Sesion_RFID_ = Change_estado;
+        break;
+    case Conexion_RFID:
+        Conexion_RFID_ = Change_estado;
+        break;
+    case Flag_Contadores_Sesion_ON:
+        Flag_Contadores_Sesion_ON_ = Change_estado;
+        break;
+    case Flag_Contadores_Sesion_OFF:
+        Flag_Contadores_Sesion_OFF_ = Change_estado;
+        break;
+    case Flag_Cashout_Button:
+        Flag_Cashout_Button_ = Change_estado;
+        break;
+
+    case Operador_Detected:
+         Operador_Detected_ = Change_estado;
+        break;
+
+    case Trama_Pendiente:
+        Trama_Pendiente_ = Change_estado;
+        break;
+
+    case Consulta_Info_Cliente:
+        Consulta_Info_Cliente_=Change_estado;
+        break;
+
+    case Conexion_To_Host:
+        Conexion_To_Host_=Change_estado;
+        break;
+
+    case Consulta_Conexion_To_Host:
+        Consulta_Conexion_To_Host_=Change_estado;
+        break;
+    case Handle_RFID_Lector:
+        Handle_RFID_Lector_=Change_estado;
+        break;
+
+
+    case Manual_Reset:
+        Manual_Reset_=Change_estado;
+        break;
+    case Manual_Detected:
+        Manual_Detected_=Change_estado;
+        break;
+    case Billete_Insert:
+        Billete_Insert_=Change_estado;
+        break;
+
+    case Reset_Handpay_in_Process:
+        Reset_Handpay_in_Process_=Change_estado;
+        break;
+
+    case Type_Hanpay_Reset:
+        Type_Hanpay_Reset_=Change_estado;
+        break;
+
+    case Falla_MicroSD:
+        Falla_MicroSD_=Change_estado;
+        break;
+
+    case Verify_Modulo_RFID:
+        Verify_Modulo_RFID_=Change_estado;
+        break;
+
+    case Handle_Task_WIFI_CONEXION:
+        Handle_Task_WIFI_=Change_estado;
+        break;
+
+    case MARCA_OPERADOR_VALIDO:
+        MARCA_OPERADOR_VALIDO_=Change_estado;
+        break;
+    case Consulta_Info_Lector_Rfid:
+        Consulta_Info_Lector_Rfid_=Change_estado;
+        break;
+
+    case Excepcion_WIFI:
+        Excepcion_WIFI_=Change_estado;
+        break;
+
+    case ACK_Valido:
+        ACK_Valido_=Change_estado;
+        break;
     }
+
+
+
 }
 
 
@@ -244,6 +420,35 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Type_excepcion_=0;
     Flag_Crea_Archivos_=false;
     Flag_Archivos_OK_=false;
+
+
+    Flag_Sesion_RFID_=false;
+    Conexion_RFID_=false;
+    Sig_Estado_RFID_=0;
+    Flag_Contadores_Sesion_ON_=false;
+    Flag_Contadores_Sesion_OFF_=false;
+    Flag_Cashout_Button_=false;
+    Operador_Detected_=false;
+    Trama_Pendiente_=false;
+    Consulta_Info_Cliente_=false;
+    Conexion_To_Host_=false;
+    Consulta_Conexion_To_Host_=false;
+    Handle_RFID_Lector_=false;
+
+    Manual_Reset_=false;
+    Manual_Detected_=false;
+    Encabezado_Archivo_Sesiones_="Hora,ID Cliente";
+    Encabezado_Archivo_Premios_="Hora,ID Operador";
+    Reset_Handpay_in_Process_=false;
+    Type_Hanpay_Reset_=false;
+    Falla_MicroSD_=false;
+    Verify_Modulo_RFID_=false;
+    Handle_Task_WIFI_=false;
+    MARCA_OPERADOR_VALIDO_=false;
+    Consulta_Info_Lector_Rfid_=false;
+    Excepcion_WIFI_=false;
+    ACK_Valido_=false;
+    
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
@@ -257,6 +462,14 @@ String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
     case Encabezado_Maquina_Eventos:
         return Encabezado_Maquina_Eventos_;
         break;
+
+    case Encabezado_Archivo_Sesiones:
+        return Encabezado_Archivo_Sesiones_;
+        break;
+
+    case Encabezado_Archivo_Premios:
+    return Encabezado_Archivo_Premios_;
+    break;
     }
 }
 
@@ -324,7 +537,11 @@ void Variables_Globales::Set_Variable_Global_Int(int filtro, int Change_estado)
     switch (filtro)
     {
     case Flag_Type_excepcion:
-        Flag_Type_excepcion_=Change_estado;
+        Flag_Type_excepcion_ = Change_estado;
+        break;
+
+    case Sig_Estado_RFID:
+        Sig_Estado_RFID_ = Change_estado;
         break;
     }
 
@@ -336,6 +553,9 @@ int Variables_Globales::Get_Variable_Global_Int(int filtro)
     {
     case Flag_Type_excepcion:
         return Flag_Type_excepcion_;
+        break;
+    case Sig_Estado_RFID:
+        return Sig_Estado_RFID_;
         break;
     }  
 }

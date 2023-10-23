@@ -14,8 +14,10 @@ extern ESP32Time RTC;
 void Setup_Bootloader(void);
 void  Init_Bootloader();
 static void Rum_Bootloader(void*parameter);
+void Update_Date(void);
 //Variables_Globales Variables_globales;
 bool Bootloader_Enable;
+bool Termina_Bootlader_Timeout=false;
 
 void Setup_Bootloader(void)
 {
@@ -65,88 +67,24 @@ static void Rum_Bootloader(void*parameter)
   vTaskSuspend(Modo_Bootloader);//  bootloader En Pausa.
   
   int Conteo = 0;
-  int Mensaje=1;
+  bool Captura_Fecha=true;
   unsigned long Tiempo_Actual_Bootloader= 0;
   unsigned long Tiempo_Previo_Bootloader=0;
+
   for (;;)
   {
     Tiempo_Actual_Bootloader = millis();
 
-    if(Mensaje==1)
+    if (Captura_Fecha == true)
     {
-      Serial.println("Bootloader Activado..");
-      Mensaje = 0;
-      if(Bootloader_Enable)
-      {
-        /*Captura información inicio Bootloader*/
-        String Hora = RTC.getTime();
-        String Fecha = RTC.getDate();
-        String Mes;
-        int month = RTC.getMonth();
-        switch (month)
-        {
-        case 0:
-          Mes = "01";
-          break;
-        case 1:
-          Mes = "02";
-          break;
-        case 2:
-          Mes = "03";
-          break;
-        case 3:
-          Mes = "04";
-          break;
-        case 4:
-          Mes = "05";
-          break;
-        case 5:
-          Mes = "06";
-          break;
-        case 6:
-          Mes = "07";
-          break;
-        case 7:
-          Mes = "08";
-          break;
-        case 8:
-          Mes = "09";
-          break;
-        case 9:
-          Mes = "10";
-          break;
-        case 10:
-          Mes = "11";
-          break;
-        case 11:
-          Mes = "12";
-          break;
-        default:
-          break;
-        }
-        Serial.println("Guardando Fecha Bootloader.....");
-        NVS.begin("Config_ESP32", false);
-        uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
-        NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
-
-        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
-        uint8_t Datos_Fecha_B[Fecha_len];
-        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
-        NVS.end();
-      }
+      Update_Date();
+      Captura_Fecha = false;
     }
-    
-    if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) > 500000) // 5 minutos
+
+    if ((Tiempo_Actual_Bootloader - Tiempo_Previo_Bootloader) >= 500000) // 5 minutos
     {
-      vTaskSuspend(Modo_Bootloader);
+      Termina_Bootlader_Timeout=true;
       Tiempo_Previo_Bootloader = Tiempo_Actual_Bootloader;
-      Serial.println("Tiempo de espera Modo Bootloader Agotado.");
-      
-      if(eTaskGetState(Modo_Bootloader)==eSuspended)
-      {
-        Serial.println("Tarea Bootloader Terminada TIMEOUT");
-      }
-      
     }
 
     Conteo++;
@@ -157,4 +95,64 @@ static void Rum_Bootloader(void*parameter)
   }
   vTaskDelay(10);
   vTaskDelete(NULL);
+}
+
+void Update_Date(void)
+{
+  Serial.println("Bootloader Activado..");
+  /*Captura información inicio Bootloader*/
+  String Hora = RTC.getTime();
+  String Fecha = RTC.getDate();
+  String Mes;
+  int month = RTC.getMonth();
+  switch (month)
+  {
+  case 0:
+   Mes = "01";
+   break;
+  case 1:
+   Mes = "02";
+   break;
+  case 2:
+   Mes = "03";
+   break;
+  case 3:
+   Mes = "04";
+   break;
+  case 4:
+   Mes = "05";
+   break;
+  case 5:
+   Mes = "06";
+   break;
+  case 6:
+   Mes = "07";
+   break;
+  case 7:
+   Mes = "08";
+   break;
+  case 8:
+   Mes = "09";
+   break;
+  case 9:
+   Mes = "10";
+   break;
+  case 10:
+   Mes = "11";
+   break;
+  case 11:
+   Mes = "12";
+   break;
+  default:
+   break;
+  }
+  Serial.println("Guardando Fecha Bootloader.....");
+  NVS.begin("Config_ESP32", false);
+  uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
+  NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
+
+  size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+  uint8_t Datos_Fecha_B[Fecha_len];
+  NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+  NVS.end();
 }

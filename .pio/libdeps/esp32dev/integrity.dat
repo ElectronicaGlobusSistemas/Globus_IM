@@ -1,3 +1,7 @@
 bblanchon/ArduinoJson@^6.19.4
 henrikste/ESP32FTPServer@^0.0.2
+luisllamasbinaburo/I2CScanner@^1.0.1
+adafruit/Adafruit NeoPixel@^1.11.0
 fbiego/ESP32Time@^1.1.0
+xreef/PCF8574 library@^2.3.5
+miguelbalboa/MFRC522@1.4.2

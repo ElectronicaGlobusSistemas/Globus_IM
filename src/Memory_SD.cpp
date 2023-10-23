@@ -7,10 +7,10 @@
 //----------------------------------------> Variables Globales <----------------------------------------
 bool Enable_Status;
 unsigned long count2 = 0;
-#define Debug_FTP
-#define Debug_Status_SD
-#define Debug_Escritura
-#define Info_SD
+//#define Debug_FTP
+//#define Debug_Status_SD
+//#define Debug_Escritura
+//#define Info_SD
 #define FLASH_RESET_Pin  35
 #define MCU_Status      2
 #define WIFI_Status     15
@@ -48,7 +48,10 @@ int Contador_Dias=0;
 char Archivo_CSV_Contadores_copy[200];
 char Archivo_CSV_Eventos_copy[200];
 char Archivo_LOG_copy[200];
-
+char Archivo_CSV_Sesiones_copy[200];
+char Archivo_CSV_Premios_copy[200];
+String Estructura_CSV_Sesiones[2];
+String Estructura_CSV_Premios[2];
 
 extern char Archivo_CSV_Contadores[200];
 extern char Archivo_CSV_Eventos[200];
@@ -64,6 +67,7 @@ bool Borrado_completado=false;
 unsigned long Timeout_FTP=0;
 unsigned long Timeout_FTP_Previous=0;
 unsigned long Deshabilita_FTP=600000;
+
 
 unsigned long InicialTime = 0;
 unsigned long FinalTime = 0;
@@ -88,17 +92,27 @@ int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
 
 #include "Configuracion.h"
 extern Configuracion_ESP32 Configuracion;
+
+//--------------------------------------> Bus SPI <-----------------------------------------------------
+SPIClass spiRFID(VSPI);
+
+/**********************************************************************************/
+/*                              Inicializa Modulo SD                              */
+/**********************************************************************************/
 void Init_SD(void)
 {
   
-  if(SD.begin(SD_ChipSelect))
+  spiRFID.begin(18,19,23,SD_ChipSelect);
+ // spiRFID.setClockDivider(SPI_CLOCK_DIV128);
+  spiRFID.setFrequency(500000);
+  if(SD.begin( SD_ChipSelect, spiRFID, 500000))
   {
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
     digitalWrite(SD_Status,HIGH);
   }else
   {
-    Serial.println("Error Inicializando Memoria SD");
+    Serial.println("Memoria SD no insertada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,false);
     digitalWrite(SD_Status,LOW);
   }
@@ -115,9 +129,9 @@ void Init_FTP_SERVER()
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
+
 void Rum_FTP_Server(void)
 {
- 
   if(Set_WATCHDOG==false)
   {
     esp_task_wdt_init(10000, true);
@@ -127,18 +141,24 @@ void Rum_FTP_Server(void)
    esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
     Conteo++;
     InicialTime = millis();
-    if ((InicialTime - FinalTime) > 100)
+    if ((InicialTime - FinalTime) >= 100)
     {
       if (Enable_Status == true)
       {
         FinalTime = InicialTime;
         SD_State = !SD_State;
-        digitalWrite(SD_Status, !SD_State);
+        digitalWrite(SD_Status, SD_State);
       }
     }
     ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
     esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
     vTaskDelay(10);
+}
+
+void Ftp_handle(void)
+{
+  esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
+  ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -340,14 +360,22 @@ void Write_Data_File_Txt(String Datos, char *ARCHIVO)
   }
 }
 
+
+
+
 void LOG_ESP(char *ARCHIVO,bool Enable)
 {
+
+
   if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
   {
     if (Enable == true)
     {
-      myFile = SD.open("/"+String(ARCHIVO), FILE_APPEND);
-      if (!myFile)
+
+      
+      File myFile2;
+      myFile2 = SD.open("/"+String(ARCHIVO), FILE_APPEND);
+      if (!myFile2)
       {
         #ifdef Debug_Escritura
         Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
@@ -357,13 +385,14 @@ void LOG_ESP(char *ARCHIVO,bool Enable)
       else
       {
         String Datos = String(Fallo);
-        myFile.println(RTC.getTime() + " Error: " + Datos);
-        myFile.close();
+        myFile2.println(RTC.getTime() + " Error: " + Datos);
+        myFile2.close();
         #ifdef Debug_Escritura
         Serial.println("LOG Guardado");
         #endif
         Contador_Escrituras++;
       }
+      
     }
     else
     {
@@ -375,7 +404,7 @@ void LOG_ESP(char *ARCHIVO,bool Enable)
 }
 
 //-------------------------------------------------------------------------------------------------------
-//---------------------------> Función Para Guardar Contadores y Eventos en SD <-------------------------
+//-----------------------> Función Para Crear archivo de contadores con encabezado <---------------------
 void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
 {
   if (!SD.exists("/"+String(ARCHIVO))) // Si el archivo no existe lo Crea con encabezado para Excel!!
@@ -409,6 +438,7 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
    // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
 }
+//-----------------------> Funcion para Crear Archivo de eventos con encabezado <------------------------
 void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
 {
   if (!SD.exists("/"+String(ARCHIVO))) // Si el archivo no existe lo Crea con encabezado para Excel!!
@@ -485,13 +515,22 @@ void Write_Data_File(String Datos, char *ARCHIVO, bool select)
 }
 //--------------------------------------------------------------------------------------------------------
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
+
+int Cuenta_Fallos=0;
 void Write_Data_File2(String Datos, String archivo, bool select, String Encabezado)
 {
   if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
   {
+                       
     myFile = SD.open("/"+archivo, FILE_APPEND);
     if (!myFile)
     {
+      Cuenta_Fallos++;
+      if(Cuenta_Fallos>=2)
+      {
+        Variables_globales.Set_Variable_Global(Falla_MicroSD,true);
+        Cuenta_Fallos=0;
+      }
       #ifdef Debug_Escritura
       Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
       #endif
@@ -500,25 +539,202 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
     else if (myFile) //  else por else if
     {
       myFile.println(Datos);
-
-      // myFile.println();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Contadores Guardados en SD");
       #endif
       Contador_Escrituras++;
     }
+    
   }
 }
 //--------------------------------------------------------------------------------------------------------
+//---------------------------> Funcion para  guardar operador  reset handpay <----------------------------
+void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer)
+{
+  String Datos2;
+  if (Enable)
+  {
+    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    {
+      myFile = SD.open("/" + archivo, FILE_APPEND);
+      if (!myFile)
+      {
+#ifdef Debug_Escritura
+        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+#endif
+        Contador_Escrituras = 0;
+      }
+      else if (myFile) //  else por else if
+      {
+
+        /* Fecha */
+        Estructura_CSV_Premios[0] = RTC.getTime() + ",";
+        /* Operador */
+        int BT11 = (int)Buffer[0] - 48;
+        int BT22 = (int)Buffer[1] - 48;
+        int BT33 = (int)Buffer[2] - 48;
+        int BT44 = (int)Buffer[3] - 48;
+        int BT55 = (int)Buffer[4] - 48;
+        int BT66 = (int)Buffer[5] - 48;
+        int BT77 = (int)Buffer[6] - 48;
+        int BT88 = (int)Buffer[7] - 48;
+        Estructura_CSV_Premios[1] = String(BT11) + String(BT22) + String(BT33) + String(BT44) + String(BT55) + String(BT66) + String(BT77) + String(BT88);
+
+        /* Almacena estructura en archivo CSV*/
+        Datos2 = Estructura_CSV_Premios[0] + Estructura_CSV_Premios[1];
+        myFile.println(Datos2);
+        myFile.close();
+
+        for (int i = 0; i <= Datos2.length(); i++)
+        {
+          Datos2.remove(i);
+        }
+        for (int i = 0; i < 2; i++)
+        {
+          Estructura_CSV_Premios[i] = "N/A";
+        }
+
+#ifdef Debug_Escritura
+        Serial.println("Premio Guardado en SD");
+#endif
+        Contador_Escrituras++;
+      }
+    }
+  }else{
+    if(Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    {
+      for (int i = 0; i <= Datos2.length(); i++)
+      {
+        Datos2.remove(i);
+      }
+      for (int i = 0; i < 2; i++)
+      {
+        if (i == 1)
+        {
+          Estructura_CSV_Premios[i] = "N/A";
+        }
+        else
+        {
+          Estructura_CSV_Premios[i] = "N/A,";
+        }
+      }
+    }
+  }
+}
+//---------------------------> Funcion para guardar inicios de sesion clientes <--------------------------
+void Storage_Cliente(String archivo, bool Enable,byte *Buffer)
+{
+  String Datos;
+  if (Enable)
+  {
+    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    {
+      
+      myFile = SD.open("/" + archivo, FILE_APPEND);
+      if (!myFile)
+      {
+#ifdef Debug_Escritura
+        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+#endif
+        Contador_Escrituras = 0;
+      }
+      else if (myFile) //  else por else if
+      {
+
+        /* Fecha y Cliente */
+        Estructura_CSV_Sesiones[0] = RTC.getTime() + ",";
+
+        int BT1=(int)Buffer[0]-48;
+        int BT2=(int)Buffer[1]-48;
+        int BT3=(int)Buffer[2]-48;
+        int BT4=(int)Buffer[3]-48;
+        int BT5=(int)Buffer[4]-48;
+        int BT6=(int)Buffer[5]-48;
+        int BT7=(int)Buffer[6]-48;
+        int BT8=(int)Buffer[7]-48;
+
+        Estructura_CSV_Sesiones[1] = String(BT1)+String(BT2)+String(BT3)+String(BT4)+String(BT5)+String(BT6)+String(BT7)+String(BT8);
+        Datos=Estructura_CSV_Sesiones[0]+Estructura_CSV_Sesiones[1];
+        myFile.println(Datos);
+        myFile.close();
+
+        for (int i = 0; i <= Datos.length(); i++)
+        {
+          Datos.remove(i);
+        }
+        for (int i = 0; i < 2; i++)
+        {
+          if(i==1)
+          {
+               Estructura_CSV_Sesiones[i] = "N/A";
+          }else{
+               Estructura_CSV_Sesiones[i] = "N/A,";
+          }
+        }
+
+#ifdef Debug_Escritura
+        Serial.println("Cliente Guardado en SD");
+#endif
+        Contador_Escrituras++;
+      }
+    }
+  }else{
+
+    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    {
+      for (int i = 0; i <= Datos.length(); i++)
+      {
+        Datos.remove(i);
+      }
+      for (int i = 0; i < 2; i++)
+      {
+        if (i == 1)
+        {
+          Estructura_CSV_Sesiones[i] = "N/A";
+        }
+        else
+        {
+          Estructura_CSV_Sesiones[i] = "N/A,";
+        }
+      }
+    }
+  }
+}
+//---------------------------> Funcion para actualizar estado de memoria <--------------------------------
+void Update_Status_SD(void)
+  {
+    if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false)
+    {
+      Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita  Guardado SD.
+    }
+    else
+    {
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false && Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == false && Variables_globales.Get_Variable_Global(SD_INSERT) == true && Variables_globales.Get_Variable_Global(Flag_Archivos_OK)==true)
+      {
+        Variables_globales.Set_Variable_Global(Enable_Storage, true);
+      }
+    }
+  }
 //-----------------------------------> Función Para Reset SD <--------------------------------------------
 void RESET_SD(void)
 {
   SD.end();
   SD.begin(SD_ChipSelect); // Intento Conectar SD
 }
+//-----------------------------------> Funcion para inicio y reset <--------------------------------------
+void RESET_SD_2(bool Select)
+{
+  if(Select)
+  {
+     SD.begin(SD_ChipSelect); // Intento Conectar SD
+  }else{
+     SD.end();
+  }
+ 
+ 
+}
 //--------------------------------------------------------------------------------------------------------
-
 //------------------------------> Función Lectura de Archivo Formato String <-----------------------------
 void Read_File(const char *ARCHIVO)
 {
@@ -540,7 +756,6 @@ void Read_File(const char *ARCHIVO)
   }
 }
 //--------------------------------------------------------------------------------------------------------
-
 //------------------------------> Función Para Borrar Archivos <------------------------------------------
 bool Remove_Archive(char *ARCHIVO)
 {
@@ -616,13 +831,21 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
 
           if (Eliminar_Mes != month_copy && Borrado_completado==false&& Eliminar_Mes>0 && Eliminar_Mes<13)
           {
+
+            /*----------------------------------> ESTABLECE NOMBRE DE ARCHIVOS <----------------------------------------------------*/
             String Name_Archivo_Contadores = "Contadores-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
             String Name_Archivo_Eventos = "Eventos-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".CSV";
             String Name_Archivo_LOG = "Log-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".TXT";
+            String Name_Archivo_Premios="Premios_Maquina-"+String(Contador_Dias)+ String(Eliminar_Mes)+String(Eliminar_year)+".CSV";
+            String Name_Archivo_Sesiones="Sesiones_RFID-"+ String(Contador_Dias)+String(Eliminar_Mes)+String(Eliminar_year)+".CSV";
+
             strcpy(Archivo_CSV_Contadores_copy, Name_Archivo_Contadores.c_str());
             strcpy(Archivo_CSV_Eventos_copy, Name_Archivo_Eventos.c_str());
             strcpy(Archivo_LOG_copy, Name_Archivo_LOG.c_str());
-
+            strcpy(Archivo_CSV_Premios_copy, Name_Archivo_Premios.c_str());
+            strcpy(Archivo_CSV_Sesiones_copy, Name_Archivo_Sesiones.c_str());
+            /*----------------------------------------------------------------------------------------------------------------------*/
+            /* -------------------------------------> Elimina Archivos <------------------------------------------------------------*/
             if (Remove_Archive(Archivo_CSV_Contadores_copy))
             {
               Valida_Archivos_Eliminados++;
@@ -635,6 +858,16 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
             {
               Valida_Archivos_Eliminados++;
             }
+
+            if(Remove_Archive(Archivo_CSV_Premios_copy))
+            {
+              Valida_Archivos_Eliminados++;
+            }
+            if(Remove_Archive(Archivo_CSV_Sesiones_copy))
+            {
+              Valida_Archivos_Eliminados++;
+            }
+            /*---------------------------------------------------------------------------------------------------------------*/
           }
 
           if (Espacio_Usado_MB <= (Limite_MB / 2)||Espacio_Usado_MB<=(Limite_MB*0.6))
@@ -664,7 +897,6 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
     return 0;
 }
 //--------------------------------------------------------------------------------------------------------
-
 //------------------------------> Función Para Crear Carpetas <-------------------------------------------
 void Nueva_Carpeta(char *Carpeta)
 {
