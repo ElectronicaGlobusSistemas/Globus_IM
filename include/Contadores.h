@@ -47,6 +47,9 @@ using namespace std;
 #define Copia_Bill_Amount_2 55
 
 #define Copia_Bill_Amount 54
+
+
+#define Legacy_Bonus_Awards 55
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
 {
@@ -91,10 +94,14 @@ private: // Variables Privadas Para contadores
   char Copia_Bill_Amount_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Copia_Bill_Amount_2_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
 
+  int Type_Legacy_Bonus_Awards_=0;
+  char Legacy_Bonus_Awards_[4]={'0', '0', '0', '0'};
+
   byte ID_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Client[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Client_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Operador_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
+  byte ID_Consulta_Info_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
 
   char Vacio;
 
@@ -131,4 +138,18 @@ public:
   bool Set_Operador_ID_Temp_APP(char Operador_[]);
   bool Verify_Close(byte Cliente_Operador[]);
   bool Verify_ID_Op(void);
+  bool ID_Consulta_INFO_Operador(char Operador[]);
+  bool Dele_Operador_INFO_Operador(void);
+  byte* Get_Operador_INFO_Operador(void);
+
+
+
+
+  /* Bonus*/
+  bool Set_Meter_Legacy_Bonus_Awards(char res[]);
+  bool Delete_Meter_Legacy_Bonus_Awards(void);
+  int Get_Type_Legacy_Bonus_Awards(void);
+  bool Type_Legacy_Bonus_Awards(char res[]);
+  char*  Get_Amount_Legacy_Bonus_Awards(void);
+  bool Set_Type_Legacy_Bonus(char res[]);
 };

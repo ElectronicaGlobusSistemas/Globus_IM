@@ -37,32 +37,35 @@ int Contador_Reinicios=0;
 /* Maximo de intentos conexion WIFI 15*/
 int MAX_INTENT_CONEXION_WIFI=15;
 bool  Desconexion_Forzada=false;
-
 extern char Archivo_LOG[200];
+
+extern unsigned long TIMEOUT_WiFi_CONNECT;
+extern unsigned long TIMEOUT_WiFi_CONNECT_2;
+extern bool WL_DISCONNECT_OK;
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
 void Init_Wifi()
 {
-  xTaskCreatePinnedToCore(
-      Task_Verifica_Conexion_Wifi, //  Funcion a implementar la tarea
-      "Verifica conexion wifi",    //  Nombre de la tarea
-      10000,                       //  Tamaño de stack en palabras (memoria)
-      NULL,                        //  Entrada de parametros
-      configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
-      &Status_WIFI,                //  Manejador de la tarea
-      0);                          //  Core donde se ejecutara la tarea
+  // xTaskCreatePinnedToCore(
+  //     Task_Verifica_Conexion_Wifi, //  Funcion a implementar la tarea
+  //     "Verifica conexion wifi",    //  Nombre de la tarea 10000
+  //     10000,                       //  Tamaño de stack en palabras (memoria)
+  //     NULL,                        //  Entrada de parametros
+  //     configMAX_PRIORITIES - 10,   //  Prioridad de la tarea
+  //     &Status_WIFI,                //  Manejador de la tarea
+  //     0);                          //  Core donde se ejecutara la tarea
   xTaskCreatePinnedToCore(
       Task_Verifica_Conexion_Servidor,
       "Verifica conexion server",
       5000,
-      NULL,
+      NULL,/*5000*/
       configMAX_PRIORITIES - 20,
       &Status_SERVER,
       0); // Core donde se ejecutara la tarea
   xTaskCreatePinnedToCore(
       Task_Verifica_Mensajes_Servidor,
       "Verifica mensajes server",
-      8000,
+      5000, //8000
       NULL,
       configMAX_PRIORITIES - 5,
       NULL,
@@ -238,6 +241,112 @@ void WIFI_VERIFY(int Intentos_Conexion)
 
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
+
+
+/* RECONECTA  WIFI DESPUES DE  PERDIDA DE CONEXIÓN O CONEXION LENTA */
+void RECONECT_WIFI_ESP()
+{
+  unsigned long tiempo_inicial, tiempo_final = 0;
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Variables_globales.Set_Variable_Global(Verifica_Conexion_WIFI,false);
+    Intentos_Conexion_WIFI = 0;
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+    serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+    digitalWrite(WIFI_Status, HIGH);
+    Serial.print("Conectado a: ");
+    Serial.println(SSID_Wifi);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("ESP Mac Address: ");
+    Serial.println(WiFi.macAddress());
+    clientUDP.begin(serverPort);
+    Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+    Serial.print("Nivel Señal WIFI: ");
+    Serial.println(WiFi.RSSI());
+    Selector_Modo_SD();
+    log_e("WIFI RECONECTADO ", 106);
+    Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
+    LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Init_FTP_SERVER();
+    Reset_Config_Intentos_WIFI();
+    Serial.println("Termina verifica conexion WIFI...");
+    Desconexion_Forzada = false;
+    WL_DISCONNECT_OK=false;
+    TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
+    
+  }
+  else
+  {
+    Selector_Modo_SD();
+    log_e("Intento Conexion  A WIFI ", 105);
+    LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+
+    digitalWrite(WIFI_Status, LOW);
+    Serial.print("Conectando a... ");
+    Serial.println(SSID_Wifi);
+
+    if (!Desconexion_Forzada)
+    {
+      WiFi.disconnect(true, true); // desconecta red
+      Desconexion_Forzada = true;
+    }
+
+    delay(50);
+    memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
+    // Obtiene direccion IP de enlace guardada en Objeto configuracion
+    memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+    memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+    WiFi.mode(WIFI_MODE_STA);
+    IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
+    IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
+    IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
+    IPAddress primaryDNS(8, 8, 8, 8);   // optional
+    IPAddress secondaryDNS(8, 8, 4, 4); // optional
+
+    if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
+    {
+      Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
+      Selector_Modo_SD();
+      log_e("Error Cargando datos en modo estacion", 104);
+      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      Intentos_Conexion_WIFI++;
+    }
+
+    WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
+
+    SSID_Wifi = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+    Password_Wifi = Configuracion.Get_Configuracion(Password, "Password_red");
+
+    WiFi.begin(SSID_Wifi.c_str(), Password_Wifi.c_str());
+
+    tiempo_inicial = millis();
+    while (WiFi.status() != WL_CONNECTED && (tiempo_inicial - tiempo_final) < wifi_timeout)
+    {
+      vTaskDelay(5);
+    }
+
+    tiempo_final = tiempo_inicial;
+    /* ---------------> Verifica Intentos Conexion WIFI <------------------------------------------------------ */
+    WIFI_VERIFY(Intentos_Conexion_WIFI);
+    /*-----------------------------------------------------------------------------------------------------------*/
+    if (WiFi.status() != WL_CONNECTED)
+    {
+
+      Intentos_Conexion_WIFI++;
+
+      Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
+      Selector_Modo_SD();
+      log_e("Fallo en el intento de conexion a la red WIFI", 103);
+      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+
+      Serial.print("\nNo se puede conectar a... ");
+      Serial.println(SSID_Wifi);
+      digitalWrite(WIFI_Status, LOW);
+    }
+  }
+}
 
 void Task_Verifica_Conexion_Wifi(void *parameter)
 {

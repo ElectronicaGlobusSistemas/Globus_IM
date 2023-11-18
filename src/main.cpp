@@ -42,13 +42,15 @@ Tabla_Eventos Tabla_Evento;
 //#define Debug_Status_SD
 //#define Debug_Escritura
 //#define Info_SD
+
+
 /*--------------------------------------------------------------------------------------------------*/
 unsigned long Timeout_Close_Operador=0;
 unsigned long Timeout_Close_Final=0;
 
 /* Reset Timer Close Operador */
-int Condicion_Cumpl=false;
-int Timeout_OK_Data=40000;
+bool Condicion_Cumpl=false;
+int Timeout_OK_Data=60000;
 
 
 unsigned long Contador_RESET_HANDPAY=0;
@@ -98,7 +100,7 @@ extern unsigned long New_Timmer_Inicial;
 
 
 unsigned long currentTime;
-int Inactividad_R=90000;
+//int Inactividad_R=90000;
 bool condicionCumplida = false;
 unsigned long startTime = 0;
 
@@ -131,19 +133,24 @@ unsigned long TimeOut_Conect_RFID=0;
 unsigned long TimeOut_Conect_Final=0;
 int Time_Stop_Conect=10000;
 int Intentos_Conect_RFID=0;
+
+int Inactividad_Usuario_Player_Tracking;
+int Tiempo_Transmision_En_Juego;
+int Tiempo_Transmision_No_Juego;
+
+
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
-
   /*--------------------> Verifica la Comunicación Maquina<------------------------- */
   if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
   {
     xTaskCreatePinnedToCore(
         Check_Comunicacion_Maq,
         "verificaComunica",
-        8000,
+        5000,/*8000*/
         NULL,
         configMAX_PRIORITIES - 15,
         NULL,
@@ -163,7 +170,7 @@ void loop()
   /*------------------------> Verifica Inactividad de Cliente <---------------------------*/
   TimeOut_Player_Tracking_Sesion();
   /*--------------------------------------------------------------------------------------*/
-
+  
   /*---------------------> Lectura Tarjetas  <--------------------------------------------*/
   Lee_Tarjeta();
   /*------------------------> Despierta lector de inactividad <---------------------------*/
@@ -176,13 +183,12 @@ void loop()
       Time_P = millis();
   }
   /*--------------------------------------------------------------------------------------*/
-  
+ 
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/
   check_SD();
   /*--------------------------------------------------------------------------------------*/
 
   /*---------------------> Reset Handpay Maquinas No SAS <--------------------------------*/
-
   if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
   {
       if (millis() - Sample_Time_ >= Time_Ejecutions)
@@ -192,7 +198,7 @@ void loop()
       }
   }
 
-  /*--------------------------------------------------------------------------------------*/
+    /*---------------------------> Conecta módulo RFID <------------------------------------*/
   if (!Variables_globales.Get_Variable_Global(Verify_Modulo_RFID))
   {
       if ((TimeOut_Conect_RFID - TimeOut_Conect_Final) >= Time_Stop_Conect && !Variables_globales.Get_Variable_Global(Conexion_RFID) && Intentos_Conect_RFID < 2)
@@ -209,10 +215,13 @@ void loop()
   }
 }
 
+/* Verifica comunicacion maquina */
 static void Check_Comunicacion_Maq(void *parameter)
 {
     for (;;)
     {
+      
+
       Bandera_RS232 = millis();
       Msg_RS232 = millis();
 
@@ -347,7 +356,7 @@ static void Check_Comunicacion_Maq(void *parameter)
     vTaskDelay(10);
 }
 
-/* Funcion para cerrar Sesion Player Tracking Por inactividad*/
+/* Verifica y cierra sesion de usuario RFID por inactividad  despues de 90s */
 void TimeOut_Player_Tracking_Sesion(void)
 {
     currentTime = millis();
@@ -361,13 +370,15 @@ void TimeOut_Player_Tracking_Sesion(void)
         startTime = currentTime;
         condicionCumplida = true;
       }
-      if ((currentTime - startTime) >= Inactividad_R && Creditos_Actuales_Maquina > 10)
+      if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
       {
+        startTime = currentTime;
         condicionCumplida=false;
       }
-      if ((currentTime - startTime) >= Inactividad_R && Creditos_Actuales_Maquina < 10)
+      if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
       {
 
+        Transmite_Contadores_Accounting();
         Close_Sesion_Player_Tracking();
         Contador_Transmision_Contadores = 0;
         New_Timer_Final = New_Timmer_Inicial;
@@ -382,12 +393,12 @@ void TimeOut_Player_Tracking_Sesion(void)
     }
 }
 
-
+/* Elimina ID Operador si no se recibe  ACK  191 despues de 60s */
 void TimeOut_Marca_Operador(void)
 {
     Timeout_Close_Operador = millis();
 
-    if (Variables_globales.Get_Variable_Global(MARCA_OPERADOR_VALIDO) && contadores.Verify_ID_Op())
+    if (Variables_globales.Get_Variable_Global(MARCA_OPERADOR_VALIDO))
     {
       if (!Condicion_Cumpl)
       {
@@ -412,18 +423,13 @@ void TimeOut_Marca_Operador(void)
         /*---------------------------------------------------------------*/
       }
     }
-    else if (Variables_globales.Get_Variable_Global(MARCA_OPERADOR_VALIDO) && !contadores.Verify_ID_Op())
-    {
-      Condicion_Cumpl = false;
-      Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
-    }
     else
     {
       Condicion_Cumpl = false;
     }
 }
 
-
+/*Ejecuta Servidor FTP & Funciones de Memoria*/
 void check_SD(void)
 {
   Timer_SD_CHECK = millis();

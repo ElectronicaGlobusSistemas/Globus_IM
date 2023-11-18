@@ -124,6 +124,16 @@ bool Eventos_SAS::Set_evento(char evento)
             Evento_SAS = evento;
             return true;
             break;
+        
+         case 0x7C: /*Memory error reset (operador used self test)*/
+            Evento_SAS = evento;
+            return true;
+            break;
+
+        case 0x01: /*ACK RECIBIDO*/
+            Evento_SAS = evento;
+            return true;
+            break;
 
         default:
             Evento_SAS = 0x00;

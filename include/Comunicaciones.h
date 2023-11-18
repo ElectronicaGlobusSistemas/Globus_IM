@@ -131,8 +131,9 @@ extern unsigned char New_Serial_Cashless_Unidades;
 
 
 
-extern int Condicion_Cumpl;
-
+extern bool Condicion_Cumpl;
+extern int Tiempo_Transmision_En_Juego;
+extern int Tiempo_Transmision_No_Juego;
 /*Timer Counter*/
 
 int Ejecuta=1;
@@ -163,6 +164,9 @@ int Timer_No_Reset=10000;
 
 bool Enable_Timer_No_reset=false;
 
+
+
+
 int  Convert_Char_To_Int2(char buffer[])
 {
     int resultado = ((buffer[0] - 48) * 10000000) + ((buffer[1] - 48) * 1000000) +
@@ -184,6 +188,26 @@ int Convert_Char_To_Int10(char buffer[]) {
                 resultado = resultado * 10 + (buffer[i] - '0');
                 primerDigito = 1;
             }
+        }
+    }
+
+    return resultado;
+}
+
+int Convert_Char_To_Int11(char buffer[]) {
+    int resultado = 0;
+    int primerDigito = 0;
+    int longitud = strlen(buffer);
+
+    for (int i = 0; i < longitud; i++) {
+        if (isdigit(buffer[i])) {
+            if (buffer[i] != '0' || primerDigito) {
+                resultado = resultado * 10 + (buffer[i] - '0');
+                primerDigito = 1;
+            }
+        } else {
+            // Caracter no válido en la entrada
+            return 1; // Puedes elegir manejar el error de otra manera si lo prefieres
         }
     }
 
@@ -265,9 +289,6 @@ void Transmite_A_Servidor(char buffer[], int len)
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK ****************************************/
 /*****************************************************************************************/
-
-
-
 void Transmite_Confirmacion(char High, char Low)
 {
     if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
@@ -297,6 +318,395 @@ void Transmite_Confirmacion(char High, char Low)
         Serial.println("Set buffer general ERROR");
     }
 }
+
+
+/* Configura Timeout de sesion de jugador
+(0)=1.5 Minutos Por defecto!
+(1)=2 Minutos 
+(2)=2.5 Minutos 
+(3)=3 Minutos 
+(4)=3.5 Minutos 
+(5)=4 Minutos
+(6)=4.5 Minutos 
+(7)=5 Minutos 
+(8)=5.5 Minutos
+(9)=6 Minutos 
+ */
+void Config_TimeOut_Player_Tracking(char Datos[])
+{
+    switch (Datos[4]-48)
+    {
+    case  0:
+
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  1:
+
+        NVS.begin("Config_ESP32", false);  /* 2 Minutos */
+        NVS.putUInt("TimePlayer", 120000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  2:
+
+        NVS.begin("Config_ESP32", false);  /* 2 Minutos & medio */
+        NVS.putUInt("TimePlayer", 150000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  3:
+
+        NVS.begin("Config_ESP32", false);  /* 3 Minutos*/
+        NVS.putUInt("TimePlayer", 180000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  4:
+
+        NVS.begin("Config_ESP32", false);  /* 3 Minutos & medio */
+        NVS.putUInt("TimePlayer",  210000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  5:
+
+        NVS.begin("Config_ESP32", false);  /* 4 Minutos */
+        NVS.putUInt("TimePlayer",  240000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  6:
+
+        NVS.begin("Config_ESP32", false);  /* 4 Minutos & medio */
+        NVS.putUInt("TimePlayer",  270000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  7:
+
+        NVS.begin("Config_ESP32", false);  /* 5 Minutos */
+        NVS.putUInt("TimePlayer",  300000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  8:
+
+        NVS.begin("Config_ESP32", false);  /* 5.5 Minutos */
+        NVS.putUInt("TimePlayer",  330000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  9:
+
+        NVS.begin("Config_ESP32", false);  /* 6 Minutos */
+        NVS.putUInt("TimePlayer",  360000);
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+
+    default:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
+        NVS.end();
+        Transmite_Confirmacion('E','D');
+        delay(150);
+        ESP.restart();
+        break;
+    }
+}
+
+
+/* Configura  Tiempo de Transmision de datos a Servidor cuan la maquina esta en juego
+(0)=30s Por defecto!
+(1)=40s
+(2)=50s
+(3)=1 Minuto
+(4)=1 Minuto 10s
+(5)=1 Minuto 20s
+(6)=1 Minuto 30s
+(7)=1 Minuto 40s
+(8)=1 Minuto 50s
+(9)=2 Minutos 
+*/
+void Config_Timer_Transmission_In_Game(char Datos[])
+{
+
+    switch (Datos[4]-48)
+    {
+    case  0:
+
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("T_En_Juego", 30); /* 30 segundos */
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+
+        
+        break;
+
+    case  1:
+
+        NVS.begin("Config_ESP32", false);  /* 40 Minutos */
+        NVS.putUInt("T_En_Juego", 40);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  2:
+       
+        NVS.begin("Config_ESP32", false);  /* 50  Segundos */
+        NVS.putUInt("T_En_Juego", 50);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+
+        break;
+
+    case  3:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto */
+        NVS.putUInt("T_En_Juego", 60);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  4:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto 10s*/
+        NVS.putUInt("T_En_Juego",  70);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  5:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto 20s */
+        NVS.putUInt("T_En_Juego",  80);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  6:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto 30s */
+        NVS.putUInt("T_En_Juego",  90);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  7:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto 40s */
+        NVS.putUInt("T_En_Juego",  100);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  8:
+
+        NVS.begin("Config_ESP32", false);  /* 1 Minuto 50s */
+        NVS.putUInt("T_En_Juego",  110);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+    
+    case  9:
+
+        NVS.begin("Config_ESP32", false);  /* 2 Minutos */
+        NVS.putUInt("T_En_Juego",  120);
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+
+    default:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("T_En_Juego", 30); /* 1 minutos & 30 segundos */
+        NVS.end();
+        Transmite_Confirmacion('E','C');
+        delay(150);
+        ESP.restart();
+        break;
+    }
+}
+
+/* Configura Tiempo de  Transmision de datos  a servidor cuando la maquina no esta en juego
+(0)=2.5 Minutos Por defecto!
+(1)=3 Minutos
+(2)=3.5 Minutos 
+(3)=4 Minutos 
+(4)=4.5 Minutos 
+(5)=5 Minutos 
+(6)=5.5 Minutos 
+(7)=6 Minutos
+(8)=8 Minutos
+(9)=10 Minutos 
+ */
+void Config_Timer_Transmission_No_Game(char Datos[])
+{
+    switch (Datos[4]-48)
+    {
+    case  0:
+
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("T_No_Juego", 150000); /* 2.5 minutos */
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  1:
+
+        NVS.begin("Config_ESP32", false);  /* 3 Minutos */
+        NVS.putUInt("T_No_Juego", 180000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  2:
+
+        NVS.begin("Config_ESP32", false);  /* 3.5 Minutos */
+        NVS.putUInt("T_No_Juego", 210000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  3:
+
+        NVS.begin("Config_ESP32", false);  /* 4 Minutos*/
+        NVS.putUInt("T_No_Juego", 240000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  4:
+
+        NVS.begin("Config_ESP32", false);  /* 4.5 */
+        NVS.putUInt("T_No_Juego",  270000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  5:
+
+        NVS.begin("Config_ESP32", false);  /* 5 Minutos */
+        NVS.putUInt("T_No_Juego",  300000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  6:
+
+        NVS.begin("Config_ESP32", false);  /* 5.5 Minutos */
+        NVS.putUInt("T_No_Juego",  330000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case  7:
+
+        NVS.begin("Config_ESP32", false);  /* 6 Minutos */
+        NVS.putUInt("T_No_Juego",  360000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+     case  8:
+
+        NVS.begin("Config_ESP32", false);  /* 8 Minutos */
+        NVS.putUInt("T_No_Juego",  480000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+
+    case  9:
+
+        NVS.begin("Config_ESP32", false);  /* 10 Minutos */
+        NVS.putUInt("T_No_Juego",  600000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    default:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("T_No_Juego", 150000); /* 2.5 minutos */
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+    }
+}
+
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK CASHLESS *******************************/
 /*****************************************************************************************/
@@ -634,6 +1044,11 @@ bool Configura_Tipo_Maquina(char res[])
         {
             ID_Maq_Server= 12;
         }
+
+        else if(res[4]-48==1 &&res[5]-48==3)
+        {
+            ID_Maq_Server= 13;
+        }
     }
     
     if (ID_Maq != ID_Maq_Server)
@@ -686,7 +1101,15 @@ void Transmite_Info_Tarjeta(void)
 
 
 
+/*
+Consulta y Transmite informacion de lector RFID
 
+Lector Habilitado           (1) o deshabilidado (0)
+Lector Ocupado              (1) o Libre         (0)
+Lector Conectado            (1) o Desconectado  (0)
+Sesion Abierta jugador      (1) o Cerrada       (0)
+Reset Analogo Habilitado    (1) o Reset SAS     (0) 
+*/
 void Transmite_Info_Lector(void)
 {
     if (Buffer.Set_buffer_info_lector(ID_Informacion_lector))
@@ -1397,22 +1820,41 @@ bool Consulta_Conexion_To_Server(void)
 {
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
+    int i=0;
 
     res[0] = 'L';
     res[1] = '|';
     res[2] = 'C';
     res[3] = 'V';
     res[4] = '|';
+    
+    res[5]=contadores.Get_Operador_INFO_Operador()[0];
+    res[6]=contadores.Get_Operador_INFO_Operador()[1];
+    res[7]=contadores.Get_Operador_INFO_Operador()[2];
+    res[8]=contadores.Get_Operador_INFO_Operador()[3];
+    res[9]=contadores.Get_Operador_INFO_Operador()[4];
+    res[10]=contadores.Get_Operador_INFO_Operador()[5];
+    res[11]=contadores.Get_Operador_INFO_Operador()[6];
+    res[12]=contadores.Get_Operador_INFO_Operador()[7];
+    
+    res[13]='|';
 
-    for (int i = 5; i < 256; i++)
+    for (int i = 14; i < 256; i++)
     {
         res[i] = '0';
     }
+    
     #ifdef Debug_Mensajes_Server
     Serial.println("Set buffer general OK");
     #endif
     int len = sizeof(res);
-    Transmite_A_Servidor(res, len);
+
+    for(i=0; i<2; i++)
+    {
+        Transmite_A_Servidor(res, len);
+        delay(200);
+    }
+    contadores.Dele_Operador_INFO_Operador();
     return true;
 }
 
@@ -1612,7 +2054,7 @@ void Mensajes_RFID(void)
                             Status_Barra(Reset_Exitoso);
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,true);
+                        
                         break;
                     case 0x01: /*No existe condición de reset*/
                         /* Guarda ID Operador */
@@ -1649,7 +2091,6 @@ void Mensajes_RFID(void)
                         /*Activa Timer  Operador */
                         /*  Maquinas sin rele y sin comando */
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,true);
                         break;
                     }
                 }
@@ -1712,6 +2153,12 @@ void Task_Procesa_Comandos(void *parameter)
     /* WDT para tarea */
    // esp_task_wdt_init(10000, true);
    // esp_task_wdt_add(NULL);
+   unsigned long Respuesta_Carga_Bonus = millis();
+   int TIMEOUT_CONECT_SERVER = 3500;
+
+   int Dest;
+   char Compuesto[258];
+    bzero(Compuesto, 258);
 
     for (;;)
     {
@@ -2082,7 +2529,7 @@ void Task_Procesa_Comandos(void *parameter)
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud Reset Premio Handpay");
                 #endif
-              
+                contadores.Close_ID_Operador();
                 condicionCumplida=false;
                 
                 if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
@@ -2321,6 +2768,103 @@ void Task_Procesa_Comandos(void *parameter)
                 
                  case 138:
                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
+                   // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                    /* TIMEOUT PLAYER TRACKING  */
+                    // switch (res[4]-48)
+                    // {
+                    // case  0:
+
+                    //     NVS.begin("Config_ESP32", false);
+                    //     NVS.putInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+
+                    // case  1:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 2 Minutos */
+                    //     NVS.putInt("TimePlayer", 120000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+
+                    // case  2:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 2 Minutos & medio */
+                    //     NVS.putInt("TimePlayer", 150000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+                    // case  3:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 3 Minutos*/
+                    //     NVS.putInt("TimePlayer", 180000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+
+                    // case  4:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 3 Minutos & medio */
+                    //     NVS.putInt("TimePlayer",  210000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+                    
+                    // case  5:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 4 Minutos */
+                    //     NVS.putInt("TimePlayer",  240000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+                    // case  6:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 4 Minutos & medio */
+                    //     NVS.putInt("TimePlayer",  270000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+
+                    // case  7:
+
+                    //     NVS.begin("Config_ESP32", false);  /* 5 Minutos */
+                    //     NVS.putInt("TimePlayer",  300000);
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+                    
+                    // default:
+                    //     NVS.begin("Config_ESP32", false);
+                    //     NVS.putInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
+                    //     NVS.end();
+                    //     ESP.restart();
+                    //     break;
+                    // }
+
+                    /*-----------------------------------------------------------------------*/
+                    /* TIMEOUT PLAYER TRACKING  */
+                   
+                    /*-----------------------------------------------------------------------*/
+                   // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                    // Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
+                    // contadores.Set_Meter_Legacy_Bonus_Awards(res);
+                    // Carga_Bonus_Maquina();
+                    // delay(600);
+
+                    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
+                    //     Transmite_Confirmacion_Cashless('A','A','A');
+                    
+
+                    
+
+        
+
                     // if(res[4]=='0')
                     // {
                     //     NVS.begin("Config_ESP32", false);
@@ -2338,6 +2882,43 @@ void Task_Procesa_Comandos(void *parameter)
                     //     if(Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
                     //         Status_Barra(MODULO_OK);
                     // }
+
+                    
+                break;
+
+                case 603:
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Actualizacion Automatica"); /* OK*/
+                    #endif
+                    //Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                break;
+
+                case 604:
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Configura Timer Transmision en juego "); /*OK*/
+                    #endif
+                    Config_Timer_Transmission_In_Game(res);
+                break;
+
+                case 605:
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Solicitud info lector");
+                    #endif 
+                    Transmite_Info_Lector();
+                break;
+
+                case 606:
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Configura Timer Transmision no juego "); /*OK*/
+                    #endif
+                    Config_Timer_Transmission_No_Game(res);
+                break;
+
+                case 607:
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Configura Player Tracking "); /*OK */
+                    #endif
+                    Config_TimeOut_Player_Tracking(res);
                 break;
 
                 // case 603:
@@ -2598,6 +3179,8 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println();
                 #endif
                 Transmite_Confirmacion('C', 'R');
+
+               
             }
         }
         else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
@@ -2728,35 +3311,36 @@ void Transmite_Configuracion(void)
             Transmite_Confirmacion('A', '3');
         }
             
-        if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-        {
-            if (Calcula_First_Cancel_Credit(true))
-                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-        }
+        // if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+        // {
+        //     if (Calcula_First_Cancel_Credit(true))
+        //         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+        // }
         break;
 
     case 20:
         if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
             Transmite_Confirmacion('A', '0');
-        if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-        {
-            if (Calcula_First_Cancel_Credit(true))
-                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-        }
+
+         if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+         {
+             if (Calcula_First_Cancel_Credit(true))
+                 Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+         }
         break;
 
     case 30:
         if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
             Transmite_Confirmacion('B', 'C');
-        if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-        {
-            if (Calcula_First_Cancel_Credit(true))
-                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-        }
+        // if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+        // {
+        //     if (Calcula_First_Cancel_Credit(true))
+        //         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+        // }
         break;
 
     case 40:
-        if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true)
+        if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true && flag_ultimo_contador_Ok)
         {
             if (Calcula_First_Cancel_Credit(true))
                 Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
@@ -2781,7 +3365,7 @@ void Transmision_Controlada_Contadores(void)
         {
             New_Timmer_Inicial=millis();
             /*----------------------> Trama de contadores  2 minutos <-----------------------------------------------------------*/
-            if ((New_Timmer_Inicial - New_Timer_Final) >= Activa_Timmer)
+            if ((New_Timmer_Inicial - New_Timer_Final) >= Tiempo_Transmision_No_Juego)
             {
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
                 {
@@ -2823,7 +3407,7 @@ void Transmision_Controlada_Contadores(void)
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
         else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado)
         {
-            if (Contador_Transmision_Contadores >= 30)
+            if (Contador_Transmision_Contadores >= Tiempo_Transmision_En_Juego)
             {
 
                 if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=6)
@@ -2870,6 +3454,9 @@ void Transmision_Controlada_Contadores(void)
         // Si cambio el cancel credit, porque se pago un premio
         else if (flag_premio_pagado_cashout)
         {
+
+            
+
             #ifdef Debug_Transmision
             Serial.println("Contadores, premio pagado....");
             #endif
@@ -2954,6 +3541,7 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
     char Contador_Cancel_Credit_Poker[9];
     bzero(Contador_Cancel_Credit_Poker, 9);
     int Cancel_Credit_Poker_2;
+    char Contador_NULL[9]{'F','F','F','F','F','F','F','F'};
 
     if (Calcula_Contador)
     {
@@ -2963,15 +3551,30 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         delay(250);
         /*----------------------------------------------------------------------------*/
 
-        Coin_In_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_In));
-        //Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
-       // Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
-        Coin_Out_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_Out));
-       // Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
-        Drop_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Total_Drop));
-       // Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
-        Creditos_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Current_Credits));
-        /*Verifica si la maquina fue borrada*/
+       
+        Coin_In_Poker=Convert_Char_To_Int11(Coin_In_Poker_Data);
+        Coin_Out_Poker=Convert_Char_To_Int11(Coin_Out_Poker_Data);
+        Drop_Poker=Convert_Char_To_Int11(Total_Drop_Poker_Data);
+        Creditos_Poker=Convert_Char_To_Int11(CurrentCredit_Poker_Data);
+
+        // Error en formato de datos  Si contiene letras el contador 
+        if(Coin_In_Poker==1||Coin_Out_Poker==1||Drop_Poker==1)
+        {
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            return false;
+        }
+
+        
+    //     Coin_In_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_In));
+    //     //Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
+    //    // Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+    //     Coin_Out_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_Out));
+    //    // Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
+    //     Drop_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Total_Drop));
+    //    // Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
+    //     Creditos_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Current_Credits));
+    //     /*Verifica si la maquina fue borrada*/
 
         if(Drop_Poker<=0) //Caso 1 Billetero en 0
         {
@@ -3087,37 +3690,103 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
     char Contador_Cancel_Credit_Poker[9];
     bzero(Contador_Cancel_Credit_Poker, 9);
     int Cancel_Credit_Poker_2;
-    char Contador_NULL[9]{'F','F','F','F','F','F','F','F'};
+    char Contador_NULL[9]{'F','F','F','F','F','F','F','F'}; /*Array Error de data*/
 
     if (Calcula_Contador)
     {
         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
+        /* ----------------> Actualiza  Contadores de maquina <---------------*/
         Encuesta_Creditos_Premio();
         delay(400);
+        Creditos_Machine(); /* Encuesta creditos*/
+        delay(100);
+        /*--------------------------------------------------------------------*/
+       
+       /* ------------------> Get contadores <--------------------------------*/
+        Coin_In_Poker=Convert_Char_To_Int11(Coin_In_Poker_Data);
+        Coin_Out_Poker=Convert_Char_To_Int11(Coin_Out_Poker_Data);
+        Drop_Poker=Convert_Char_To_Int11(Total_Drop_Poker_Data);
+        Creditos_Poker=Convert_Char_To_Int11(CurrentCredit_Poker_Data);
+        /*---------------------------------------------------------------------*/
 
-        Coin_In_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_In));
-        //Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
-       // Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
-        Coin_Out_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_Out));
-       // Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
-        Drop_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Total_Drop));
-       // Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
-        Creditos_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Current_Credits));
-        /*Verifica si la maquina fue borrada*/
-        /* Intenta calcular Premio*/
+        /*----------------> Error en formato de uno de los contadores<-------- */
+        if(Coin_In_Poker==1||Coin_Out_Poker==1||Drop_Poker==1)
+        {
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+            return false;
+        }
+        /*--------------------------------------------------------------------*/
+
+    //     Coin_In_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_In));
+    //     //Coin_In_Poker = contadores.Get_Contadores_Int(Coin_In);
+    //    // Coin_Out_Poker = contadores.Get_Contadores_Int(Coin_Out);
+    //     Coin_Out_Poker =Convert_Char_To_Int2(contadores.Get_Contadores_Char(Coin_Out));
+    //    // Drop_Poker = contadores.Get_Contadores_Int(Total_Drop);
+    //     Drop_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Total_Drop));
+    //    // Creditos_Poker = contadores.Get_Contadores_Int(Current_Credits);
+    //     Creditos_Poker=Convert_Char_To_Int2(contadores.Get_Contadores_Char(Current_Credits));
+    //     /*Verifica si la maquina fue borrada*/
+    //     /* Intenta calcular Premio*/
+
+    /*-----------------------------------> Calcula Cancel Credit <-------------------------------------------*/
         Cancel_Credit_Poker = ((Drop_Poker - Coin_In_Poker) + Coin_Out_Poker) - Creditos_Poker;
        // Cancel_Credit_Poker=Drop_Poker;
-
+    /*------------------------------------------------------------------------------------------------------*/
         if(Cancel_Credit_Poker<=0)
         {
             contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
             return false;
         }
-        else if(Drop_Poker==Cancel_Credit_Poker||Cancel_Credit_Poker==Coin_In_Poker||Cancel_Credit_Poker==Coin_Out_Poker)
+        if(Cancel_Credit_Poker==Drop_Poker||Cancel_Credit_Poker==Coin_In_Poker||Cancel_Credit_Poker==Coin_Out_Poker)
         {
             contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+            return false;
+        }
+        if(Drop_Poker<=0) //Caso 1 Billetero en 0
+        {
+            if(Coin_In_Poker>0||Coin_Out_Poker>0) /*Si no ingresa billetes*/
+            {
+                contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+                contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+                return false;
+            } 
+            else if(Coin_In_Poker==0&&Coin_Out_Poker==0)
+            {
+                contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+                contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+                return false;   //Caso 3 Maquina Borrada.
+            }
+        }
+        /* Error Controlado */
+        if(Coin_In_Poker==0 && Coin_Out_Poker==0)
+        {
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+            return false;
+        }
+       
+        if((Drop_Poker - Coin_In_Poker)==Drop_Poker && Coin_Out_Poker>0)
+        {
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+            return false;
+        }
+        if(Coin_Out_Poker<=0 && Drop_Poker>0 && Coin_In_Poker>0)
+        { 
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
             return false;
         }
     }
@@ -3164,6 +3833,9 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
         Serial.println("La conversion fallo");
         Serial.println(Contador_Cancel_Credit_Poker);
         Serial.println(Cancel_Credit_Poker_2);
+        contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+        contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+        Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
         return false; /*Intenta nuevamente el calculo del premio*/
     }else{ /* Si Son iguales (No existe diferencia)*/
 
@@ -3175,6 +3847,9 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
 
         if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) == false || contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker) == false)
         {
+            contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
+            contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
+            Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
             return false; /*Uno o los dos contadores fallo*/
         }
     }  
@@ -3193,30 +3868,9 @@ void RESET_HANDPAY_NOT_SAS(void)
     {
         if (Variables_globales.Get_Variable_Global(Manual_Detected))
         {
-            Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process,true);
-            delay(10);
-            Creditos_Machine(); /* Encuesta creditos*/
-            delay(100);
-            int Creditos_Actuales = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
-            
-            if (Creditos_Actuales <= 0)
-            {/* No hay condición de reset */
+            Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
 
-                Activa_Encuesta = false;
-                Variables_globales.Set_Variable_Global(Manual_Reset, false);
-                Variables_globales.Set_Variable_Global(Manual_Detected, false);
-                Transmite_Confirmacion('C', '1');
-                delay(10);
-                if (Variables_globales.Get_Variable_Global(Conexion_RFID))
-                    Status_Barra(ERROR_RESET_HANDPAY);
-                Reset_Handle_LED();
-                Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process,false);
-                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                contadores.Close_ID_Operador();
-                Enable_Failed=false;
-                Enable_Timer_No_reset=false; 
-            }
-            else if (Creditos_Actuales > 0)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13)
             {
                 Activa_Encuesta = true;
                 delay(10);
@@ -3225,6 +3879,41 @@ void RESET_HANDPAY_NOT_SAS(void)
                 digitalWrite(Unlock_Machine, HIGH);
                 Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
             }
+            else
+            {
+                delay(10);
+                Creditos_Machine(); /* Encuesta creditos*/
+                delay(100);
+                int Creditos_Actuales = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+
+                if (Creditos_Actuales <= 0)
+                { /* No hay condición de reset */
+                    contadores.Close_ID_Operador();
+                    Activa_Encuesta = false;
+                    Variables_globales.Set_Variable_Global(Manual_Reset, false);
+                    Variables_globales.Set_Variable_Global(Manual_Detected, false);
+                    Transmite_Confirmacion('C', '1');
+                    delay(10);
+                    if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                        Status_Barra(ERROR_RESET_HANDPAY);
+                    Reset_Handle_LED();
+                    Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+                    Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                    
+                    Enable_Failed = false;
+                    Enable_Timer_No_reset = false;
+                }
+                else if (Creditos_Actuales > 0)
+                {
+                    Activa_Encuesta = true;
+                    delay(10);
+                    digitalWrite(Unlock_Machine, LOW);
+                    delay(250);
+                    digitalWrite(Unlock_Machine, HIGH);
+                    Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                }
+            }
+
             Variables_globales.Set_Variable_Global(Manual_Detected, false);
         }
         delay(50);
@@ -3368,7 +4057,7 @@ void Task_Verifica_Hopper(void *parameter)
         {
            Serial.println("Hopper LOW");
             Conta_Poll_Cancel_Poker++;
-            if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit))
+            if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
             {
                 
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);

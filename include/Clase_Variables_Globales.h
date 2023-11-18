@@ -76,7 +76,11 @@ using namespace std;
 #define Consulta_Info_Lector_Rfid   67
 #define Excepcion_WIFI              68
 #define ACK_Valido                  69
-
+#define Status_Load_Bonus           70
+#define Solicitud_Carga_Bonus       71
+#define Flag_ACK_Carga_Bonus_Pendiente 72
+#define AutoUPDATE_OK                  73
+#define Verifica_Conexion_WIFI         74
 
 class Variables_Globales
 {
@@ -145,6 +149,11 @@ private:
     bool Consulta_Info_Lector_Rfid_;
     bool Excepcion_WIFI_;
     bool ACK_Valido_;
+    bool Status_Load_Bonus_;
+    bool Solicitud_Carga_Bonus_;
+    bool Flag_ACK_Carga_Bonus_Pendiente_;
+    bool AutoUPDATE_OK_;
+    bool Verifica_Conexion_WIFI_;
     
 
 public:

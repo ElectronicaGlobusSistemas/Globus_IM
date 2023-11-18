@@ -157,6 +157,9 @@ unsigned long Verify_Status_RFID_Final=0;
 int Enable_Verify=20000;
 
 
+
+
+/* Metodo para  generar sonidos de notificacion */
 void customTone(int Itera, int Tono)
 {
     if(Tono==1)
@@ -233,7 +236,9 @@ void customTone(int Itera, int Tono)
           
     }
   }
-  //delay(100);
+
+
+//delay(100);
 // //void Check_RFID(void)
 // {
 //     byte gain = mfrc522.PCD_GetAntennaGain();
@@ -403,9 +408,7 @@ void Check_RFID_Real_Time(void)
 */
 
 
-/* Metodo para leer tarjetas RFID */
-
-
+/* Metodo para leer tarjetas RFID usuario - operador  */
 void Lee_Tarjeta()
 {
     Verify_Status_RFID=millis();
@@ -602,13 +605,14 @@ void Lee_Tarjeta()
             /*---------------------------------->Usuario Valido <----------------------------------------*/
             else
             {
-                Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+                Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                
                 Cliente_VS_Operador(buffer1, buffer2);
             }
             /*------------------------------------------------------------------------------------------*/
         }
 }
-/*---------------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------*/
 /**********************************************************************************/
 /*                              Player Tracking                                   */
 /**********************************************************************************/
@@ -617,11 +621,13 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
     if (MEMORIA[0] == 'O')
     {
-        Condicion_Cumpl=false;
-        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+        contadores.Close_ID_Operador(); /* Borra ID operador anterior */
+        contadores.Dele_Operador_INFO_Operador(); /* ID*/
+        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,false);
+        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,true); /* Inicia timmer */
         New_Timer_Final = New_Timmer_Inicial;
         startTime = currentTime; /* Reset TimeOut_Player Tracking */
-
+            
         char ID_Temp_[8];
         ID_Temp_[0] = INFO[0];
         ID_Temp_[1] = INFO[1];
@@ -631,6 +637,9 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         ID_Temp_[5] = INFO[5];
         ID_Temp_[6] = INFO[6];
         ID_Temp_[7] = INFO[7];
+        
+        contadores.ID_Consulta_INFO_Operador(ID_Temp_);
+        Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
 
         if (Variables_globales.Get_Variable_Global(Conexion_RFID))
         {
@@ -648,9 +657,13 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
         if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
         {
+            
 
             if (contadores.Set_Operador_ID_Temp(ID_Temp_))
             {
+                Condicion_Cumpl=false; /* Reset Timeout*/
+               
+
                 contadores.Copy_Operator_In_();
                 Variables_globales.Set_Variable_Global(Operador_Detected, true);
                 Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
@@ -675,6 +688,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             #endif
             Status_Barra(CONEXION_TO_HOTS_FAILED);
             delay(100);
+            Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,false); /* Inicia timmer */
         }
     }
 
@@ -682,7 +696,9 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
     {
         New_Timer_Final = New_Timmer_Inicial;
         startTime = currentTime;
+        contadores.Dele_Operador_INFO_Operador(); /* ID*/
         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+        Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
         {
             int contador = 0;
@@ -911,6 +927,8 @@ int  Convert_Char_To_Int4(char buffer[])
                     ((buffer[6] - 48) * 10) + ((buffer[7] - 48) * 1);
     return resultado;
 }
+
+
 void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactividad)
 {
     int Tiempo_Restante=(Inactividad-Tiempo_Transcurrido)/ 1000;
@@ -975,6 +993,8 @@ void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactivi
     }
 
 }
+
+
 /* Funcion para cerrar sesion player tracking */
 bool Close_Sesion_Player_Tracking(void)
 {
@@ -1265,7 +1285,6 @@ void RESET_Handle(void)
     delay(10);
     mfrc522.PCD_Init();
 }
-
 
 int Pines=0;
 int Host_=0;

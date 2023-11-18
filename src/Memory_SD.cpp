@@ -538,12 +538,14 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
     }
     else if (myFile) //  else por else if
     {
+      digitalWrite(SD_Status,LOW);
       myFile.println(Datos);
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Contadores Guardados en SD");
       #endif
       Contador_Escrituras++;
+      digitalWrite(SD_Status,HIGH);
     }
     
   }

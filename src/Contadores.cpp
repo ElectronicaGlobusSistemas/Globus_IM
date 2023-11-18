@@ -834,6 +834,55 @@ bool Contadores_SAS:: Set_Operador_ID_Temp(char Operador_[])
   return false;
 }
 
+bool Contadores_SAS::ID_Consulta_INFO_Operador(char Operador[])
+{
+  int Val=0;
+  for(int i=0; i<8;i++)
+  {
+    ID_Consulta_Info_Operador[i]=Operador[i];
+  }
+
+  for(int i=0; i<8;i++)
+  {
+    if(ID_Consulta_Info_Operador[i]==Operador[i])
+    {
+      Val++;
+    }
+  }
+
+  if(Val>=8)
+  {
+    return true;
+  }else{
+    return false;
+  }
+
+  return false;
+}
+
+bool Contadores_SAS::Dele_Operador_INFO_Operador(void)
+{
+  for(int i=0; i<8; i++)
+  {
+    ID_Consulta_Info_Operador[i]='0';
+  }
+
+  for(int i=0; i<8; i++)
+  {
+    if(ID_Consulta_Info_Operador[i]!='0')
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+byte* Contadores_SAS::Get_Operador_INFO_Operador(void)
+{
+  return ID_Consulta_Info_Operador;
+}
+
 /* Agrega ID de operador en trama 
 return (false) Si no se agrego el ID  a la trama de contadores
 return (true) Si  se agrego el ID a la trama de contadores
@@ -1071,4 +1120,112 @@ bool Contadores_SAS::Verify_ID_Op(void)
 
   return true; /*00000001*/
   /* Existe ID */ 
+}
+
+byte Conve_Ascii_To_Hex_LL(char Val_Ascii) {
+   
+    if (Val_Ascii >= '0' && Val_Ascii <= '9') {
+        return Val_Ascii - '0';
+    }else {
+        return 0;  // Carácter no válido
+    }
+}
+byte Conve_Ascii_To_Hex_HH(char Val_Ascii) {
+    return Conve_Ascii_To_Hex_LL(Val_Ascii) << 4;
+}
+
+int Type_Bonus(char res)
+{
+  if (res == '0')
+  {
+    return  0x00;
+  }
+  else if (res == '1')
+  {
+    return  0x01;
+  }
+  else if (res== '2')
+  {
+    return  0x02;
+  }else{
+    return  0x05;
+  }
+}
+
+
+/*Configura Tipo y valor de bono Para Solicitud de carga*/
+bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
+{
+  
+  int Comp,Comp2;
+
+  /* Tipo de bono */
+  Type_Legacy_Bonus_Awards_ =Type_Bonus(res[12]);
+
+  Comp=Conve_Ascii_To_Hex_LL(res[11]);
+  Comp2=Conve_Ascii_To_Hex_HH(res[10]);
+  Legacy_Bonus_Awards_[3]=(Comp2 | Comp);
+
+ 
+
+  Comp=Conve_Ascii_To_Hex_LL(res[9]);
+  Comp2=Conve_Ascii_To_Hex_HH(res[8]);
+  Legacy_Bonus_Awards_[2]=(Comp2 | Comp);
+
+
+
+  Comp=Conve_Ascii_To_Hex_LL(res[7]);
+  Comp2=Conve_Ascii_To_Hex_HH(res[6]);
+  Legacy_Bonus_Awards_[1]=(Comp2 | Comp);
+
+  
+  Comp=Conve_Ascii_To_Hex_LL(res[5]);
+  Comp2=Conve_Ascii_To_Hex_HH(res[4]);
+  Legacy_Bonus_Awards_[0]=(Comp2 | Comp);
+
+  
+ 
+  return true;
+}
+
+bool Contadores_SAS::Delete_Meter_Legacy_Bonus_Awards(void)
+{
+  Legacy_Bonus_Awards_[0]='0';
+  Legacy_Bonus_Awards_[1]='0';
+  Legacy_Bonus_Awards_[2]='0';
+  Legacy_Bonus_Awards_[3]='0';
+  Legacy_Bonus_Awards_[4]='0';
+
+
+  for(int i=0; i<5;i++)
+  {
+    if(Legacy_Bonus_Awards_[i]!='0')
+      return true;
+  }
+  return false;
+}
+bool Contadores_SAS::Type_Legacy_Bonus_Awards(char res[])
+{
+
+  if (res[12] == '0')
+  {
+    Type_Legacy_Bonus_Awards_ = 0x00;
+  }
+  else if (res[12] == '1')
+  {
+    Type_Legacy_Bonus_Awards_ = 0x01;
+  }
+  else if (res[12] == '2')
+  {
+    Type_Legacy_Bonus_Awards_ = 0x02;
+  }
+  return true;
+}
+char*  Contadores_SAS::Get_Amount_Legacy_Bonus_Awards(void)
+{
+  return Legacy_Bonus_Awards_;
+}
+int Contadores_SAS::Get_Type_Legacy_Bonus_Awards(void)
+{
+  return Type_Legacy_Bonus_Awards_;
 }

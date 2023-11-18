@@ -5,7 +5,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include "RFID.h"
-
+#include "AutoUpdate.h"
 //#define Debug_Task
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency  240//240//
@@ -33,7 +33,7 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 extern char Archivo_CSV[100];
 //extern int Sd_Mont;
 
-
+AutoUpdate UpdateOTA;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
 //------------------------------------------------------------------
@@ -55,11 +55,24 @@ extern bool Termina_Bootlader_Timeout;
 unsigned long TO=0;
 unsigned long T02=0;
 int Interv=60000;
+bool Update_Enable_DTime=false;
+
+
+
+unsigned long TIMEOUT_WiFi_CONNECT=0;
+unsigned long TIMEOUT_WiFi_CONNECT_2=0;
+int Interval_Connect=10000;
+bool WL_DISCONNECT_OK=false;
+
+int extern Inactividad_Usuario_Player_Tracking;
+int extern  Tiempo_Transmision_En_Juego;
+int extern Tiempo_Transmision_No_Juego;
 //------------------------------------------------------------------
 
 //---------------------------> Version de programa <----------------
-uint8_t Version_Firmware_[]={2,0,0,0}; // 1000--> en  server 1.0 {1,0,1,1};
+uint8_t Version_Firmware_[]={2,0,1,0}; // 1000--> en  server 1.0 {1,0,1,1};
 //------------------------------------------------------------------
+void Fecha_Update(bool Enable);
 
 void Init_Config(void)
 
@@ -110,7 +123,10 @@ void Init_Config(void)
     Init_RFID(); /* Inicializa Modulo RFID*/
     Init_SD(); // Inicializa Memoria SD.
     
-    
+    //------------------> AutoUpdate <-------------------------------
+  //  UpdateOTA.Init_AutoUpdate(Version_Firmware_); /* Inicializa URL */
+  //  UpdateOTA.Auto_Update(false); /* Verifica Actualizacion */
+    //---------------------------------------------------------------
     
     //---------------------------------------------------------------
     //-------------------> Cliente UDP-TCP <-------------------------
@@ -137,8 +153,8 @@ void TaskManager()
 {
     xTaskCreatePinnedToCore(
         ManagerTasks,              //  Funcion a implementar la tarea
-        "TASK MANAGER",            //  Nombre de la tarea
-        10000,                     //  Tamaño de stack en palabras (memoria)
+        "TASK MANAGER",            //  Nombre de la tarea //10000
+        8000,                     //  Tamaño de stack en palabras (memoria)
         NULL,                      //  Entrada de parametros
         configMAX_PRIORITIES - 10, //  Prioridad de la tarea
         &ManagerTask,              //  Manejador de la tarea
@@ -151,9 +167,12 @@ static void ManagerTasks(void *parameter)
     unsigned long Tiempo_Previo = 0;
     bool MCU_State = LOW;
     long conta = 0;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000);
 
     for (;;)
     {
+        TIMEOUT_WiFi_CONNECT=millis();
         //---------------------------------> Config via Serial <-----------------------------------------
         while (Serial.available() > 0)
         {
@@ -173,29 +192,24 @@ static void ManagerTasks(void *parameter)
         //--------------------------------------------------------------------------------------------------
 
         //-----------------------------> Verifica conexion WIFI <--------------------------------------------
-        if (WiFi.status() != WL_CONNECTED && eTaskGetState(Status_WIFI) == eSuspended)
+        
+        if (WiFi.status() != WL_CONNECTED)
         {
+            Variables_globales.Set_Variable_Global(Verifica_Conexion_WIFI,true);
+        }
 
-            if (eTaskGetState(Status_WIFI) == eRunning)
+        if(Variables_globales.Get_Variable_Global(Verifica_Conexion_WIFI))
+        {
+            if(!WL_DISCONNECT_OK)
             {
-                #ifdef Debug_Task
-                Serial.println("------->>>>> Rum Task   Status WIFI");
-                #endif
-               
-                continue;
+                TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
+                RECONECT_WIFI_ESP(); /* Ejecuta reconexion WiFi*/
+                WL_DISCONNECT_OK=true;
             }
-            else if (eTaskGetState(Status_WIFI) == eSuspended)
+            if((TIMEOUT_WiFi_CONNECT-TIMEOUT_WiFi_CONNECT_2)>=Interval_Connect)
             {
-                #ifdef Debug_Task
-                Serial.println("------->>>>> Resume Task  Status WIFI");
-                #endif
-
-                Selector_Modo_SD();
-                log_e("Inicia Tarea Status  WIFI", 101);
-                LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-                clientUDP.stop();
-                vTaskResume(Status_WIFI); // Inicia Modo Bootlader.
-                continue;
+                RECONECT_WIFI_ESP(); 
+                TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
             }
         }
         //--------------------------------------------------------------------------------------------------------
@@ -222,26 +236,26 @@ static void ManagerTasks(void *parameter)
         //-------------------------------------------------------------------------------------------------------
 
         //----------------------------------------------> Verifica Update <--------------------------------------
-        if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
-        {
-            if (eTaskGetState(Modo_Bootloader) == eRunning)
-            {
-                #ifdef Debug_Task
-                Serial.println("------->>>>> Rum Task   Modo Bootloader");
-                #endif
-            }
-            else if (eTaskGetState(Modo_Bootloader) == eSuspended)
-            {
+        // if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
+        // {
+        //     if (eTaskGetState(Modo_Bootloader) == eRunning)
+        //     {
+        //         #ifdef Debug_Task
+        //         Serial.println("------->>>>> Rum Task   Modo Bootloader");
+        //         #endif
+        //     }
+        //     else if (eTaskGetState(Modo_Bootloader) == eSuspended)
+        //     {
                 
-                if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
-                {
-                    #ifdef Debug_Task
-                    Serial.println("------->>>>> Resume Task  Modo Bootloader");
-                    #endif
-                    vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
-                }
-            }
-        }
+        //         if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC)==true)
+        //         {
+        //             #ifdef Debug_Task
+        //             Serial.println("------->>>>> Resume Task  Modo Bootloader");
+        //             #endif
+        //             vTaskResume(Modo_Bootloader); // Inicia Modo Bootlader.
+        //         }
+        //     }
+        // }
         //-------------------------------------------------------------------------------------------------------
          //--------------------------------------> Verifica Status SD en modo FTP <-------------------------------
         if (Variables_globales.Get_Variable_Global(SD_INSERT) == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
@@ -254,15 +268,15 @@ static void ManagerTasks(void *parameter)
         }
         //------------------------------------------------------------------------------------------------------
          //---------------------------------> Verifica Timeout inactividad Bootloader <--------------------------
-        if(Termina_Bootlader_Timeout)
-        {
-            #ifdef Debug_Task
-            Serial.println("Tiempo de espera de actualización agotado...");
-            #endif
-            Variables_globales.Set_Variable_Global(Bootloader_Mode,false);
-            vTaskSuspend(Modo_Bootloader);
-            Termina_Bootlader_Timeout=false;
-        }
+        // if(Termina_Bootlader_Timeout)
+        // {
+        //     #ifdef Debug_Task
+        //     Serial.println("Tiempo de espera de actualización agotado...");
+        //     #endif
+        //     Variables_globales.Set_Variable_Global(Bootloader_Mode,false);
+        //     vTaskSuspend(Modo_Bootloader);
+        //     Termina_Bootlader_Timeout=false;
+        // }
         //-------------------------------------------------------------------------------------------------------
 
          //----------------------------------> Verifica Modo FTP <------------------------------------------------
@@ -272,16 +286,161 @@ static void ManagerTasks(void *parameter)
         }
         //-------------------------------------------------------------------------------------------------------
 
-        //---------------------------------> Activa Actualizacion rapida Update <-------------------------------
+        //---------------------------------> Activa Actualizacion Manual <---------------------------------------
         if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
         {
-           ArduinoOTA.handle2();
+            if(!Update_Enable_DTime)
+            {
+                Fecha_Update(true);
+                Update_Enable_DTime=true;
+            }
+           ArduinoOTA.handle();
+        
         }
+
+        if(WiFi.status()!=WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
+        {
+            Variables_globales.Set_Variable_Global(Bootloader_Mode,false);
+            
+        }
+
+        if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
+        {
+           // UpdateOTA.Auto_Update(false);/* Agregar parametros para  verificar que la maquina no este en juego */
+            Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
+        }
+
+
         //--------------------------------------------------------------------------------------------------------
-        delay(100);
-        vTaskDelay(1000);
+        //delay(100);
+        //vTaskDelay(1000);
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
     vTaskDelay(10);
+}
+
+void Fecha_Update(bool Enable)
+{
+
+    if (Enable)
+    {
+        String Hora = RTC.getTime();
+        String Fecha = RTC.getDate();
+        String Mes;
+        int month = RTC.getMonth();
+        switch (month)
+        {
+        case 0:
+            Mes = "01";
+            break;
+        case 1:
+            Mes = "02";
+            break;
+        case 2:
+            Mes = "03";
+            break;
+        case 3:
+            Mes = "04";
+            break;
+        case 4:
+            Mes = "05";
+            break;
+        case 5:
+            Mes = "06";
+            break;
+        case 6:
+            Mes = "07";
+            break;
+        case 7:
+            Mes = "08";
+            break;
+        case 8:
+            Mes = "09";
+            break;
+        case 9:
+            Mes = "10";
+            break;
+        case 10:
+            Mes = "11";
+            break;
+        case 11:
+            Mes = "12";
+            break;
+        default:
+            break;
+        }
+        Serial.println("Guardando Fecha Bootloader.....");
+        NVS.begin("Config_ESP32", false);
+        uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
+        NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
+
+        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+        uint8_t Datos_Fecha_B[Fecha_len];
+        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+        NVS.end();
+    }
+}
+
+void Default_DateTime_Update(bool Enable)
+{
+
+    if (Enable)
+    {
+        String Hora = RTC.getTime();
+        String Fecha = RTC.getDate();
+        String Mes;
+        int month = RTC.getMonth();
+        switch (month)
+        {
+        case 0:
+            Mes = "01";
+            break;
+        case 1:
+            Mes = "02";
+            break;
+        case 2:
+            Mes = "03";
+            break;
+        case 3:
+            Mes = "04";
+            break;
+        case 4:
+            Mes = "05";
+            break;
+        case 5:
+            Mes = "06";
+            break;
+        case 6:
+            Mes = "07";
+            break;
+        case 7:
+            Mes = "08";
+            break;
+        case 8:
+            Mes = "09";
+            break;
+        case 9:
+            Mes = "10";
+            break;
+        case 10:
+            Mes = "11";
+            break;
+        case 11:
+            Mes = "12";
+            break;
+        default:
+            break;
+        }
+        Serial.println("Guardando Fecha Bootloader.....");
+        NVS.begin("Config_ESP32", false);
+        uint8_t Fecha_Modo_Bootloader[] = {Hora[0], Hora[1], Hora[3], Hora[4], Hora[6], Hora[7], Fecha[9], Fecha[10], Mes[0], Mes[1], Fecha[14], Fecha[15]};
+        NVS.putBytes("Fecha_Boot", Fecha_Modo_Bootloader, sizeof(Fecha_Modo_Bootloader));
+
+        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
+        uint8_t Datos_Fecha_B[Fecha_len];
+        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
+       
+    }
 }
 
 void Init_Indicadores_LED(void)
@@ -324,21 +483,15 @@ void Init_Configuracion_Inicial(void)
         if(Version[1]!=0){Serial.print(Version[1]);}
         Serial.println();
 
-        if (NVS.isKey("Fecha_Boot"))
+        if (!NVS.isKey("Fecha_Boot"))
         {
-        size_t Fecha_len = NVS.getBytesLength("Fecha_Boot");
-        uint8_t Datos_Fecha_B[Fecha_len];
-        NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
-        String Fecha_Bootlader = String(char(Datos_Fecha_B[6])) + String(char(Datos_Fecha_B[7])) + "/" + String(char(Datos_Fecha_B[8])) + String(char(Datos_Fecha_B[9])) + "/" + String(char(Datos_Fecha_B[10])) + String(char(Datos_Fecha_B[11]));
-        if (Fecha_Bootlader != NULL)
-        {
-           Serial.println("Ultima fecha Bootloader: " + Fecha_Bootlader);
-        }
+            Serial.println(" Fecha Booloader por defecto....");
+            Default_DateTime_Update(true);
         }
 
         if(int(Version[0])!=int(Version_Firmware_[0]) || int(Version[1])!=int(Version_Firmware_[1]) || int(Version[2])!=int(Version_Firmware_[2]) ||int(Version[3])!=int(Version_Firmware_[3])) //  Si la version guardada en memoria es diferente a la actual del codigo
         {
-            Serial.println(" Nueva version de software detectada ");
+            Serial.println(" Nueva version de software detectada..... ");
           
             NVS.putBytes("Ver_Fir",Version_Firmware_, sizeof(Version_Firmware_));
             Serial.print(Version_Firmware_[0]); // 1
@@ -482,6 +635,26 @@ void Init_Configuracion_Inicial(void)
         NVS.putUInt("Connect_W", Intento_Conexion);
     }
 
+    if(!NVS.isKey("TimePlayer"))
+    {
+        int Timer_Player=90000;
+        Serial.println("Timeout_Player_Tracking por defecto....");
+        NVS.putUInt("TimePlayer",Timer_Player);
+    }
+
+    if(!NVS.isKey("T_En_Juego"))
+    {
+        int Timer_Transmission_In_Game=30; /* Cada 30s*/
+        Serial.println("Tiempo transmision maquina en juego por defecto...");
+        NVS.putUInt("T_En_Juego",Timer_Transmission_In_Game);
+    }
+
+    if(!NVS.isKey("T_No_Juego"))
+    {
+        int Timer_Transmission_Not_Game=150000; /* Cada 2.5 minutos */
+        Serial.println("Tiempo transmision maquina no juego por defecto...");
+        NVS.putUInt("T_No_Juego",Timer_Transmission_Not_Game);
+    }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -632,6 +805,10 @@ void Init_Configuracion_Inicial(void)
     case 12:
         Serial.println("Simple No Cancel");
         break;
+
+    case 13:
+        Serial.println("Simple no creditos");
+        break;
     default:
         break;
     }
@@ -673,6 +850,156 @@ void Init_Configuracion_Inicial(void)
     }else{
         Variables_globales.Set_Variable_Global(Excepcion_WIFI,false);
     }       
+
+
+    Serial.print("TimeOut Player Tracking: ");
+    Inactividad_Usuario_Player_Tracking=NVS.getUInt("TimePlayer",90000);
+    switch (Inactividad_Usuario_Player_Tracking)
+    {
+    case 90000:
+        Serial.println(" 1.5 Minutos ");
+        break;
+
+    case 120000:
+        Serial.println(" 2 Minutos ");
+        break;
+    
+    case 150000:
+        Serial.println(" 2.5 Minutos ");
+        break;
+    case 180000:
+        Serial.println(" 3 Minutos ");
+        break;
+    
+    case 210000:
+        Serial.println(" 3.5 Minutos ");
+        break;
+
+    case 240000:
+        Serial.println(" 4 Minutos ");
+        break;
+
+    case 270000:
+        Serial.println(" 4.5 Minutos ");
+        break;
+
+    case 300000:
+        Serial.println(" 5 Minutos ");
+        break;
+
+    case 330000:
+        Serial.println(" 5.5 Minutos  ");
+        break;
+
+    case 360000:
+        Serial.println(" 6 Minutos ");
+        break;
+    
+    default:
+
+        Serial.println(" 1.5 Minutos ");
+        break;
+    }
+    
+
+    Serial.print("Tiempo de Transmision En Juego: ");
+    Tiempo_Transmision_En_Juego=NVS.getUInt("T_En_Juego",30);
+     switch (Tiempo_Transmision_En_Juego)
+    {
+    case 30:
+        Serial.println(" 30 segundos ");
+        break;
+
+    case 40:
+        Serial.println(" 40 segundos ");
+        break;
+    
+    case 50:
+        Serial.println(" 50 segundos ");
+        break;
+    case 60:
+        Serial.println(" 1 Minuto");
+        break;
+    
+    case 70:
+        Serial.println(" 1 Minuto 10 Segundos ");
+        break;
+
+    case 80:
+        Serial.println(" 1 Minuto 20 Segundos ");
+        break;
+
+    case 90:
+        Serial.println(" 1 Minuto 30 Segundos ");
+        break;
+
+    case 100:
+        Serial.println(" 1 Minuto 40 Segundos ");
+        break;
+
+    case 110:
+        Serial.println(" 1 Minuto 50 Segundos ");
+        break;
+
+    case 120:
+        Serial.println(" 2 Minutos ");
+        break;
+    
+    default:
+
+        Serial.println(" 30 Segundos ");
+        break;
+    }
+
+    Serial.print("Tiempo de Transmision No Juego: ");
+    Tiempo_Transmision_No_Juego=NVS.getUInt("T_No_Juego",150000);
+       switch (Tiempo_Transmision_No_Juego)
+    {
+    case 150000:
+        Serial.println(" 2.5 Minutos ");
+        break;
+
+    case 180000:
+        Serial.println(" 3 Minutos ");
+        break;
+    
+    case 210000:
+        Serial.println(" 3.5 Minutos ");
+        break;
+    case 240000:
+        Serial.println(" 4 Minutos ");
+        break;
+    
+    case 270000:
+        Serial.println(" 4.5 Minutos ");
+        break;
+
+    case 300000:
+        Serial.println(" 5 Minutos ");
+        break;
+
+    case 330000:
+        Serial.println(" 5.5 Minutos ");
+        break;
+
+    case 360000:
+        Serial.println(" 6 Minutos ");
+        break;
+
+    case 480000:
+        Serial.println(" 8 Minutos ");
+        break;
+
+    case 600000:
+        Serial.println(" 10 Minutos ");
+        break;
+    
+    default:
+
+        Serial.println(" 2.5 Minutos ");
+        break;
+    }
+
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     Serial.println("\n");

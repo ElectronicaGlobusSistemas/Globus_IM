@@ -1648,9 +1648,9 @@ bool Buffers::Set_buffer_info_lector(int Com)
     else
         req[12]='0';
 
-   // req[13]='|';
+    req[13]='|';
     /* Sesion playerTracking */
-    for( int i=13; i<258; i++)
+    for( int i=14; i<258; i++)
     {
         req[i]='0';
     }

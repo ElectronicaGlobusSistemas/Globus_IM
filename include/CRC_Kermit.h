@@ -3,6 +3,7 @@
 
 extern char buffer_envio[258];
 extern char Data_TX_AFT[33];
+extern char Data_TX[8];
 bool Verifica_CRC_Wifi(String str_CRC)
 {
   int len, len_CRC;
@@ -123,5 +124,37 @@ bool calcularCRC_Registro_AFT(void) {
   CRC_RES = (crcval & 0x00FF);
   //Serial.println(CRC_RES, HEX);
   Data_TX_AFT[32] = CRC_RES;
+  return true;
+}
+
+
+bool CalcularCRC_Datos(void) {
+  uint16_t crcval, CRC_Temp, CRC_RES;
+  uint8_t *data = (uint8_t *)&Data_TX[0];
+  crcval = crc16(data, 7, 0x1021, 0x0000, 0x0000, true, true);
+  //Serial.println(crcval, HEX);
+  CRC_Temp = (crcval & 0xFF00);
+  CRC_RES = (CRC_Temp >> 8);
+ // Serial.println(CRC_RES, HEX);
+  Data_TX[8] = CRC_RES;
+  CRC_RES = (crcval & 0x00FF);
+  //Serial.println(CRC_RES, HEX);
+  Data_TX[7] = CRC_RES;
+  return true;
+
+}
+
+bool  CalcularCRC_Datos_Generic(char Datos[], int Size,char CRC[]) {
+  uint16_t crcval, CRC_Temp, CRC_RES;
+  uint8_t *data = (uint8_t *)&Datos[0];
+  crcval = crc16(data, Size, 0x1021, 0x0000, 0x0000, true, true);
+  //Serial.println(crcval, HEX);
+  CRC_Temp = (crcval & 0xFF00);
+  CRC_RES = (CRC_Temp >> 8);
+ // Serial.println(CRC_RES, HEX);
+  CRC[0] = CRC_RES;
+  CRC_RES = (crcval & 0x00FF);
+  //Serial.println(CRC_RES, HEX);
+  CRC[1] = CRC_RES;
   return true;
 }

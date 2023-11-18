@@ -186,6 +186,28 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case ACK_Valido:
         return ACK_Valido_;
         break;
+
+
+    case Status_Load_Bonus:
+        return Status_Load_Bonus_;
+        break;
+
+    case Solicitud_Carga_Bonus:
+        return Solicitud_Carga_Bonus_;
+        break;
+
+    case Flag_ACK_Carga_Bonus_Pendiente:
+        return Flag_ACK_Carga_Bonus_Pendiente_;
+        break;
+
+
+
+    case AutoUPDATE_OK:
+        return AutoUPDATE_OK_;
+        break;
+    case Verifica_Conexion_WIFI:
+        return Verifica_Conexion_WIFI_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -368,9 +390,29 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case ACK_Valido:
         ACK_Valido_=Change_estado;
         break;
+
+    case Status_Load_Bonus:
+        Status_Load_Bonus_=Change_estado;
+        break;
+
+    case Solicitud_Carga_Bonus:
+        Status_Load_Bonus_=Change_estado;
+        break;
+
+    case Flag_ACK_Carga_Bonus_Pendiente:
+        Flag_ACK_Carga_Bonus_Pendiente_=Change_estado;
+        break;
+
+    case AutoUPDATE_OK:
+        AutoUPDATE_OK_=Change_estado;
+        break;
+
+    case Verifica_Conexion_WIFI:
+        Verifica_Conexion_WIFI_=Change_estado;
+        break;
     }
 
-
+   
 
 }
 
@@ -448,6 +490,11 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Consulta_Info_Lector_Rfid_=false;
     Excepcion_WIFI_=false;
     ACK_Valido_=false;
+    Status_Load_Bonus_=false;
+    Solicitud_Carga_Bonus_=false;
+    Flag_ACK_Carga_Bonus_Pendiente_=false;
+    AutoUPDATE_OK_=false;
+    Verifica_Conexion_WIFI_=false;
     
 }
 
