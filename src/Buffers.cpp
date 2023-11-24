@@ -17,6 +17,10 @@ extern Buffer_RX_AFT Buffer_Cashless;
 char convert(uint8_t dato);
 int Firts_cancel_credit=0;
 
+int extern Inactividad_Usuario_Player_Tracking;
+int extern  Tiempo_Transmision_En_Juego;
+int extern Tiempo_Transmision_No_Juego;
+
 extern unsigned char Tabla_Eventos_[ 999 ][ 8 ]; /* Cola de Eventos*/
 extern unsigned short Num_Eventos;
 extern unsigned short Ptr_Eventos_Marca_Temp, Ptr_Eventos_Marca;
@@ -1584,6 +1588,9 @@ bool Buffers::Set_buffer_info_lector(int Com)
     bzero(res, 2);
     int32_t Aux1;
    
+   String Time_Game=String(Tiempo_Transmision_En_Juego);
+   String Time_Not_Game=String(Tiempo_Transmision_No_Juego);
+   String TimeInactivity=String(Inactividad_Usuario_Player_Tracking);
     
     Aux1 = Com;
     Aux1 = (Aux1 & 0x000000FF);
@@ -1649,8 +1656,44 @@ bool Buffers::Set_buffer_info_lector(int Com)
         req[12]='0';
 
     req[13]='|';
-    /* Sesion playerTracking */
-    for( int i=14; i<258; i++)
+
+    int pos=13;
+    for( int i=0; i <Time_Game.length(); i++)
+    {
+        pos++;
+        req[pos]=Time_Game[i];
+       
+    }
+    pos=pos+1;
+    req[pos]='|';
+
+    
+    int pos2=pos;
+
+
+    for( int i=0; i <Time_Not_Game.length(); i++)
+    {
+        pos2++;
+        req[pos2]=Time_Not_Game[i];
+       
+    }
+    pos2=pos2+1;
+    req[pos2]='|';
+
+   
+    int pos3=pos2;
+
+
+    for( int i=0; i <TimeInactivity.length(); i++)
+    {
+        pos3++;
+        req[pos3]=TimeInactivity[i];
+       
+    }
+    pos3=pos3+1;
+    req[pos3]='|';
+
+    for( int i=pos3+1; i<258; i++)
     {
         req[i]='0';
     }

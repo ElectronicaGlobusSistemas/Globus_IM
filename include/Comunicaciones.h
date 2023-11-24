@@ -11,6 +11,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_task_wdt.h>
+
+
 /*------------------------> Debug <----------------------------------*/
 //#define Debug_Mensajes_Server
 //#define Debug_Transmision
@@ -148,7 +150,6 @@ unsigned long New_Timmer_Inicial=0;
 extern unsigned long currentTime;
 extern  bool condicionCumplida;
 extern  unsigned long startTime;
-
 /*-----------------------------------------------------------------------------------------------------*/
 
 
@@ -1108,7 +1109,11 @@ Lector Habilitado           (1) o deshabilidado (0)
 Lector Ocupado              (1) o Libre         (0)
 Lector Conectado            (1) o Desconectado  (0)
 Sesion Abierta jugador      (1) o Cerrada       (0)
-Reset Analogo Habilitado    (1) o Reset SAS     (0) 
+Reset Analogo Habilitado    (1) o Reset SAS     (0)
+
+Tiempo Transmision Maq en juego.
+Tiempo Transmision no Juego.
+Tiempo  cierre Sesion Player Tracking.
 */
 void Transmite_Info_Lector(void)
 {
@@ -2769,89 +2774,6 @@ void Task_Procesa_Comandos(void *parameter)
                  case 138:
                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
                    // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
-                    /* TIMEOUT PLAYER TRACKING  */
-                    // switch (res[4]-48)
-                    // {
-                    // case  0:
-
-                    //     NVS.begin("Config_ESP32", false);
-                    //     NVS.putInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-
-                    // case  1:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 2 Minutos */
-                    //     NVS.putInt("TimePlayer", 120000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-
-                    // case  2:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 2 Minutos & medio */
-                    //     NVS.putInt("TimePlayer", 150000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-                    // case  3:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 3 Minutos*/
-                    //     NVS.putInt("TimePlayer", 180000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-
-                    // case  4:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 3 Minutos & medio */
-                    //     NVS.putInt("TimePlayer",  210000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-                    
-                    // case  5:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 4 Minutos */
-                    //     NVS.putInt("TimePlayer",  240000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-                    // case  6:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 4 Minutos & medio */
-                    //     NVS.putInt("TimePlayer",  270000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-
-                    // case  7:
-
-                    //     NVS.begin("Config_ESP32", false);  /* 5 Minutos */
-                    //     NVS.putInt("TimePlayer",  300000);
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-                    
-                    // default:
-                    //     NVS.begin("Config_ESP32", false);
-                    //     NVS.putInt("TimePlayer", 90000); /* 1 minutos & 30 segundos */
-                    //     NVS.end();
-                    //     ESP.restart();
-                    //     break;
-                    // }
-
-                    /*-----------------------------------------------------------------------*/
-                    /* TIMEOUT PLAYER TRACKING  */
-                   
-                    /*-----------------------------------------------------------------------*/
-                   // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
                     // Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
                     // contadores.Set_Meter_Legacy_Bonus_Awards(res);
                     // Carga_Bonus_Maquina();
@@ -2887,10 +2809,23 @@ void Task_Procesa_Comandos(void *parameter)
                 break;
 
                 case 603:
-                    #ifdef Debug_Mensajes_Server
-                    Serial.println("Actualizacion Automatica"); /* OK*/
-                    #endif
+                    
+                    //Serial.println("Actualizacion Automatica"); /* OK*/
+                    
+                    //Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
+                    //delay(1);
                     //Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+
+                    // Serial.println("Solicitud actualización");
+                    // if(contadores.Init_Parameter_Update(res))
+                    // {
+                        
+                    //     Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
+                    //     delay(1);
+                    //     Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                    // }else{
+                    //     Serial.println("Error Conversion Json");
+                    // }
                 break;
 
                 case 604:

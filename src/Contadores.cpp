@@ -1,8 +1,12 @@
 #include <iostream>
 #include "Contadores.h"
 #include "Arduino.h"
+#include "Json_Datos.h"
 using namespace std;
+#include "AutoUpdate.h"
 
+extern AutoUpdate UpdateOTA;
+extern uint8_t Version_Firmware_[];
 int Convert_Char_To_Int(char buffer[]);
 
 char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
@@ -1156,50 +1160,42 @@ int Type_Bonus(char res)
 /*Configura Tipo y valor de bono Para Solicitud de carga*/
 bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
 {
-  
-  int Comp,Comp2;
+
+  int Comp, Comp2;
 
   /* Tipo de bono */
-  Type_Legacy_Bonus_Awards_ =Type_Bonus(res[12]);
+  Type_Legacy_Bonus_Awards_ = Type_Bonus(res[12]);
 
-  Comp=Conve_Ascii_To_Hex_LL(res[11]);
-  Comp2=Conve_Ascii_To_Hex_HH(res[10]);
-  Legacy_Bonus_Awards_[3]=(Comp2 | Comp);
+  Comp = Conve_Ascii_To_Hex_LL(res[11]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[10]);
+  Legacy_Bonus_Awards_[3] = (Comp2 | Comp);
 
- 
+  Comp = Conve_Ascii_To_Hex_LL(res[9]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[8]);
+  Legacy_Bonus_Awards_[2] = (Comp2 | Comp);
 
-  Comp=Conve_Ascii_To_Hex_LL(res[9]);
-  Comp2=Conve_Ascii_To_Hex_HH(res[8]);
-  Legacy_Bonus_Awards_[2]=(Comp2 | Comp);
+  Comp = Conve_Ascii_To_Hex_LL(res[7]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[6]);
+  Legacy_Bonus_Awards_[1] = (Comp2 | Comp);
 
+  Comp = Conve_Ascii_To_Hex_LL(res[5]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[4]);
+  Legacy_Bonus_Awards_[0] = (Comp2 | Comp);
 
-
-  Comp=Conve_Ascii_To_Hex_LL(res[7]);
-  Comp2=Conve_Ascii_To_Hex_HH(res[6]);
-  Legacy_Bonus_Awards_[1]=(Comp2 | Comp);
-
-  
-  Comp=Conve_Ascii_To_Hex_LL(res[5]);
-  Comp2=Conve_Ascii_To_Hex_HH(res[4]);
-  Legacy_Bonus_Awards_[0]=(Comp2 | Comp);
-
-  
- 
   return true;
 }
 
 bool Contadores_SAS::Delete_Meter_Legacy_Bonus_Awards(void)
 {
-  Legacy_Bonus_Awards_[0]='0';
-  Legacy_Bonus_Awards_[1]='0';
-  Legacy_Bonus_Awards_[2]='0';
-  Legacy_Bonus_Awards_[3]='0';
-  Legacy_Bonus_Awards_[4]='0';
+  Legacy_Bonus_Awards_[0] = '0';
+  Legacy_Bonus_Awards_[1] = '0';
+  Legacy_Bonus_Awards_[2] = '0';
+  Legacy_Bonus_Awards_[3] = '0';
+  Legacy_Bonus_Awards_[4] = '0';
 
-
-  for(int i=0; i<5;i++)
+  for (int i = 0; i < 5; i++)
   {
-    if(Legacy_Bonus_Awards_[i]!='0')
+    if (Legacy_Bonus_Awards_[i] != '0')
       return true;
   }
   return false;
@@ -1221,11 +1217,79 @@ bool Contadores_SAS::Type_Legacy_Bonus_Awards(char res[])
   }
   return true;
 }
-char*  Contadores_SAS::Get_Amount_Legacy_Bonus_Awards(void)
+char *Contadores_SAS::Get_Amount_Legacy_Bonus_Awards(void)
 {
   return Legacy_Bonus_Awards_;
 }
 int Contadores_SAS::Get_Type_Legacy_Bonus_Awards(void)
+
 {
   return Type_Legacy_Bonus_Awards_;
+}
+
+bool Contadores_SAS::Init_Parameter_Update(char res[])
+{
+
+  char res2[255];
+  int JsonCount = 0;
+
+  // Extraer el fragmento de JSON
+  for (int i = 4; i < 258; i++)
+  {
+    res2[JsonCount] = res[i];
+    JsonCount++;
+  }
+
+  char *finJson = strchr(res2, '}');
+
+  // Verificar si se encontró '}' y eliminar los ceros si es necesario
+  if (finJson != nullptr)
+  {
+    // Calcular la longitud del contenido deseado
+    size_t longitud = finJson - res2 + 1;
+
+    // Crear un nuevo array del tamaño adecuado
+   // Serial.println(longitud);
+    char resFinal[longitud];
+
+    // Copiar el contenido deseado al nuevo array
+    memcpy(resFinal, res2, longitud);
+
+    resFinal[longitud] = '\0';
+   // Serial.println(resFinal);
+
+    /* Prepara Json para deserialización */
+    String Json = String(resFinal);
+    Json.replace("\\\"", "\"");
+    Json.trim(); /* Elimina espacios */
+
+    Json = "{\"URL_Bin\":\"https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/fw.bin\",\"URL_Firmware_Version\":\"https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/bin_version.txt\",\"Token\":\"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\"}";
+        // Intentar deserializar el JSON
+
+    StaticJsonDocument<500>
+    doc,
+    filter;
+    DeserializationError error = deserializeJson(doc, Json);
+
+    // Verificar errores de deserialización
+    if (error)
+    {
+      //Serial.print("deserializeJson() failed: ");
+      //Serial.println(error.c_str());
+      return false;
+    }
+    else
+    {
+     // Serial.println("Deserialización exitosa");
+
+      String URL_Bin__ = doc["URL_Bin"];
+      String URL_Firmware_Version__ = doc["URL_Firmware_Version"];
+      String Token__ = doc["Token"];
+
+      /* Inicializa parametros de actualizacion */
+      UpdateOTA.Init_AutoUpdate(URL_Firmware_Version__, URL_Bin__, Token__, Version_Firmware_);
+      return true;
+    }
+  }
+  return false;
 }

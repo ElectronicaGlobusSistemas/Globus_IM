@@ -124,7 +124,7 @@ void Init_Config(void)
     Init_SD(); // Inicializa Memoria SD.
     
     //------------------> AutoUpdate <-------------------------------
-  //  UpdateOTA.Init_AutoUpdate(Version_Firmware_); /* Inicializa URL */
+   // UpdateOTA.Init_AutoUpdate(Version_Firmware_); /* Inicializa URL */
   //  UpdateOTA.Auto_Update(false); /* Verifica Actualizacion */
     //---------------------------------------------------------------
     
@@ -306,8 +306,14 @@ static void ManagerTasks(void *parameter)
 
         if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
         {
-           // UpdateOTA.Auto_Update(false);/* Agregar parametros para  verificar que la maquina no este en juego */
-            Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
+            if(!Update_Enable_DTime)
+            {
+                Fecha_Update(true);
+                Update_Enable_DTime=true;
+            }
+            
+           UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego),Variables_globales.Get_Variable_Global(Flag_Hopper_Enable),flag_billete_insertado,flag_premio_pagado_cashout,Variables_globales.Get_Variable_Global(Flag_Sesion_RFID));/* Agregar parametros para  verificar que la maquina no este en juego */
+           Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
         }
 
 

@@ -10,7 +10,7 @@
 
 
 
-
+/* Verifica  estado de la maquina  para definir  si puede lanzar actualización */
 void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bool Billete_Insert__, bool Flag_Premio_pagado_, bool Flag_Sesion_Player_Tracking)
 {
   
@@ -19,27 +19,36 @@ void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bo
     if(FirmwareVersionCheck())
       firmwareUpdate();
   }else{
-    Serial.println("Maquina en juego!");
+    Serial.println("Maquina en juego! o sesion de usuario de juego abierta");
     /* Transmite_ACK MAQUINA EN JUEGO ABORTA ACTUALIZACION  */
   }
 }
-void AutoUpdate::Init_AutoUpdate(uint8_t Buffer[])
+
+/* Inicializa Parametros de actualizacion
+URL_Version  Direccion que contiene el archivo para verificar la version nueva del firmware
+URL_Bin Direccion que  contiene el archivo de actualización 
+Token  Codigo de seguridad por la API */
+void AutoUpdate::Init_AutoUpdate(String URL_Version_, String URL_Bin_, String Token_ ,uint8_t Buffer[])
 {
-   URL_Version_Firmware = "https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/bin_version.txt";
-   Token = "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";
+  URL_Version_Firmware = URL_Version_;
+  Token = Token_;
+  URL_Bin = URL_Bin_;
 
-   URL_Bin = "https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/fw.bin";
-   Millis_R = 0;
-   Millis_P = 0;
-   Invert_Update = 30000;
-
-  for (int i = 0; i < sizeof(Buffer)/sizeof(Buffer[0]); ++i) {
+  Millis_R = 0;
+  Millis_P = 0;
+  Invert_Update = 30000;
+/* Verifica version de programa  en Codigo */
+  for (int i = 0; i < sizeof(Buffer) / sizeof(Buffer[0]); ++i)
+  {
     FirmwareVer += String(Buffer[i]);
-    if (i < sizeof(Buffer)/sizeof(Buffer[0]) - 1) {
+    if (i < sizeof(Buffer) / sizeof(Buffer[0]) - 1)
+    {
       FirmwareVer += ".";
     }
   }
 }
+
+/* Ejecuta actualización de firmware */
 void AutoUpdate::firmwareUpdate(void)
 {
     
@@ -47,7 +56,7 @@ void AutoUpdate::firmwareUpdate(void)
   client.setCACert(rootCACertificate);
   httpUpdate.setLedPin(4,HIGH); /* LED Status SD*/
   
-  esp_task_wdt_init(100000, false);
+  esp_task_wdt_init(1000000, true);
   esp_task_wdt_reset();
   HTTPClient http;
   http.addHeader("Authorization", "token " + String(Token));
@@ -69,6 +78,8 @@ void AutoUpdate::firmwareUpdate(void)
   }
  
 }
+
+/* Función  para consultar si existe actualización disponible */
 int AutoUpdate::FirmwareVersionCheck(void)
 {
 

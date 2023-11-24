@@ -28,6 +28,10 @@ extern bool  condicionCumplida;
 #define BUF_SIZE (1024 * 2)
 #define RD_BUF_SIZE (1024 * 2)
 static QueueHandle_t uart2_queue;
+/*------------------------------------> UART 1 <-----------------------------------------------------------*/
+#define BUF_SIZE1 (1024 * 2)
+#define RD_BUF_SIZE1 (1024 * 2)
+static QueueHandle_t uart1_queue;
 //----------------------------------------------------------------------------------------------------------
 //--------------------------------------> TaskHandle_t <----------------------------------------------------
 
@@ -181,6 +185,22 @@ char CurrentCredit_Poker_Data[9]  = {'0', '0', '0', '0', '0', '0', '0', '0'};
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 
 
+void Init_UART1()
+{
+  uart_config_t Configurazione_UART1 = {
+      .baud_rate = 19200,
+      .data_bits = UART_DATA_8_BITS,
+      .parity = UART_PARITY_DISABLE,
+      .stop_bits = UART_STOP_BITS_1,
+      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+     // .rx_flow_ctrl_thresh = 122, /* Add Flow*/
+  };
+  uart_param_config(UART_NUM_1, &Configurazione_UART1);
+  uart_set_pin(UART_NUM_1, U1TXD, U1RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+  ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE1, BUF_SIZE1, 20, &uart1_queue, 1));
+
+}
+
 void Init_UART2()
 {
 
@@ -225,6 +245,7 @@ void sendDataa(const char *datos, unsigned int tamano) //  Envia Datos por UART2
   ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 10));    //  Espera 10ms  para envio de dato anterior
   uart_write_bytes(NUMERO_PORTA_SERIALE, datos, tamano); // Envia Datos Sin tener en cuenta Bit de paridad
   ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 10));    // Espera 10ms  para envio de dato actual
+  
 }
 //---------------------------------------------------------------------------------------------------------------------------
 

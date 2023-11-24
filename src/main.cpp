@@ -160,6 +160,7 @@ void setup()
 }
 unsigned long INT1=0;
 int Muestreo=500;
+
 void loop()
 {
   Time_I=millis();
@@ -356,7 +357,18 @@ static void Check_Comunicacion_Maq(void *parameter)
     vTaskDelay(10);
 }
 
-/* Verifica y cierra sesion de usuario RFID por inactividad  despues de 90s */
+/* Verifica y cierra sesion de usuario RFID por inactividad despues del tiempo configurado en memoria
+(0)=1.5 Minutos Por defecto!
+(1)=2 Minutos 
+(2)=2.5 Minutos 
+(3)=3 Minutos 
+(4)=3.5 Minutos 
+(5)=4 Minutos
+(6)=4.5 Minutos 
+(7)=5 Minutos 
+(8)=5.5 Minutos
+(9)=6 Minutos 
+*/
 void TimeOut_Player_Tracking_Sesion(void)
 {
     currentTime = millis();

@@ -97,24 +97,19 @@ String Buffer_Json_info_Cashless(
 }
 
 
-String Deserialize()
+StaticJsonDocument<512> Deserialize(const String& Recepcion_json)
 {
-    String Recepcion_json;
-    StaticJsonDocument<0> filter;
-    filter.set(true);
+
     const size_t capacity = JSON_OBJECT_SIZE(20);
     StaticJsonDocument<capacity> doc;
 
-    DeserializationError error = deserializeJson(doc, Recepcion_json, DeserializationOption::Filter(filter));
+    DeserializationError error = deserializeJson(doc, Recepcion_json);
 
     if (error)
     {
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
-        return "";
-    }else
-    {
-        
     }
 
+    return  doc;
 }

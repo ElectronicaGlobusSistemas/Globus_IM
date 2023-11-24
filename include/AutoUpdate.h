@@ -32,7 +32,7 @@ public:
  
   int FirmwareVersionCheck();
   void firmwareUpdate(void);
-  void Init_AutoUpdate(uint8_t Version_Firmware_[]);
+  void Init_AutoUpdate(String URL_Version_, String URL_Bin_, String Token_ ,uint8_t Buffer[]);
   void Auto_Update(bool Flag_Maquina_en_Juego__=false, bool Hopper_Poker__=false, bool Billete_Insert__=false, bool Flag_Premio_pagado_=false,bool Flag_Sesion_Player_Tracking=false);
 };
 

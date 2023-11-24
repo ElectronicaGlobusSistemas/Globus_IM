@@ -1,5 +1,5 @@
 #include "Stream.h"
-
+#include "ArduinoJson.h"
 String Buffer_Json_info_IM(String Mac,
     int Type_MQ,                    // Type Machine 0 -> 9
     String Version_Firware,         // Version Firmware
@@ -25,3 +25,6 @@ String Buffer_Json_info_Cashless(
     String Transfer_Limit,           //$74 = Restricted Expiration       = 00000000
     String Restricted_Expiration,    //$74 = Restricted Expiration       = 00000000
     String Restricted_Pool_ID);      //$74 = Restricted Pool ID          = 0000
+
+
+StaticJsonDocument<512> Deserialize(const String& Recepcion_json);
