@@ -23,6 +23,7 @@
 #define PLAYER_TRACKING_DEFAULT  2
 #define WIFI_DISCONECTED         17
 #define GMASTER_CONFIRMA_RESET  16
+#define UPDATING_SYS            18
 
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);

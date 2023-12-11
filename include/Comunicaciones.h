@@ -52,6 +52,8 @@ int Contador_Coin_In_Act = 0;
 extern bool flag_ultimo_contador_Ok;
 extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 
+TaskHandle_t CommandProcess;
+
 char Archivo_CSV_Contadores[200];
 char Archivo_CSV_Eventos[200];
 char Archivo_LOG[200];
@@ -98,7 +100,7 @@ bool Activa_Encuesta=false;
 bool No_Comunica=false;
 int Valida_Creditos_Actuales=0;
 
-
+extern int Tiempo_Inactividad_Maquina;
 
 #define Hopper_Enable 14
 void Task_Procesa_Comandos(void *parameter);
@@ -220,10 +222,10 @@ void init_Comunicaciones()
     xTaskCreatePinnedToCore(
         Task_Procesa_Comandos,
         "Procesa comandos server",
-        8000,
+        10000,
         NULL,
-        configMAX_PRIORITIES - 4,
-        NULL,
+        configMAX_PRIORITIES - 3,
+        &CommandProcess,
         0); // Core donde se ejecutara la tarea
         
     xTaskCreatePinnedToCore(
@@ -240,9 +242,9 @@ void init_Comunicaciones()
         xTaskCreatePinnedToCore(
             Task_Verifica_Hopper,
             "Verifica en estado del Hopper - Poker",
-            10000,//1000
+            10000,//10000
             NULL,
-            configMAX_PRIORITIES - 2,
+            configMAX_PRIORITIES - 4,
             NULL,
             0); // Core donde se ejecutara la tarea
     }
@@ -708,6 +710,75 @@ void Config_Timer_Transmission_No_Game(char Datos[])
     }
 }
 
+
+void Config_Timer_Inactividad_Maquina(char Datos[])
+{
+    switch (Datos[4]-48)
+    {
+    case 0:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 50); /* 30s */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 1:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 80); /* 1 Minuto */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 2:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 115); /* 1 Minuto 30s */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 3:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 150); /* 2 Minutos */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 4:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 180); /* 2 Minutos 30s */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 5:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 230); /* 3 Minutos*/
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+    
+    default:
+        NVS.begin("Config_ESP32", false);
+        NVS.putUInt("TimerUser", 50); /* 30s */
+        NVS.end();
+        //Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+    }
+}
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK CASHLESS *******************************/
 /*****************************************************************************************/
@@ -1968,8 +2039,10 @@ void Mensajes_RFID(void)
     if(Variables_globales.Get_Variable_Global(Flag_Contadores_Sesion_ON))  
     {
         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+        esp_task_wdt_reset();
         Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
         delay(300);
+        esp_task_wdt_reset();
         #ifdef Debug_Mensajes_RFID
         Serial.println("Contadores Sesion RFID Iniciada....");
         #endif
@@ -1991,8 +2064,10 @@ void Mensajes_RFID(void)
         if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
         {
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+            esp_task_wdt_reset();
             Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
             delay(300);
+            esp_task_wdt_reset();
             #ifdef Debug_Mensajes_RFID
             Serial.println("Contadores Sesion RFID Terminada....");
             #endif
@@ -2038,9 +2113,10 @@ void Mensajes_RFID(void)
             {
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
                 {
-                    
+                    esp_task_wdt_reset();
                     Reset_HandPay();
                     delay(200);
+                    esp_task_wdt_reset();
                     switch (Variables_globales.Get_Variable_Global_Char(Reset_Handay_OK))
                     {
                     case 0x00:
@@ -2052,7 +2128,7 @@ void Mensajes_RFID(void)
                         Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                         Encuesta_Creditos_Premio(); /*Encuesta creditos despues de premio*/
-                        delay(450);
+                        delay(350);
                         Transmite_Contadores_Accounting(); /* Envia Contadores*/
                         Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
                         if (Variables_globales.Get_Variable_Global(Conexion_RFID))
@@ -2105,6 +2181,7 @@ void Mensajes_RFID(void)
         {
             Transmite_Confirmacion('A', '0');
         }
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
         Variables_globales.Set_Variable_Global(Operador_Detected, false);
     }
     /* --------------------------------------------------------------------------------------------*/
@@ -2156,8 +2233,8 @@ void completarConCeros(char buffer[], int longitudDeseada) {
 void Task_Procesa_Comandos(void *parameter)
 {
     /* WDT para tarea */
-   // esp_task_wdt_init(10000, true);
-   // esp_task_wdt_add(NULL);
+  //  esp_task_wdt_init(100000, true);
+  //  esp_task_wdt_add(NULL);
    unsigned long Respuesta_Carga_Bonus = millis();
    int TIMEOUT_CONECT_SERVER = 3500;
 
@@ -2186,7 +2263,7 @@ void Task_Procesa_Comandos(void *parameter)
             switch (Comando_Recibido())
             {
             case 3:
-                 #ifdef Debug_Mensajes_Server
+            #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de contadores SAS");
             #endif
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
@@ -2484,7 +2561,10 @@ void Task_Procesa_Comandos(void *parameter)
                // #ifdef Debug_Mensajes_Server
                                // Serial.println("Premio registrado con exito");
                // #endif
-                Serial.println("Premio registrado con exito");
+              //  Serial.println("Premio registrado con exito");
+                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                Reset_Handle_LED();
+               
                 if (contadores.Close_ID_Operador())
                 {
                     Condicion_Cumpl = false;
@@ -2503,9 +2583,8 @@ void Task_Procesa_Comandos(void *parameter)
                         Transmite_Confirmacion('A', '0');
                     }
                 }
-                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                Reset_Handle_LED();
-                delay(10);
+                
+               
                 break;
 
             case 503:
@@ -2772,63 +2851,77 @@ void Task_Procesa_Comandos(void *parameter)
                     /*---------------------------------------->CASHLESS<-------------------------------------------*/
                 
                  case 138:
-                    Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
-                   // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
-                    // Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
-                    // contadores.Set_Meter_Legacy_Bonus_Awards(res);
-                    // Carga_Bonus_Maquina();
-                    // delay(600);
+                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
 
-                    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
-                    //     Transmite_Confirmacion_Cashless('A','A','A');
-                    
+                     // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                     // Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
+                     // contadores.Set_Meter_Legacy_Bonus_Awards(res);
+                     // Carga_Bonus_Maquina();
+                     // delay(600);
 
-                    
+                     // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
+                     //     Transmite_Confirmacion_Cashless('A','A','A');
+                     break;
 
-        
+                 case 603:
+                    // #ifdef Debug_Mensajes_Server
+                    // Serial.println("Solicitud de actualizacion de firmware!"); /* OK*/
+                    // #endif
 
-                    // if(res[4]=='0')
-                    // {
-                    //     NVS.begin("Config_ESP32", false);
-                    //     NVS.putBool("LECTOR",false);
-                    //     NVS.end();
-                    //     Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,false);
-                    //     if(!Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
-                    //         Status_Barra(MODULO_KO);
-                    // }else if(res[4]=='1')
-                    // {
-                    //     NVS.begin("Config_ESP32", false);
-                    //     NVS.putBool("LECTOR",true);
-                    //     NVS.end();
-                    //     Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,true);
-                    //     if(Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
-                    //         Status_Barra(MODULO_OK);
-                    // }
+                     if (!Variables_globales.Get_Variable_Global(Updating_System))
+                     {
+                         switch (contadores.Init_Parameter_Update(res))
+                         {
 
-                    
-                break;
+                         case 0:
+                           //  #ifdef Debug_Mensajes_Server
+                           //  Serial.println("URL Recibidas con exito!");
+                           //  #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, true);
+                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
+                             delay(1);
+                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
+                             break;
 
-                case 603:
-                    
-                    //Serial.println("Actualizacion Automatica"); /* OK*/
-                    
-                    //Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
-                    //delay(1);
-                    //Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                         case 1:
+                             #ifdef Debug_Mensajes_Server
+                             Serial.println("Falla deserializando Json de solititud ");
+                             #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, false);
+                             break;
 
-                    // Serial.println("Solicitud actualización");
-                    // if(contadores.Init_Parameter_Update(res))
-                    // {
-                        
-                    //     Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
-                    //     delay(1);
-                    //     Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
-                    // }else{
-                    //     Serial.println("Error Conversion Json");
-                    // }
-                break;
+                         case 2:
+                           //  #ifdef Debug_Mensajes_Server
+                           //  Serial.println("Token de acceso no generado");
+                           //  #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, false);
+                             break;
 
-                case 604:
+                         case 3:
+                             #ifdef Debug_Mensajes_Server
+                             Serial.println("Proceso no identificado ");
+                             #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, false);
+                             break;
+
+                         case 4:
+                             #ifdef Debug_Mensajes_Server
+                             Serial.println("Proceso no identificado ");
+                             #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, false);
+                             break;
+
+                         default:
+                             #ifdef Debug_Mensajes_Server
+                             Serial.println("Proceso no identificado ");
+                             #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, false);
+                             break;
+                         }
+                         break;
+                     }
+                     break;
+                 case 604:
                     #ifdef Debug_Mensajes_Server
                     Serial.println("Configura Timer Transmision en juego "); /*OK*/
                     #endif
@@ -2855,6 +2948,16 @@ void Task_Procesa_Comandos(void *parameter)
                     #endif
                     Config_TimeOut_Player_Tracking(res);
                 break;
+
+                case 608:
+
+                    #ifdef Debug_Mensajes_Server
+                    Serial.println("Configura Player")
+                    #endif
+
+                    Config_Timer_Inactividad_Maquina(res);
+                break;
+
 
                 // case 603:
                 //     if(res[4]=='0')
@@ -3114,8 +3217,6 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println();
                 #endif
                 Transmite_Confirmacion('C', 'R');
-
-               
             }
         }
         else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
@@ -3160,9 +3261,9 @@ void Task_Procesa_Comandos(void *parameter)
             Finally_Timer = Start_Timer;
         }
 
-        Mensajes_RFID();
+       // Mensajes_RFID();
         vTaskDelay(100 / portTICK_PERIOD_MS);
-        continue;
+      //  continue;
     }
     vTaskDelay(10);
 }
@@ -3175,21 +3276,24 @@ void Task_Maneja_Transmision(void *parameter)
 {
     for (;;)
     {
-        if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego < 50)
+        if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego < Tiempo_Inactividad_Maquina) //50 //150  2minutos
             Contador_Maquina_En_Juego++;
-        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego >= 50)
+        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego >= Tiempo_Inactividad_Maquina)
         {
             Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
             Contador_Maquina_En_Juego = 0;
         }
+        
         Actualiza_Contadores();
         Verifica_Cambio_Contadores();
         Transmite_Configuracion();
         Transmision_Controlada_Contadores();
       //  Handle_ACK();
+        Mensajes_RFID();
         vTaskDelay(800 / portTICK_PERIOD_MS);
         continue;
     }
+    vTaskDelay(10);
 }
 
 void Verifica_Cambio_Contadores(void)

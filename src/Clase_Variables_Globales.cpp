@@ -200,13 +200,19 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
         return Flag_ACK_Carga_Bonus_Pendiente_;
         break;
 
-
-
     case AutoUPDATE_OK:
         return AutoUPDATE_OK_;
         break;
     case Verifica_Conexion_WIFI:
         return Verifica_Conexion_WIFI_;
+        break;
+
+    case Updating_System:
+        return Updating_System_;
+        break;
+
+    case Dato_Socket_Valido:
+        return Dato_Socket_Valido_;
         break;
     }
 }
@@ -410,6 +416,15 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Verifica_Conexion_WIFI:
         Verifica_Conexion_WIFI_=Change_estado;
         break;
+
+    case Updating_System:
+        Updating_System_=Change_estado;
+        break;
+
+
+    case Dato_Socket_Valido:
+        Dato_Socket_Valido_=Change_estado;
+        break;
     }
 
    
@@ -495,6 +510,8 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_ACK_Carga_Bonus_Pendiente_=false;
     AutoUPDATE_OK_=false;
     Verifica_Conexion_WIFI_=false;
+    Updating_System_=false;
+    Dato_Socket_Valido_=false;
     
 }
 

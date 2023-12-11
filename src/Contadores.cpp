@@ -4,6 +4,9 @@
 #include "Json_Datos.h"
 using namespace std;
 #include "AutoUpdate.h"
+#include "WiFi.h"
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
 
 extern AutoUpdate UpdateOTA;
 extern uint8_t Version_Firmware_[];
@@ -1227,7 +1230,99 @@ int Contadores_SAS::Get_Type_Legacy_Bonus_Awards(void)
   return Type_Legacy_Bonus_Awards_;
 }
 
-bool Contadores_SAS::Init_Parameter_Update(char res[])
+
+/* Genera  y retorna token  de acceso desde la API */
+String Token_Generator(String Url)
+{
+  String payload;
+  int httpCode;
+  String fwurl = Url;
+  #ifdef Debug_HTTPS
+  Serial.println(fwurl);
+  #endif
+  WiFiClient *client = new WiFiClient;
+  String Output="";
+  if (client)
+  {
+
+    HTTPClient https;
+
+    if (https.begin(*client, fwurl))
+    {
+      #ifdef Debug_HTTPS
+      Serial.print("[HTTPS] GET...\n");
+      #endif
+      httpCode = https.GET();
+      #ifdef Debug_HTTPS
+      Serial.println(httpCode);
+      #endif
+      if (httpCode == HTTP_CODE_OK)
+      {
+        payload = https.getString();
+
+        #ifdef Debug_HTTPS
+        Serial.println(payload);
+        #endif
+
+        StaticJsonDocument<1024>
+            doc,
+            filter;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        
+        if (error)
+        {
+          #ifdef Debug_HTTPS
+          Serial.print("deserializeJson() failed: ");
+          Serial.println(error.c_str());
+          #endif
+          return  Output; /* Vacio*/
+        }
+        else
+        {
+          // Token Generado;
+          #ifdef Debug_HTTPS
+          Serial.println("Token Generador! OK");
+          #endif
+          String Token= doc["Data"]["access_token"];
+          String Token_Expires= doc["Data"]["expires"];
+          bool IsSuccess = doc["IsSuccess"];
+          String Message = doc["Message"];
+          int Evento =doc["Evento"];
+
+          if(IsSuccess)
+          {
+            return Output=Token;
+          }else{
+             return Output;
+          }
+        }
+        return Output;
+      }
+      else
+      {
+        #ifdef Debug_HTTPS
+        Serial.print("error in downloading version file:");
+        Serial.println(httpCode);
+        #endif
+        return Output; /* Vacio*/
+      }
+      https.end();
+    }
+    delete client;
+    client->stop();
+  }
+
+  return Output; /* Vacio*/
+}
+/* 
+(0)--> URL recibidas y Token Generado con exito ! 
+(1)--> Falla deserializando json de solicitud 
+(2)--> Token No generado 
+(3)--> Proceso no identificado
+(4)--> Comando no identificado no se detecto json en la solicitud 
+*/
+int Contadores_SAS::Init_Parameter_Update(char res[])
 {
 
   char res2[255];
@@ -1263,33 +1358,52 @@ bool Contadores_SAS::Init_Parameter_Update(char res[])
     Json.replace("\\\"", "\"");
     Json.trim(); /* Elimina espacios */
 
-    Json = "{\"URL_Bin\":\"https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/fw.bin\",\"URL_Firmware_Version\":\"https://raw.githubusercontent.com/ElectronicaGlobusSistemas/04-fide/main/bin_version.txt\",\"Token\":\"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\"}";
-        // Intentar deserializar el JSON
-
-    StaticJsonDocument<500>
-    doc,
+    StaticJsonDocument<1024>
+    doc, 
     filter;
+
     DeserializationError error = deserializeJson(doc, Json);
 
     // Verificar errores de deserialización
     if (error)
     {
-      //Serial.print("deserializeJson() failed: ");
-      //Serial.println(error.c_str());
-      return false;
+      #ifdef Debug_HTTPS
+      Serial.print("deserializeJson() failed: ");
+      Serial.println(error.c_str());
+      #endif
+      return 1; /* Falla Json Solicitud */
     }
     else
     {
-     // Serial.println("Deserialización exitosa");
+      /* Url Generica */
+      String URL_Generic=doc["Url"];
+      /* Url Api Genera token */
+      String Api_Token=doc["Api_Token"];
+      /*Url Descarga de archivo*/
+      String Api_Bin=doc["Api_Bin"];
+      /* URL Api de respuesta */
+      String Api_Res=doc["Api_Respuesta"];
+      /*Url Parametrizada para generar token */
+      String Url_Completa=URL_Generic+Api_Token+"?"+ "Mac="+WiFi.macAddress();
+      /* Version de actualización */
+      String Version_Programa=doc["Version_Act"];
+      /* URL Api version */
+      String Api_Version=doc["Api_Version"];
 
-      String URL_Bin__ = doc["URL_Bin"];
-      String URL_Firmware_Version__ = doc["URL_Firmware_Version"];
-      String Token__ = doc["Token"];
+      /* Token de acceso */
+      String Token_Valido= Token_Generator(Url_Completa);
 
-      /* Inicializa parametros de actualizacion */
-      UpdateOTA.Init_AutoUpdate(URL_Firmware_Version__, URL_Bin__, Token__, Version_Firmware_);
-      return true;
+    
+      if(Token_Valido!="")
+      {
+        UpdateOTA.Init_AutoUpdate(Version_Programa, URL_Generic,Api_Version,Api_Bin, Api_Res, Token_Valido, Version_Firmware_);
+        UpdateOTA.Confirmacion_ACK_HTTPS(URL_OK,RES_URL);
+        return 0;
+      }else{
+        return 2; /* Token no generado */
+      }
+      return 3; /* No se identifico proceso */
     }
   }
-  return false;
+  return 4 /* Comando no identificado no  se detecto Json */;
 }

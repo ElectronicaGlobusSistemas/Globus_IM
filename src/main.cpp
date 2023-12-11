@@ -92,7 +92,7 @@ extern bool Ultimo_Counter_;
 bool Ejecuta_Instruccions_=false;
 unsigned long Time_I=0;
 unsigned long Time_P=0;
-int LongT=8000; //8000
+int LongT=5000; //8000
 extern bool VERIFY_WIRE_CONNECTION;
 
 extern unsigned long New_Timer_Final;
@@ -137,8 +137,11 @@ int Intentos_Conect_RFID=0;
 int Inactividad_Usuario_Player_Tracking;
 int Tiempo_Transmision_En_Juego;
 int Tiempo_Transmision_No_Juego;
+int Tiempo_Inactividad_Maquina;
 
-
+unsigned long  Timer_Error_Wifi_Inicial=0;
+unsigned long  Timer_Error_Wifi_Previous=0;
+int Exec_Timer=30000;
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
@@ -160,13 +163,15 @@ void setup()
 }
 unsigned long INT1=0;
 int Muestreo=500;
-
 void loop()
 {
+
+
+
   Time_I=millis();
   TimeOut_Conect_RFID=millis();
-
-
+  Timer_Error_Wifi_Inicial=millis();
+  //Mensajes_RFID();
   TimeOut_Marca_Operador();
   /*------------------------> Verifica Inactividad de Cliente <---------------------------*/
   TimeOut_Player_Tracking_Sesion();
@@ -181,14 +186,14 @@ void loop()
     {
       RESET_Handle(); /* Reset Handle*/
     }
-      Time_P = millis();
+    Time_P = millis();
   }
   /*--------------------------------------------------------------------------------------*/
  
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/
   check_SD();
   /*--------------------------------------------------------------------------------------*/
-
+  
   /*---------------------> Reset Handpay Maquinas No SAS <--------------------------------*/
   if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
   {

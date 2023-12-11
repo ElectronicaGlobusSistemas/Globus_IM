@@ -20,6 +20,7 @@ int Firts_cancel_credit=0;
 int extern Inactividad_Usuario_Player_Tracking;
 int extern  Tiempo_Transmision_En_Juego;
 int extern Tiempo_Transmision_No_Juego;
+int extern Tiempo_Inactividad_Maquina;
 
 extern unsigned char Tabla_Eventos_[ 999 ][ 8 ]; /* Cola de Eventos*/
 extern unsigned short Num_Eventos;
@@ -1591,6 +1592,7 @@ bool Buffers::Set_buffer_info_lector(int Com)
    String Time_Game=String(Tiempo_Transmision_En_Juego);
    String Time_Not_Game=String(Tiempo_Transmision_No_Juego);
    String TimeInactivity=String(Inactividad_Usuario_Player_Tracking);
+   String TimeInactivity_No_Player_Tracking=String(Tiempo_Inactividad_Maquina);
     
     Aux1 = Com;
     Aux1 = (Aux1 & 0x000000FF);
@@ -1693,7 +1695,19 @@ bool Buffers::Set_buffer_info_lector(int Com)
     pos3=pos3+1;
     req[pos3]='|';
 
-    for( int i=pos3+1; i<258; i++)
+
+     int pos4=pos3;
+    
+    for(int i=0; i<TimeInactivity_No_Player_Tracking.length();i++)
+    {
+        pos4++;
+        req[pos4]=TimeInactivity_No_Player_Tracking[i];
+    }
+
+    pos4=pos4+1;
+    req[pos4]='|';
+
+    for( int i=pos4+1; i<258; i++)
     {
         req[i]='0';
     }

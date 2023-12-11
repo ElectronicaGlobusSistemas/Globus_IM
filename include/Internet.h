@@ -606,6 +606,7 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
           Serial.println("CRC de datos entrante OK");
           #endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+          Variables_globales.Set_Variable_Global(Dato_Socket_Valido,true);
         }
         else
         {
@@ -646,6 +647,7 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
           Serial.println("CRC de datos entrante OK");
           #endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+          Variables_globales.Set_Variable_Global(Dato_Socket_Valido,true);
         }
         else
         {

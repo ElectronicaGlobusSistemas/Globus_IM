@@ -81,7 +81,8 @@ using namespace std;
 #define Flag_ACK_Carga_Bonus_Pendiente 72
 #define AutoUPDATE_OK                  73
 #define Verifica_Conexion_WIFI         74
-
+#define Updating_System                75
+#define Dato_Socket_Valido             76
 class Variables_Globales
 {
 private:
@@ -154,6 +155,8 @@ private:
     bool Flag_ACK_Carga_Bonus_Pendiente_;
     bool AutoUPDATE_OK_;
     bool Verifica_Conexion_WIFI_;
+    bool Updating_System_;
+    bool Dato_Socket_Valido_;
     
 
 public:

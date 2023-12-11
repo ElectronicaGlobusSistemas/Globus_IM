@@ -152,7 +152,5 @@ public:
   bool Type_Legacy_Bonus_Awards(char res[]);
   char*  Get_Amount_Legacy_Bonus_Awards(void);
   bool Set_Type_Legacy_Bonus(char res[]);
-
-
-  bool Init_Parameter_Update(char res[]);
+  int Init_Parameter_Update(char res[]);
 };

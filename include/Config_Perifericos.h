@@ -36,6 +36,8 @@ extern char Archivo_CSV[100];
 AutoUpdate UpdateOTA;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
+
+extern TaskHandle_t CommandProcess;
 //------------------------------------------------------------------
 
 //-----------------------> Prototipo de Funciones <-----------------
@@ -65,12 +67,13 @@ int Interval_Connect=10000;
 bool WL_DISCONNECT_OK=false;
 
 int extern Inactividad_Usuario_Player_Tracking;
-int extern  Tiempo_Transmision_En_Juego;
+int extern Tiempo_Transmision_En_Juego;
 int extern Tiempo_Transmision_No_Juego;
+int extern Tiempo_Inactividad_Maquina;
 //------------------------------------------------------------------
 
 //---------------------------> Version de programa <----------------
-uint8_t Version_Firmware_[]={2,0,1,0}; // 1000--> en  server 1.0 {1,0,1,1};
+uint8_t Version_Firmware_[]={2,0,3,4}; // 1000--> en  server 1.0 {1,0,1,1};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
@@ -124,7 +127,7 @@ void Init_Config(void)
     Init_SD(); // Inicializa Memoria SD.
     
     //------------------> AutoUpdate <-------------------------------
-   // UpdateOTA.Init_AutoUpdate(Version_Firmware_); /* Inicializa URL */
+  //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
   //  UpdateOTA.Auto_Update(false); /* Verifica Actualizacion */
     //---------------------------------------------------------------
     
@@ -169,6 +172,7 @@ static void ManagerTasks(void *parameter)
     long conta = 0;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000);
+
 
     for (;;)
     {
@@ -235,6 +239,8 @@ static void ManagerTasks(void *parameter)
         }
         //-------------------------------------------------------------------------------------------------------
 
+
+        
         //----------------------------------------------> Verifica Update <--------------------------------------
         // if (Variables_globales.Get_Variable_Global(Bootloader_Mode) == true && WiFi.status() == WL_CONNECTED && eTaskGetState(Modo_Bootloader) == eSuspended)
         // {
@@ -306,17 +312,12 @@ static void ManagerTasks(void *parameter)
 
         if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
         {
-            if(!Update_Enable_DTime)
-            {
-                Fecha_Update(true);
-                Update_Enable_DTime=true;
-            }
-            
-           UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego),Variables_globales.Get_Variable_Global(Flag_Hopper_Enable),flag_billete_insertado,flag_premio_pagado_cashout,Variables_globales.Get_Variable_Global(Flag_Sesion_RFID));/* Agregar parametros para  verificar que la maquina no este en juego */
-           Variables_globales.Set_Variable_Global(AutoUPDATE_OK,false);
+           
+            UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits))); /* Agregar parametros para  verificar que la maquina no este en juego */
+            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
         }
 
-
+        
         //--------------------------------------------------------------------------------------------------------
         //delay(100);
         //vTaskDelay(1000);
@@ -480,13 +481,17 @@ void Init_Configuracion_Inicial(void)
         size_t Ver_fir_len = NVS.getBytesLength("Ver_Fir");
         uint8_t Version[Ver_fir_len];
         NVS.getBytes("Ver_Fir", Version, sizeof(Version));
-        Serial.print("Version del software: ");
+        Serial.print("Version de firmware: ");
     
-        Serial.print(Version[0]);
-        if(Version[1]==0){Serial.print(".");}
-        Serial.print(Version[2]); 
-        if(Version[3]!=0){Serial.print(Version[3]);}
-        if(Version[1]!=0){Serial.print(Version[1]);}
+        for(int i=0; i<4;i++)
+        {
+            Serial.print(Version[i]);
+
+            if(i<3)
+            {
+                Serial.print(".");
+            }
+        }
         Serial.println();
 
         if (!NVS.isKey("Fecha_Boot"))
@@ -660,6 +665,13 @@ void Init_Configuracion_Inicial(void)
         int Timer_Transmission_Not_Game=150000; /* Cada 2.5 minutos */
         Serial.println("Tiempo transmision maquina no juego por defecto...");
         NVS.putUInt("T_No_Juego",Timer_Transmission_Not_Game);
+    }
+
+    if(!NVS.isKey("TimerUser"))
+    {
+        int Timer_User=50;
+        Serial.println("Timeout_Usuario por defecto....");
+        NVS.putUInt("TimerUser",Timer_User);
     }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1003,6 +1015,39 @@ void Init_Configuracion_Inicial(void)
     default:
 
         Serial.println(" 2.5 Minutos ");
+        break;
+    }
+
+    Serial.print("Tiempo de Actividad de maquina: ");
+    Tiempo_Inactividad_Maquina = NVS.getUInt("TimerUser", 50);
+    switch (Tiempo_Inactividad_Maquina)
+    {
+    case 50:
+        Serial.println(" 30s ");
+        break;
+
+    case 80:
+        Serial.println("1 Minuto");
+        break;
+
+    case 115:
+        Serial.println(" 1 Minuto 30s ");
+        break;
+    case 150:
+        Serial.println(" 2 Minutos ");
+        break;
+
+    case 180:
+        Serial.println(" 2 Minutos 30s ");
+        break;
+
+    case 230:
+        Serial.println(" 3 Minutos ");
+        break;
+
+    default:
+
+        Serial.println(" 30s ");
         break;
     }
 

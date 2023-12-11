@@ -425,12 +425,12 @@ void Lee_Tarjeta()
         /* Habilitado */
 
         /*----------------------------------------> Indicador estados del lector <---------------------------------------------*/
-        if (!Variables_globales.Get_Variable_Global(Conexion_RFID) || !Variables_globales.Get_Variable_Global(Comunicacion_Maq) || Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+        if (!Variables_globales.Get_Variable_Global(Conexion_RFID) || !Variables_globales.Get_Variable_Global(Comunicacion_Maq) || Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) ||Variables_globales.Get_Variable_Global(Updating_System))
         {
             if (!Handle_LED)
             {
                 /*---------------------------------------> Sesion Iniciada <-------------------------------------------------------*/
-                if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || !Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || !Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) &&!Variables_globales.Get_Variable_Global(Updating_System))
                 {
 
                     if (!Activa_ALERT)
@@ -447,7 +447,7 @@ void Lee_Tarjeta()
                 /*-----------------------------------------------------------------------------------------------------------------*/
 
                 /*-------------------------------------> NO HAY COMUNICACION <-----------------------------------------------------*/
-                if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && !Variables_globales.Get_Variable_Global(Updating_System))
                 {
 
                     TimeOut_Automatico_Inicial = millis();
@@ -463,7 +463,7 @@ void Lee_Tarjeta()
                     }
                 }
                 /*-----------------------------------------------------------------------------------------------------------------*/
-                if(!Variables_globales.Get_Variable_Global(Conexion_RFID))
+                if(!Variables_globales.Get_Variable_Global(Conexion_RFID) &&!Variables_globales.Get_Variable_Global(Updating_System))
                 {
                     Barra_Status_Sesion_Client.clear();
                     Barra_Status_Sesion_Client.setPixelColor(0, Barra_Status_Sesion_Client.Color(255, 0, 255)); // gris
@@ -473,10 +473,15 @@ void Lee_Tarjeta()
                     Barra_Status_Sesion_Client.show();
                 }
 
+                if(Variables_globales.Get_Variable_Global(Updating_System))
+                {
+                    Status_Barra(UPDATING_SYS);
+                }
+
             }
         }
         /*-----------------------------------------------------------------------------------------------------------------*/
-        if (Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) && !Variables_globales.Get_Variable_Global(Handle_RFID_Lector))
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) && !Variables_globales.Get_Variable_Global(Handle_RFID_Lector) && !Variables_globales.Get_Variable_Global(Updating_System))
         {
             if ((Start_Cambio_Color - Previous_Cambio_Color) >= OK_Color && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
             {
@@ -690,6 +695,8 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             delay(100);
             Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,false); /* Inicia timmer */
         }
+
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
     }
 
     else if (MEMORIA[0] == 'C')
@@ -699,6 +706,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         contadores.Dele_Operador_INFO_Operador(); /* ID*/
         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
         Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+        
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
         {
             int contador = 0;
@@ -724,6 +732,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     contador = 0;
                     Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 }
+                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
             }
             else
             {
@@ -1742,6 +1751,35 @@ void Status_Barra(int Status)
         customTone(1, 3);
         delayMicroseconds(2000);
         Handle_LED = false;
+        break;
+
+
+        case UPDATING_SYS:
+            Handle_LED = true;
+            if (millis() - Encendido >= 1000)
+            {
+
+                if (!LED)
+                {
+                    Host_++;
+                    Barra_Status_Sesion_Client.setPixelColor(0, Barra_Status_Sesion_Client.Color(0, 255, 255)); // rojo
+                    Barra_Status_Sesion_Client.setPixelColor(1, Barra_Status_Sesion_Client.Color(0, 255, 255)); // rojo
+                    Barra_Status_Sesion_Client.setPixelColor(2, Barra_Status_Sesion_Client.Color(0, 255, 255)); // rojo
+                    Barra_Status_Sesion_Client.setPixelColor(3, Barra_Status_Sesion_Client.Color(0, 255, 255)); // rojo
+                    Barra_Status_Sesion_Client.show();
+                    LED = true;
+                }
+                else
+                {
+                    // Apagar todos los LEDs
+                    Barra_Status_Sesion_Client.clear();
+                    Barra_Status_Sesion_Client.show();
+                    LED = false;
+                }
+
+                Encendido = millis();
+            }
+            Handle_LED=false;
         break;
 
 
