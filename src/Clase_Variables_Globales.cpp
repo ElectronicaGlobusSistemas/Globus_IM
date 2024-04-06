@@ -214,6 +214,29 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Dato_Socket_Valido:
         return Dato_Socket_Valido_;
         break;
+
+    case Access_Point_Mode:
+        return Access_Point_Mode_;
+        break;
+
+    case Gmaster_API_Mode:
+        return Gmaster_API_Mode_;
+        break;
+    case Token_Valido_Generado:
+        return Token_Valido_Generado_;
+        break;
+
+    case Consulta_Status_Token:
+        return Consulta_Status_Token_;
+        break;
+
+    case Enable_Mechanical_Events:
+        return Enable_Mechanical_Events_;
+        break;
+
+    case Firts_Cancel_IRT:
+        return Firts_Cancel_IRT_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -425,10 +448,32 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Dato_Socket_Valido:
         Dato_Socket_Valido_=Change_estado;
         break;
+
+
+    case Access_Point_Mode:
+        Access_Point_Mode_=Change_estado;
+        break;
+
+    case Gmaster_API_Mode:
+        Gmaster_API_Mode_=Change_estado;
+        break;
+
+    case Token_Valido_Generado:
+        Token_Valido_Generado_=Change_estado;
+        break;
+
+    case Consulta_Status_Token:
+        Consulta_Status_Token_=Change_estado;
+        break;
+
+    case Enable_Mechanical_Events:
+        Enable_Mechanical_Events_=Change_estado;
+        break;
+
+    case Firts_Cancel_IRT:
+        Firts_Cancel_IRT_=Change_estado;
+        break;
     }
-
-   
-
 }
 
 
@@ -512,11 +557,18 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Verifica_Conexion_WIFI_=false;
     Updating_System_=false;
     Dato_Socket_Valido_=false;
-    
+    Access_Point_Mode_=false;
+    Gmaster_API_Mode_=false;
+    Token_Valido_Generado_=false;
+    Consulta_Status_Token_=false;
+    Enable_Mechanical_Events_=false;
+    Firts_Cancel_IRT_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
 {
+    String Default_Header=" ";
+
     switch (Filtro)
     {
     case Encabezado_Maquina_Generica:
@@ -534,11 +586,16 @@ String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
     case Encabezado_Archivo_Premios:
     return Encabezado_Archivo_Premios_;
     break;
+
+    default:
+        return Default_Header;
+        break;
     }
 }
 
 String Variables_Globales::Get_Variables_Global_String(int filtro)
 {
+    String Default_Data="0";
     switch (filtro)
     {
     case Espacio_Libre_SD:
@@ -553,12 +610,16 @@ String Variables_Globales::Get_Variables_Global_String(int filtro)
     case Temperatura_procesador:
         return Temperatura_procesador_;
         break;
+
+    default:
+        return Default_Data;
+        break;
     }
 }
 
 void Variables_Globales::Set_Variable_Global_String(int Filtro, String Dato)
 {
-
+    
     switch (Filtro)
     {
     case Espacio_Libre_SD:
@@ -573,6 +634,9 @@ void Variables_Globales::Set_Variable_Global_String(int Filtro, String Dato)
     case Temperatura_procesador:
         Temperatura_procesador_=Dato;
         break;
+
+    default:
+        break;
     }
 }
 
@@ -582,6 +646,9 @@ void Variables_Globales::Set_Variable_Global_Char(int filtro,char Dato)
     {
     case Reset_Handay_OK:
         Reset_Handay_OK_=Dato;
+        break;
+
+    default:
         break;
     }
 }

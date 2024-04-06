@@ -51,6 +51,7 @@ void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer);
 void Update_Status_SD(void);
 void RESET_SD_2(bool Select);
 void Prueba_LOG(char *ARCHIVO,bool Enable,String Datos);
+void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje);
 //------------------------------------------------------------------------------------------
 
 

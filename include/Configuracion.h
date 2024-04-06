@@ -11,6 +11,19 @@
 #define Password 8
 #define Tipo_Conexion 9
 #define Tipo_Maquina 10
+#define Puerto_AP    11
+#define Id_Maquina   12
+
+
+#define Controlador_P     13
+#define Metodo_Sincro_RTC 14 
+#define Metodo_Conta      15
+#define Metodo_Event      16
+#define Metodo_Access_T   17
+
+
+
+
 
 class Configuracion_ESP32
 {
@@ -25,6 +38,15 @@ private:
     String Password_;
     bool Tipo_Conexion_;
     uint16_t Tipo_Maquina_;
+    uint16_t Puerto_AP_;
+    String Id_Maquina_;
+
+    String Controlador_Principal_;
+    String Metodo_RTC_;
+    String Metodo_Contadores_;
+    String Metodo_Eventos_;
+    String Metodo_Token_;
+
 
 public:
     bool Set_Configuracion_ESP32(int, char[]);
@@ -35,4 +57,9 @@ public:
     uint16_t Get_Configuracion(int, int);
     String Get_Configuracion(int, String);
     bool Get_Configuracion(int);
+
+
+    bool Set_Configuracion_ESP32_ES(int,String[]);
+    String Get_Configuracion_ES(int, String);
+
 };

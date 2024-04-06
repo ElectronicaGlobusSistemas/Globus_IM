@@ -1,4 +1,5 @@
 #include "Eventos.h"
+#include <Arduino.h>
 
 bool Eventos_SAS::Set_evento(char evento)
 {
@@ -141,8 +142,80 @@ bool Eventos_SAS::Set_evento(char evento)
             break;
     }
 }
-
 char Eventos_SAS::Get_evento(void)
 {
     return Evento_SAS;
+}
+
+
+/* Timer  para eventos repetidos */
+void Eventos_SAS::TimeOut_Capture_Event(void)
+{
+    Current_Time_Generate_Event=millis();
+   
+}
+/* Timer  para eventos repetidos */
+void Eventos_SAS::TimeOut_Capture_Event_Plus(void)
+{
+    Current_Time_Generate_Event=millis();
+
+    if(Current_Time_Generate_Event-Last_Time_Event_Generate>=TimeOut_Exec && Current_Total_Event>0)
+    {
+        /* Limpia el historial de eventos a comparar  si  ha pasado el intervalo de  tiempo */
+        Current_Total_Event=0;
+        Last_Time_Event_Generate=Current_Time_Generate_Event;
+    }
+}
+
+
+
+/*  Verifica si el  nuevo evento es igual al anterior  durante TimeOut_Exec
+retorna = true  Evento nuevo o tiempo de espera agotado
+retorna = false Evento repetido durante el tiempo de espera  
+*/
+bool Eventos_SAS::Ignore_Event(int Event)
+{
+    if(Event!=Last_Event_Gerate || (Current_Time_Generate_Event-Last_Time_Event_Generate>=TimeOut_Exec))
+    {
+        Last_Event_Gerate=Event;
+        Last_Time_Event_Generate=Current_Time_Generate_Event;
+
+        return true;
+    }else
+        return false;
+}
+
+/* Establece timer para  ignorar eventos duplicados en ms */
+bool Eventos_SAS::Set_Timer_Ignore_Event(unsigned long Time)
+{
+    TimeOut_Exec=Time;
+}
+
+/*  Ignora  eventos  repetidos en una lista durante TimeOut_Exec
+retorna = true Evento nuevo en la lista o tiempo de espera agotado
+retorna = false Evento repetido  durante el tiempo de espera
+ */
+bool Eventos_SAS::Ignore_Event_Plus(int Current_Evento)
+{
+    
+    bool Evento_Duplicado=false;
+
+    for(int i=0; i<Current_Total_Event; i++)
+    {
+        if(HistorialEventos[i]==Current_Evento)
+        {
+            Evento_Duplicado=true;
+            break;
+        }
+    }
+
+    if(!Evento_Duplicado||Current_Time_Generate_Event-Last_Time_Event_Generate>=TimeOut_Exec)
+    {
+        HistorialEventos[Current_Total_Event%TAMANO_HISTORIAL]=Current_Evento;
+        Current_Total_Event++;
+        Last_Time_Event_Generate=Current_Time_Generate_Event;
+        return true;
+    }else{
+        return false;
+    }
 }

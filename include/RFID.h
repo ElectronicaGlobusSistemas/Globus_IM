@@ -24,6 +24,8 @@
 #define WIFI_DISCONECTED         17
 #define GMASTER_CONFIRMA_RESET  16
 #define UPDATING_SYS            18
+#define NOT_AP_MODE             19
+#define CONFIG_EXITOSA          20
 
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);

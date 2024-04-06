@@ -107,6 +107,10 @@ private: // Variables Privadas Para contadores
 
   int Serie_Trama_Int = 0;
 
+  bool Flag_Premio_Pagado_Cashout=false;
+  int Last_Cancel_Credit=0;
+
+
 public:
   char *Get_Contadores_Char(int Filtro_Contador);    // Metodos Publicos
   int Get_Contadores_Int(int Filtro_Contador);       // Metodo Get Contadores
@@ -142,8 +146,11 @@ public:
   bool Dele_Operador_INFO_Operador(void);
   byte* Get_Operador_INFO_Operador(void);
 
+  /* Cambio Contadores Maquina */
 
-
+  void Change_Counters(char Counter_Cancel_Credit[7]);
+  void Set_Flag_Premio(bool Change_Status);
+  bool Get_Status_Flag_Premio(void);
 
   /* Bonus*/
   bool Set_Meter_Legacy_Bonus_Awards(char res[]);
@@ -153,4 +160,5 @@ public:
   char*  Get_Amount_Legacy_Bonus_Awards(void);
   bool Set_Type_Legacy_Bonus(char res[]);
   int Init_Parameter_Update(char res[]);
+
 };

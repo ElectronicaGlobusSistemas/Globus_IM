@@ -81,6 +81,10 @@ private:
     /* Buffer tarjeta mecanica */
     char buffer_tarjeta_mecanica[64];
     char buffer_tarjeta_mecanica_final[64];
+
+     /* Buffer tarjeta mecanica */
+    char buffer_tarjeta_mecanica_2[64];
+    char buffer_tarjeta_mecanica_final_2[64];
     
     char buffer_Info_cliente[258];
     char buffer_Info_cliente_encriptado[258];
@@ -203,6 +207,10 @@ public:
     bool Set_buffer_tarjeta_mecanica(char buffer[]);
     bool Set_buffer_tarjeta_CRC(void);
     char *Get_buffer_tarjeta_mecanica(void);
+
+    bool Set_buffer_tarjeta_mecanica_2(char buffer[]);
+    bool Set_buffer_tarjeta_CRC_2(void);
+    char *Get_buffer_tarjeta_mecanica_2(void);
 
     bool Set_buffer_info_cliente(int Com,Contadores_SAS);
     bool Set_buffer_info_cliente_Encriptado(void);

@@ -39,6 +39,10 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, uint16_t dato)
         Tipo_Maquina_ = dato;
         return true;
         break;
+    case 11:
+        Puerto_AP_=dato;
+        return true;
+        break;
 
     default:
         return false;
@@ -62,6 +66,11 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, String dato)
         Password_ = dato;
         return true;
         break;
+    case Id_Maquina:
+        Id_Maquina_=dato;
+        return true;
+        break;
+
 
     default:
         return false;
@@ -118,6 +127,10 @@ uint16_t Configuracion_ESP32::Get_Configuracion(int expression, int)
         return Tipo_Maquina_;
         break;
 
+    case 11:
+        return Puerto_AP_;
+        break;
+
     default:
         return 0;
         break;
@@ -138,10 +151,15 @@ String Configuracion_ESP32::Get_Configuracion(int expression, String)
         return Password_;
         break;
 
+    case Id_Maquina:
+        return Id_Maquina_;
+        break;
+
     default:
         return "Hola Mundo";
         break;
     }
+    return "Hola Mundo";
 }
 
 bool Configuracion_ESP32::Get_Configuracion(int expression)
@@ -154,6 +172,74 @@ bool Configuracion_ESP32::Get_Configuracion(int expression)
 
     default:
         return NULL;
+        break;
+    }
+}
+
+bool Configuracion_ESP32::Set_Configuracion_ESP32_ES(int expression,String dato [])
+{
+    switch (expression)
+    {
+    case Controlador_P:
+        Controlador_Principal_=dato[0];
+        return true;
+        break;
+    
+    case Metodo_Sincro_RTC:
+        Metodo_RTC_=dato[1];
+        return true;
+        break;
+
+    case Metodo_Conta:
+        Metodo_Contadores_=dato[2];
+        return true;
+        break;
+
+    case Metodo_Event:
+        Metodo_Eventos_=dato[3];
+        return true;
+        break;
+
+
+    case Metodo_Access_T:
+        Metodo_Token_=dato[4];
+        return true;
+        break;
+
+    default:
+        return false;
+        break;
+    }
+}
+
+String Configuracion_ESP32::Get_Configuracion_ES(int expression, String)
+{
+    switch (expression)
+    {
+    case Controlador_P:
+        return Controlador_Principal_;
+        break;
+    
+    case Metodo_Sincro_RTC:
+        return Metodo_RTC_;
+        break;
+
+    case Metodo_Conta:
+        return Metodo_Contadores_;
+        break;
+
+    case Metodo_Event:
+        return Metodo_Eventos_;
+        break;
+
+
+    case Metodo_Access_T:
+        return Metodo_Token_;
+        break;
+
+
+     default:
+        return "Hola Mundo";
         break;
     }
 }

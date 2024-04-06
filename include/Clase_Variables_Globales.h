@@ -83,6 +83,13 @@ using namespace std;
 #define Verifica_Conexion_WIFI         74
 #define Updating_System                75
 #define Dato_Socket_Valido             76
+#define Access_Point_Mode              77
+#define Gmaster_API_Mode               78
+#define Token_Valido_Generado          79
+#define Consulta_Status_Token          80
+#define Enable_Mechanical_Events       81
+#define Firts_Cancel_IRT               82
+
 class Variables_Globales
 {
 private:
@@ -157,6 +164,12 @@ private:
     bool Verifica_Conexion_WIFI_;
     bool Updating_System_;
     bool Dato_Socket_Valido_;
+    bool Access_Point_Mode_;
+    bool Gmaster_API_Mode_;
+    bool Token_Valido_Generado_;
+    bool Consulta_Status_Token_;
+    bool Enable_Mechanical_Events_;
+    bool Firts_Cancel_IRT_;
     
 
 public:

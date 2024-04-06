@@ -19,6 +19,9 @@
 //#define Debug_Mensajes_RFID
 /*-------------------------------------------------------------------*/
 
+#define API_MODE true
+#define SOCKET_MODE false
+
 #define ID_Contadores_Accounting 3
 #define ID_Billetes 4
 #define ID_Eventos 5
@@ -54,6 +57,7 @@ extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 
 TaskHandle_t CommandProcess;
 
+
 char Archivo_CSV_Contadores[200];
 char Archivo_CSV_Eventos[200];
 char Archivo_LOG[200];
@@ -69,6 +73,7 @@ int day_copy;
 int month_copy;
 int year_copy;
 bool resultados[5]={false,false,false,false,false};
+
 unsigned short Ptr_Eventos_Marca_Temp = 0x00;
 unsigned short Ptr_Eventos_Marca = 0x00;
 unsigned short Num_Eventos = 0x0000;
@@ -237,7 +242,7 @@ void init_Comunicaciones()
         NULL,
         0); // Core donde se ejecutara la tarea
 
-    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
     {
         xTaskCreatePinnedToCore(
             Task_Verifica_Hopper,
@@ -248,8 +253,6 @@ void init_Comunicaciones()
             NULL,
             0); // Core donde se ejecutara la tarea
     }
-
-    
 }
 
 /*****************************************************************************************/
@@ -307,6 +310,32 @@ void Transmite_Confirmacion(char High, char Low)
     }
     else
     {
+        Serial.println("Set buffer general ERROR");
+    }
+}
+
+void Transmite_Confirmacion_Gmaster_Ap(char High, char Low)
+{
+    if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
+    {
+
+        if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_ACK(), 258);
+
+            #ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+            #endif
+
+            int len = sizeof(res);
+        //    Transmite_A_Servidor(res, len); /* Envia por Socket */
+            Api_G.Transmite_Confirmacion_API(res,Configuracion.Get_Configuracion_ES(Metodo_Event, "Metodo_Eventos"),Variables_globales.Get_Variable_Global(Token_Valido_Generado));
+        }
+    }
+    else
+    {
         if (Variables_globales.Get_Variable_Global(SD_INSERT)==true)
         {
             if (!Variables_globales.Get_Variable_Global(Fallo_Archivo_LOG))
@@ -321,7 +350,6 @@ void Transmite_Confirmacion(char High, char Low)
         Serial.println("Set buffer general ERROR");
     }
 }
-
 
 /* Configura Timeout de sesion de jugador
 (0)=1.5 Minutos Por defecto!
@@ -596,7 +624,11 @@ void Config_Timer_Transmission_In_Game(char Datos[])
  */
 void Config_Timer_Transmission_No_Game(char Datos[])
 {
-    switch (Datos[4]-48)
+    int Select;
+
+    Select=(Datos[4]-48)*10+(Datos[5]-48);
+  //  Serial.println(Select);
+    switch (Select)
     {
     case  0:
 
@@ -699,6 +731,34 @@ void Config_Timer_Transmission_No_Game(char Datos[])
         ESP.restart();
         break;
 
+    case 10: 
+
+        NVS.begin("Config_ESP32", false);  /* 30 Minutos */
+        NVS.putUInt("T_No_Juego",  1800000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
+    case 11: /* 1 hora */
+        NVS.begin("Config_ESP32", false);  /* 1 Hora */
+        NVS.putUInt("T_No_Juego",  3600000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+    
+    case 12: 
+        NVS.begin("Config_ESP32", false);  /* 1 30 minutos */
+        NVS.putUInt("T_No_Juego",  5400000);
+        NVS.end();
+        Transmite_Confirmacion('E','A');
+        delay(150);
+        ESP.restart();
+        break;
+
     default:
         NVS.begin("Config_ESP32", false);
         NVS.putUInt("T_No_Juego", 150000); /* 2.5 minutos */
@@ -711,6 +771,17 @@ void Config_Timer_Transmission_No_Game(char Datos[])
 }
 
 
+
+
+/* Configura Tiempo de  inactividad de maquina 
+(0)=0 30s-40s !
+(1)=1 Minutos
+(2)=1 Minuto & 30s  
+(3)=2 Minutos 
+(4)=2 Minutos & 30s 
+(5)=3 Minutos  
+default 30s-40s 
+*/ 
 void Config_Timer_Inactividad_Maquina(char Datos[])
 {
     switch (Datos[4]-48)
@@ -856,28 +927,94 @@ void Transmite_Confirmacion_Info(char High, char Low)
 /*****************************************************************************************/
 /************************** TRANSMITE CONTADORES ACCOUNTING ******************************/
 /*****************************************************************************************/
-
-void Transmite_Contadores_Accounting(void)
+void Trasmite_Contadores_Accounting_API_Gmaster(bool Selector)
 {
-    if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
+    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE && !Selector)
     {
-        if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
+       // Serial.println("Transmite Por API");
+
+        if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
         {
-            contadores.Incrementa_Serie_Trama();
+            
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+           // Api_G.Transmite_Gmaster_API(res,Configuracion.Get_Configuracion_ES(Metodo_Conta,"Metodo_Contadores"),false,true);
+           Api_G.Trasmite_Contadores_Gmaster_Api(res,Configuracion.Get_Configuracion_ES(Metodo_Conta,"Metodo_Contadores"),Variables_globales.Get_Variable_Global(Token_Valido_Generado));
         }
-        char res[258] = {};
-        bzero(res, 258); // Pone el buffer en 0
-        memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
-        #ifdef Debug_Mensajes_Server
-        Serial.println("Set buffer general OK");
-        #endif
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len);
+        else
+            Serial.println("Set buffer general ERROR");
     }
     else
-        Serial.println("Set buffer general ERROR");
+    {
+        if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
+        {
+            // if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
+            // {
+            //     contadores.Incrementa_Serie_Trama();
+            // }
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+            Serial.println("Set buffer general ERROR");
+    }
 }
 
+void Transmite_Contadores_Accounting()
+{
+
+    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+    {
+       
+        if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
+        {
+            // if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama) && Variables_globales.Get_Variable_Global(Token_Valido_Generado))
+            // {
+            //     contadores.Incrementa_Serie_Trama();
+            // }
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            
+            Api_G.Trasmite_Contadores_Gmaster_Api(res, Configuracion.Get_Configuracion_ES(Metodo_Conta, "Metodo_Contadores"), Variables_globales.Get_Variable_Global(Token_Valido_Generado));
+        }
+        else
+            Serial.println("Set buffer general ERROR");
+    }
+    else
+    {
+        if (Buffer.Set_buffer_contadores_ACC(ID_Contadores_Accounting, contadores, RTC, Variables_globales))
+        {
+            if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
+            {
+                contadores.Incrementa_Serie_Trama();
+            }
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+            Serial.println("Set buffer general ERROR");
+    }
+}
 
 /*****************************************************************************************/
 /************************** TRANSMITE CONTADORES CASHLESS ********************************/
@@ -1010,6 +1147,8 @@ bool Sincroniza_Reloj_RTC(char res[])
         #endif
         /*---------------------------> Crea archivos------- <------------------------------------------ */
         
+       // if(!Variables_globales.Get_Variable_Global(Flag_Archivos_OK))
+
 
         string_Fecha = "Contadores-" + String(day) + String(month) + String(year) + ".CSV";
         string_Fecha_LOG = "Log-" + String(day) + String(month) + String(year) + ".TXT";
@@ -1030,6 +1169,8 @@ bool Sincroniza_Reloj_RTC(char res[])
         Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, true);
         return true;
     }
+
+    return false;
 }
     
 /*****************************************************************************************/
@@ -1059,19 +1200,38 @@ void Transmite_ID_Maquina(void)
 
 void Transmite_Eventos(void)
 {
-    if (Buffer.Set_buffer_eventos(ID_Eventos, eventos, RTC))
+
+    if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode))
     {
-        char res[258] = {};
-        bzero(res, 258); // Pone el buffer en 0
-        memcpy(res, Buffer.Get_buffer_eventos(), 258);
-        #ifdef Debug_Mensajes_Server
-        Serial.println("Set buffer general OK");
-        #endif
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len);
+
+        if (Buffer.Set_buffer_eventos(ID_Eventos, eventos, RTC))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_eventos(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            Api_G.Transmite_Eventos_Gmaster_Api(res,Configuracion.Get_Configuracion_ES(Metodo_Event, "Metodo_Eventos"),Variables_globales.Get_Variable_Global(Token_Valido_Generado));
+        }
+        else
+            Serial.println("Set buffer general ERROR");
+    }else{
+
+        if (Buffer.Set_buffer_eventos(ID_Eventos, eventos, RTC))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_eventos(), 258);
+            #ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+            #endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+            Serial.println("Set buffer general ERROR");
     }
-    else
-        Serial.println("Set buffer general ERROR");
 }
 
 /*****************************************************************************************/
@@ -1120,6 +1280,12 @@ bool Configura_Tipo_Maquina(char res[])
         else if(res[4]-48==1 &&res[5]-48==3)
         {
             ID_Maq_Server= 13;
+        }else if(res[4]-48==1 &&res[5]-48==4)
+        {
+            ID_Maq_Server= 14;
+        }else if(res[4]-48==1 &&res[5]-48==5)
+        {
+            ID_Maq_Server=15;
         }
     }
     
@@ -1147,6 +1313,7 @@ bool Configura_Tipo_Maquina(char res[])
         #endif 
         return true;
     }
+
 }
 
 /*****************************************************************************************/
@@ -1427,7 +1594,7 @@ void Transmite_Eco_Broadcast(void)
 
     int len = sizeof(res);
     Transmite_A_Servidor(res, len);
-    ;
+    
 }
 
 /*****************************************************************************************/
@@ -1889,7 +2056,10 @@ bool Inicializa_modo_bootloader(void)
         int len = sizeof(res);
         Transmite_A_Servidor(res, len);
         return true;
+    }else{ 
+        return false;
     }
+    
 }
 
 bool Consulta_Conexion_To_Server(void)
@@ -1994,15 +2164,34 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 
 bool Actualiza_Tarjeta_Mecanica(char res[])
 {
-    if (Buffer.Set_buffer_tarjeta_mecanica(res))
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
     {
-        if (Verifica_Tarjeta_Mecanica())
-            return true;
+        if (Buffer.Set_buffer_tarjeta_mecanica(res))
+        {
+            if (Verifica_Tarjeta_Mecanica())
+                return true;
+            else
+                return false;
+        }
         else
             return false;
     }
-    else
+
+    else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
+    {
+        if (Buffer.Set_buffer_tarjeta_mecanica_2(res))
+        {
+            if (Verifica_Tarjeta_Mecanica())
+                return true;
+            else
+                return false;
+        }
+        else
+            return false;
+    }else{
         return false;
+    }
 }
 
 /*****************************************************************************************/
@@ -2019,7 +2208,7 @@ int Comando_Recibido(void)
 
     Aux1 = res[0];
     Aux2 = res[1];
-    Aux2 = Aux2 << 8;
+    Aux2 = Aux2 << 8;   
     Aux3 = res[2];
     Aux3 = Aux3 << 16;
     Aux4 = res[3];
@@ -2028,9 +2217,97 @@ int Comando_Recibido(void)
     return (Comando);
 }
 
+
 /*****************************************************************************************/
 /********************************** MENSAJES RFID ****************************************/
 /*****************************************************************************************/
+
+class Data_Forwarding{
+
+    private:
+
+        unsigned long tiempoInicioEnvio = 0;
+        unsigned long Start_Forwarding=0;
+        unsigned long Interv = 10000; // Intervalo de envío en milisegundos (10 segundos)
+
+        bool Enable_Forwarding = false;
+        bool Data_Sending_Confirmed = false;
+
+        int Max_Forwarding = 3;
+        int contadorEnvios = 0; /* Cuenta reenvios */
+        bool Enable=false;
+        bool Primer_Dato=false;
+
+    public:
+
+        void Forwarding_Contadores_Accounting(void);
+        void Confirma_Envio_Server(void);
+        void Forwarding_Abort(void);
+
+
+};
+void Data_Forwarding::Forwarding_Abort(void)
+{
+    Enable_Forwarding=false;
+    Data_Sending_Confirmed=false;
+    contadorEnvios=0;
+    tiempoInicioEnvio = Start_Forwarding;
+    Enable=false;
+    Primer_Dato=false;
+    
+}
+void Data_Forwarding::Confirma_Envio_Server(void)
+{
+    
+    Data_Sending_Confirmed=true;
+    Enable_Forwarding=false;
+    contadorEnvios = 0;
+    tiempoInicioEnvio = Start_Forwarding; 
+    Primer_Dato=false;
+}
+void Data_Forwarding::Forwarding_Contadores_Accounting(void)
+{
+
+    
+    if (!Enable_Forwarding && Data_Sending_Confirmed)
+    {
+        
+        if(!Enable)
+        {
+            tiempoInicioEnvio = Start_Forwarding;
+            Enable=true;
+        }
+
+        Start_Forwarding = millis();
+
+        if (Start_Forwarding - tiempoInicioEnvio>= Interv ||!Primer_Dato)
+        {
+            if (contadorEnvios == 0)
+            {
+               // Serial.println("000");
+                contadorEnvios++; /* Ignora iteración 1 */
+                
+            }
+            else if (contadorEnvios > 0)
+            {
+                Serial.print("Enviando datos ");
+                Serial.print(contadorEnvios);
+                Serial.println("...");
+                contadorEnvios++;
+               // Transmite_Contadores_Accounting();
+            }
+            tiempoInicioEnvio = Start_Forwarding;
+            if (contadorEnvios >= Max_Forwarding)
+            {
+                Serial.println("Reenvios Terminados ");
+                Forwarding_Abort();
+            }
+            Primer_Dato=true;
+        }
+    }
+}
+
+Data_Forwarding Transmite_Reenvio_Contadores;
 
 void Mensajes_RFID(void)
 {
@@ -2038,10 +2315,15 @@ void Mensajes_RFID(void)
     /* -------------------------> Contadores Inicio sesion RFID<-----------------------------------*/
     if(Variables_globales.Get_Variable_Global(Flag_Contadores_Sesion_ON))  
     {
-        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
         esp_task_wdt_reset();
-        Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-        delay(300);
+        if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+        {
+            Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+            Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+            delay(300);
+        }
+       
         esp_task_wdt_reset();
         #ifdef Debug_Mensajes_RFID
         Serial.println("Contadores Sesion RFID Iniciada....");
@@ -2049,8 +2331,12 @@ void Mensajes_RFID(void)
         if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
         {
             Transmite_Contadores_Accounting();
-            delay(50);
-            Transmite_Contadores_Accounting();
+            if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+            {
+                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                // delay(50);
+                // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+            }
         }else{
             Transmite_Confirmacion('A', '0');
         }
@@ -2064,16 +2350,28 @@ void Mensajes_RFID(void)
         if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
         {
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+   
             esp_task_wdt_reset();
-            Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-            delay(300);
+            if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+            {   
+                Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                delay(300);
+            }
+           
             esp_task_wdt_reset();
             #ifdef Debug_Mensajes_RFID
             Serial.println("Contadores Sesion RFID Terminada....");
             #endif
             Transmite_Contadores_Accounting();
-            delay(50);
-            Transmite_Contadores_Accounting();    
+            // delay(50);
+            // Transmite_Contadores_Accounting();
+
+            if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+            {
+                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                // delay(50);
+                // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+            }
         }else{
             Transmite_Confirmacion('A', '0');
         }
@@ -2111,7 +2409,7 @@ void Mensajes_RFID(void)
             }
             else
             {
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                 {
                     esp_task_wdt_reset();
                     Reset_HandPay();
@@ -2130,6 +2428,10 @@ void Mensajes_RFID(void)
                         Encuesta_Creditos_Premio(); /*Encuesta creditos despues de premio*/
                         delay(350);
                         Transmite_Contadores_Accounting(); /* Envia Contadores*/
+
+                        if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                            Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+
                         Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
                         if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                             Status_Barra(Reset_Exitoso);
@@ -2173,6 +2475,11 @@ void Mensajes_RFID(void)
                         /*  Maquinas sin rele y sin comando */
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                         break;
+
+                    default:
+                        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                        Reset_Handle_LED();
+                        break;
                     }
                 }
             }
@@ -2202,6 +2509,19 @@ void Mensajes_RFID(void)
         Variables_globales.Set_Variable_Global(Consulta_Info_Cliente,false);
     }
     /*-----------------------------------------------------------------------------------------------*/
+
+    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
+    // {
+    //     Serial.println("Bono Pendiente por Cargar...!");
+    //     Variables_globales.Set_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente,false);
+    // }
+
+    // if(Variables_globales.Get_Variable_Global(Status_Load_Bonus))
+    // {
+    //     Serial.println("Bono Cargado a la maquina con exito");
+    //     Variables_globales.Set_Variable_Global(Status_Load_Bonus,false);
+    // } 
+   
 }
 
 
@@ -2266,22 +2586,72 @@ void Task_Procesa_Comandos(void *parameter)
             #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de contadores SAS");
             #endif
+
+            // Transmite_Reenvio_Contadores.Confirma_Envio_Server();
+
+
+
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==14||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4)
                     {
-                        if(Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)==false)
+
+                        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                         {
-                            if (Calcula_First_Cancel_Credit(true))
+                            if (!Variables_globales.Get_Variable_Global(Firts_Cancel_IRT))
                             {
-                                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+                                Encuesta_Creditos_Premio();
+                                delay(300);
+                                if (Variables_globales.Get_Variable_Global(Firts_Cancel_IRT))
+                                {
+                                    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                                    {
+                                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia por Socket en modo - API */
+                                        Trasmite_Contadores_Accounting_API_Gmaster(false);
+                                    }
+                                    else
+                                        Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                                }else
+                                    Transmite_Confirmacion('A', '0');
+                            }
+                            else
+                            {
+                                if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                                {
+                                    Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia por Socket en modo - API */
+                                    Trasmite_Contadores_Accounting_API_Gmaster(false);
+                                }
+                                else
+                                    Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
                             }
                         }
-                        Transmite_Contadores_Accounting();
+                        else
+                        {
+                            if (Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == false)
+                            {
+                                if (Calcula_First_Cancel_Credit(true))
+                                {
+                                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+                                }
+                            }
+                            if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                            {
+                                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia por Socket en modo - API */
+                                Trasmite_Contadores_Accounting_API_Gmaster(false);
+                            }
+                            else
+                                Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                        }
                     }
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
                     {
-                        Transmite_Contadores_Accounting();
+                        if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE) /* ¿ Esta en modo Api? */
+                        {
+                            Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia por Socket en modo - API */
+                            Trasmite_Contadores_Accounting_API_Gmaster(false);
+                        }
+                        else
+                            Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
                     }
                 }
                 else
@@ -2349,7 +2719,6 @@ void Task_Procesa_Comandos(void *parameter)
                     delay(300);
                     Transmite_ROM_Signature();
                 }
-                    
                 else
                     Transmite_Confirmacion('A', '0');
                 break;
@@ -2359,15 +2728,20 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Actualizar Contadores Mecanicos");
                 #endif
                 if (Actualiza_Tarjeta_Mecanica(res))
+                {
                     Transmite_Confirmacion('A', '7');
+                    // delay(350);
+                    // ESP.restart();
+                }
+                    
                 else
                     Transmite_Confirmacion('A', '8');
 
-                for (int i = 0; i < 256; i++)
-                {
-                    Serial.print(res[i]);
-                }
-                Serial.println();
+                // for (int i = 0; i < 256; i++)
+                // {
+                //     Serial.print(res[i]);
+                // }
+                // Serial.println();
                 break;
 
             case 14:
@@ -2422,9 +2796,15 @@ void Task_Procesa_Comandos(void *parameter)
                 #endif
                 if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
                 {
-                    if (contadores.Incrementa_Serie_Trama())
+                    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==SOCKET_MODE)
                     {
-                        Variables_globales.Set_Variable_Global(Serializacion_Serie_Trama, true);
+                        if (contadores.Incrementa_Serie_Trama())
+                        {
+                            Variables_globales.Set_Variable_Global(Serializacion_Serie_Trama, true);
+                            Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
+                        }
+                    }else if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    {
                         Transmite_Confirmacion('A', '1'); // Transmite ACK a Server
                     }
                 }
@@ -2564,7 +2944,10 @@ void Task_Procesa_Comandos(void *parameter)
               //  Serial.println("Premio registrado con exito");
                 Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 Reset_Handle_LED();
-               
+                //Transmite_Reenvio_Contadores.Forwarding_Abort();
+
+                
+
                 if (contadores.Close_ID_Operador())
                 {
                     Condicion_Cumpl = false;
@@ -2583,8 +2966,7 @@ void Task_Procesa_Comandos(void *parameter)
                         Transmite_Confirmacion('A', '0');
                     }
                 }
-                
-               
+
                 break;
 
             case 503:
@@ -2754,6 +3136,11 @@ void Task_Procesa_Comandos(void *parameter)
                             Reset_Handle_LED();
                             Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true);
                             break;
+
+                        default:
+                            Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                            Reset_Handle_LED();
+                        break;
                         }
                     }
                 }
@@ -2851,17 +3238,17 @@ void Task_Procesa_Comandos(void *parameter)
                     /*---------------------------------------->CASHLESS<-------------------------------------------*/
                 
                  case 138:
-                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
+                    Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
 
-                     // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
-                     // Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
-                     // contadores.Set_Meter_Legacy_Bonus_Awards(res);
-                     // Carga_Bonus_Maquina();
-                     // delay(600);
+                    // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
+                    //   Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
+                    //   contadores.Set_Meter_Legacy_Bonus_Awards(res);
+                    //   Carga_Bonus_Maquina();
+                    //   delay(600);
 
-                     // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
-                     //     Transmite_Confirmacion_Cashless('A','A','A');
-                     break;
+                    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
+                    //     Transmite_Confirmacion_Cashless('A','A','A');
+                    break;
 
                  case 603:
                     // #ifdef Debug_Mensajes_Server
@@ -2877,11 +3264,11 @@ void Task_Procesa_Comandos(void *parameter)
                            //  #ifdef Debug_Mensajes_Server
                            //  Serial.println("URL Recibidas con exito!");
                            //  #endif
-                             Variables_globales.Set_Variable_Global(Updating_System, true);
-                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
-                             delay(1);
-                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
-                             break;
+                            Variables_globales.Set_Variable_Global(Updating_System, true);
+                            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
+                            delay(1);
+                            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
+                            break;
 
                          case 1:
                              #ifdef Debug_Mensajes_Server
@@ -2958,166 +3345,219 @@ void Task_Procesa_Comandos(void *parameter)
                     Config_Timer_Inactividad_Maquina(res);
                 break;
 
+                case 609:
+                    if ((res[4] - 48) >= 0 && (res[4] - 48) <= 1)
+                    {
+                        bool Enable_Mechanical;
+                        NVS.begin("Config_ESP32", false);
 
-                // case 603:
-                //     if(res[4]=='0')
-                //     {
-                //         NVS.begin("Config_ESP32", false);
-                //         NVS.putBool("LECTOR",false);
-                //         NVS.end();
-                //         Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,false);
-                //         if(!Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
-                //             Status_Barra(MODULO_KO);
-                //     }else if(res[4]=='1')
-                //     {
-                //         NVS.begin("Config_ESP32", false);
-                //         NVS.putBool("LECTOR",true);
-                //         NVS.end();
-                //         Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,true);
-                //         if(Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
-                //             Status_Barra(MODULO_OK);
-                //     }
-                //   break;
+                        if (res[4] - 48 == 0)
+                        {
+                            Enable_Mechanical = false;
+                            Transmite_Confirmacion('C', 'C'); /* Eventos mecanicos deshabilitados */
+                        }
+                            
+                        else
+                        {
+                            Enable_Mechanical = true;
+                            Transmite_Confirmacion('D', 'C'); /* Eventos mecanicos habilitados */
+                        }
+                            
 
-                //  case 601:
-                //      Transmite_Info_Lector();
-                //    break;
+                        NVS.putBool("Event_Mecanic", Enable_Mechanical);
+                        NVS.end();
+                        
+                        delay(350);
+                        ESP.restart();
+                    }
+                    else
+                    {
+                        Transmite_Confirmacion('C', 'R');
+                    }
+                    break;
 
-                // case 300:
-                //     #ifdef Debug_Mensajes_Server
-                //     Serial.println("Solicitud de registro AFT");
-                //     #endif 
-                //     int Status;
-                //     Status=Registra_Machine();
-                //     if(Status==1)
-                //     {
-                //         #ifdef Debug_Mensajes_Server
-                //         Serial.println("MAQUINA REGISTRADA OK");
-                //         #endif 
-                //         Transmite_Info_Registro();
-                //     }else if(Status==2)
-                //     {
-                //         Transmite_Confirmacion_Cashless('4','0','2');
-                //     }else if(Status==3)
-                //     {
-                //         Transmite_Confirmacion_Cashless('4','0','0');
-                //     }
-                //     /* Aqui Validar */
-                // break;
+                    case 610: /* Mecanica */
 
-                //  case 301:
-                //     #ifdef Debug_Mensajes_Server
-                //     Serial.println("Confirmacion registro AFT Maq");
-                //     #endif 
+                        #ifdef Debug_Mensajes_Server
+                        Serial.println("Solicitud Actualizar Contadores Mecanicos");
+                        #endif
 
-                // break;
+                        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
+                        {
+                            // for(int i=0; i<100; i++)
+                            // {
+                            //     Serial.println(res[i]);
+                            // }
+                            if (Actualiza_Tarjeta_Mecanica(res))
+                            {
+                                Transmite_Confirmacion('A', '7');
+                            }
+                            else
+                                Transmite_Confirmacion('A', '8');
+                        }else
+                                Transmite_Confirmacion('A', '8');
 
-                // case 302:
-                //     #ifdef Debug_Mensajes_Server
-                //     Serial.println("Cancelacion registro AFT");
-                //     #endif 
-                //     if(Delete_Registro_Machine())
-                //     {
-                //         #ifdef Debug_Mensajes_Server
-                //         Serial.println("Maquina no registrada..");
-                //         #endif 
-                       
-                //     }else{
-                //         #ifdef Debug_Mensajes_Server
-                //         Serial.println("Registro no cancelado..");
-                //         #endif 
-                //     }
-                // break;
+                    break;
 
-                // case 303:
-                //     #ifdef Debug_Mensajes_Server
-                //     Serial.println("Consulta informacion cliente AFT");
-                //     #endif
+                    // case 603:
+                    //     if(res[4]=='0')
+                    //     {
+                    //         NVS.begin("Config_ESP32", false);
+                    //         NVS.putBool("LECTOR",false);
+                    //         NVS.end();
+                    //         Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,false);
+                    //         if(!Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
+                    //             Status_Barra(MODULO_KO);
+                    //     }else if(res[4]=='1')
+                    //     {
+                    //         NVS.begin("Config_ESP32", false);
+                    //         NVS.putBool("LECTOR",true);
+                    //         NVS.end();
+                    //         Variables_globales.Set_Variable_Global(Consulta_Info_Lector_Rfid,true);
+                    //         if(Variables_globales.Get_Variable_Global(Consulta_Info_Lector_Rfid))
+                    //             Status_Barra(MODULO_OK);
+                    //     }
+                    //   break;
 
-                //     if (contadores.Verify_Client())
-                //     {
-                //         Almacena_Serial_Cashless_Extern(2);
-                //         if (Compara_Serial_Cashless_Extern())
-                //         {
-                //          delay(100);
-                //          Tratamiento_Trama_Cashless(res);
-                //         }
-                //     }else{
-                //         /*Transmite transaccion abortada..*/
-                //         Serial.println("Transaccion abortada");
-                //     }
+                    //  case 601:
+                    //      Transmite_Info_Lector();
+                    //    break;
 
-                // break;
+                    // case 300:
+                    //     #ifdef Debug_Mensajes_Server
+                    //     Serial.println("Solicitud de registro AFT");
+                    //     #endif
+                    //     int Status;
+                    //     Status=Registra_Machine();
+                    //     if(Status==1)
+                    //     {
+                    //         #ifdef Debug_Mensajes_Server
+                    //         Serial.println("MAQUINA REGISTRADA OK");
+                    //         #endif
+                    //         Transmite_Info_Registro();
+                    //     }else if(Status==2)
+                    //     {
+                    //         Transmite_Confirmacion_Cashless('4','0','2');
+                    //     }else if(Status==3)
+                    //     {
+                    //         Transmite_Confirmacion_Cashless('4','0','0');
+                    //     }
+                    //     /* Aqui Validar */
+                    // break;
 
-                // case 305:
-                //     Serial.println("Confirma carga de creditos AFT");
-                // break;
+                    //  case 301:
+                    //     #ifdef Debug_Mensajes_Server
+                    //     Serial.println("Confirmacion registro AFT Maq");
+                    //     #endif
 
-                // case 307:
-                //     Serial.println("Confirma descarga creditos AFT");
+                    // break;
 
-                //     /* Descarga cashelss */
-                //     /*Transmite ACK AFT 4 0 6*/
-                //     /**/
-                //     contadores.Close_ID_Client_Temp();
-                //     /*Habilita lectura de tarjeta*/
+                    // case 302:
+                    //     #ifdef Debug_Mensajes_Server
+                    //     Serial.println("Cancelacion registro AFT");
+                    //     #endif
+                    //     if(Delete_Registro_Machine())
+                    //     {
+                    //         #ifdef Debug_Mensajes_Server
+                    //         Serial.println("Maquina no registrada..");
+                    //         #endif
 
-                // break;
+                    //     }else{
+                    //         #ifdef Debug_Mensajes_Server
+                    //         Serial.println("Registro no cancelado..");
+                    //         #endif
+                    //     }
+                    // break;
 
-                // case 309:
-                //     Serial.println("Aborta carga cashless");
-                //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                //     {
-                //         if(contadores.Close_ID_Client_Temp()&&contadores.Close_ID_Client()&&contadores.Close_ID_Operador());
-                //     }
+                    // case 303:
+                    //     #ifdef Debug_Mensajes_Server
+                    //     Serial.println("Consulta informacion cliente AFT");
+                    //     #endif
 
-                // break;
+                    //     if (contadores.Verify_Client())
+                    //     {
+                    //         Almacena_Serial_Cashless_Extern(2);
+                    //         if (Compara_Serial_Cashless_Extern())
+                    //         {
+                    //          delay(100);
+                    //          Tratamiento_Trama_Cashless(res);
+                    //         }
+                    //     }else{
+                    //         /*Transmite transaccion abortada..*/
+                    //         Serial.println("Transaccion abortada");
+                    //     }
 
-                // case 310:
-                //     Serial.println("Tarjeta bloqueada AFT");
-                //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                //         Player_Tracking_Sesion();
-                // break;
+                    // break;
 
-                // case 321:
-                //     Serial.println("Saldo insuficiente carga cashless");
-                //     /* Inicia Player Tracking...*/
-                //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                //         Player_Tracking_Sesion();
-                // break;
-                // case 311:
-                //     Serial.println("Tarjeta desbloqueada AFT");
-                //     Variables_globales.Set_Variable_Global(Handle_RFID_Lector,false);
-                // break;
+                    // case 305:
+                    //     Serial.println("Confirma carga de creditos AFT");
+                    // break;
 
-                // case 313:
-                //     Serial.println("Cliente no existe en BD");
-                //     if (!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                //     {
-                //         contadores.Close_ID_Client_Temp();
-                //         contadores.Close_ID_Client();
-                //         contadores.Close_ID_Operador();
-                //         contadores.Delete_Operator_ID_Temp();
-                //         if(Variables_globales.Get_Variable_Global(Conexion_RFID))
-                //             Status_Barra(CLIENTE_NO_BD);
-                //     }
-                // break;
-                // case 350:
-                //     Serial.println("Solicitud de enventos AFT");
-                // break;
-                // case 351:
-                //     Serial.println("marca eventos AFT");
-                // break;
-                // case 139:
-                //     Serial.println("Inhabilita carga AFT");
-                //     /* Guarda en memoria  Estado de AFT= FALSE*/
-                // break;
-                // case 140:
-                //     Serial.println("Habilita carga AFT");
-                //     /* Guarda en memoria  Estado de AFT = TRUE*/
-                // break;
+                    // case 307:
+                    //     Serial.println("Confirma descarga creditos AFT");
 
-            default:
+                    //     /* Descarga cashelss */
+                    //     /*Transmite ACK AFT 4 0 6*/
+                    //     /**/
+                    //     contadores.Close_ID_Client_Temp();
+                    //     /*Habilita lectura de tarjeta*/
+
+                    // break;
+
+                    // case 309:
+                    //     Serial.println("Aborta carga cashless");
+                    //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                    //     {
+                    //         if(contadores.Close_ID_Client_Temp()&&contadores.Close_ID_Client()&&contadores.Close_ID_Operador());
+                    //     }
+
+                    // break;
+
+                    // case 310:
+                    //     Serial.println("Tarjeta bloqueada AFT");
+                    //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                    //         Player_Tracking_Sesion();
+                    // break;
+
+                    // case 321:
+                    //     Serial.println("Saldo insuficiente carga cashless");
+                    //     /* Inicia Player Tracking...*/
+                    //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                    //         Player_Tracking_Sesion();
+                    // break;
+                    // case 311:
+                    //     Serial.println("Tarjeta desbloqueada AFT");
+                    //     Variables_globales.Set_Variable_Global(Handle_RFID_Lector,false);
+                    // break;
+
+                    // case 313:
+                    //     Serial.println("Cliente no existe en BD");
+                    //     if (!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                    //     {
+                    //         contadores.Close_ID_Client_Temp();
+                    //         contadores.Close_ID_Client();
+                    //         contadores.Close_ID_Operador();
+                    //         contadores.Delete_Operator_ID_Temp();
+                    //         if(Variables_globales.Get_Variable_Global(Conexion_RFID))
+                    //             Status_Barra(CLIENTE_NO_BD);
+                    //     }
+                    // break;
+                    // case 350:
+                    //     Serial.println("Solicitud de enventos AFT");
+                    // break;
+                    // case 351:
+                    //     Serial.println("marca eventos AFT");
+                    // break;
+                    // case 139:
+                    //     Serial.println("Inhabilita carga AFT");
+                    //     /* Guarda en memoria  Estado de AFT= FALSE*/
+                    // break;
+                    // case 140:
+                    //     Serial.println("Habilita carga AFT");
+                    //     /* Guarda en memoria  Estado de AFT = TRUE*/
+                    // break;
+
+                default:
                 #ifdef Debug_Mensajes_Server
                 Serial.println(Comando_Recibido());
                 for (int i = 0; i < 256; i++)
@@ -3156,9 +3596,31 @@ void Task_Procesa_Comandos(void *parameter)
             
             if (res[0] == 'E' && res[1] == 'B')
             {
+
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Eco Broadcast");
                 #endif
+
+                IPAddress serverIP_Remote(clientUDP.remoteIP()[0], clientUDP.remoteIP()[1], clientUDP.remoteIP()[2], clientUDP.remoteIP()[3]);
+
+                memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+                if (serverIP_Remote[3] != IP_Server[3] && serverIP_Remote[2] == IP_Server[2]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
+                {
+
+                    NVS.begin("Config_ESP32", false);
+                    uint8_t ip_server_dest[] = {serverIP_Remote[0], serverIP_Remote[1], IP_Server[2], serverIP_Remote[3]};
+                    NVS.putBytes("Dir_IP_Serv", ip_server_dest, sizeof(ip_server_dest));
+                    size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
+                    char IP_SERV[ip_serv_len];
+                    NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
+
+                    NVS.end();
+                    Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
+                    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+                    IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+                }
+
                 Transmite_Eco_Broadcast();
             }
             else if (res[0] == 'S' && res[1] == 'A')
@@ -3208,7 +3670,11 @@ void Task_Procesa_Comandos(void *parameter)
             */
             else
             {
-
+                // for (int i = 0; i < 256; i++)
+                // {
+                //     Serial.print(res[i]);
+                // }
+                // Serial.println();
                 #ifdef Debug_Mensajes_Server
                 for (int i = 0; i < 256; i++)
                 {
@@ -3221,13 +3687,12 @@ void Task_Procesa_Comandos(void *parameter)
         }
         else if (Variables_globales.Get_Variable_Global(Dato_Evento_Valido))
         {
-            
             Almacena_Evento(eventos.Get_evento(),RTC);
             if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
             {
                 Transmite_Eventos();
             }
-            Variables_globales.Set_Variable_Global(Dato_Evento_Valido, false);
+            
 
             char evento = eventos.Get_evento();
             #ifdef Debug_Mensajes_Server
@@ -3243,6 +3708,8 @@ void Task_Procesa_Comandos(void *parameter)
             default:
                 break;
             }
+
+            Variables_globales.Set_Variable_Global(Dato_Evento_Valido, false);
         }
         if(Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full)==true)
         {
@@ -3283,7 +3750,7 @@ void Task_Maneja_Transmision(void *parameter)
             Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
             Contador_Maquina_En_Juego = 0;
         }
-        
+       // Transmite_Reenvio_Contadores.Forwarding_Contadores_Accounting();
         Actualiza_Contadores();
         Verifica_Cambio_Contadores();
         Transmite_Configuracion();
@@ -3295,6 +3762,25 @@ void Task_Maneja_Transmision(void *parameter)
     }
     vTaskDelay(10);
 }
+
+
+int Bill_Insert(void)
+{
+    if(contadores.Get_Contadores_Int(Bill_Amount)==0 && contadores.Get_Contadores_Int(Total_Drop)>0)
+        return contadores.Get_Contadores_Int(Total_Drop);
+
+    if(contadores.Get_Contadores_Int(Bill_Amount)>0 && contadores.Get_Contadores_Int(Total_Drop)>0)
+        return contadores.Get_Contadores_Int(Bill_Amount);
+
+    if(contadores.Get_Contadores_Int(Bill_Amount)>0 && contadores.Get_Contadores_Int(Total_Drop)==0)
+        return contadores.Get_Contadores_Int(Bill_Amount);
+    
+    if(contadores.Get_Contadores_Int(Bill_Amount)==0 && contadores.Get_Contadores_Int(Total_Drop)==0)
+        return contadores.Get_Contadores_Int(Bill_Amount);
+
+    return contadores.Get_Contadores_Int(Bill_Amount);   
+}
+
 
 void Verifica_Cambio_Contadores(void)
 {
@@ -3324,7 +3810,6 @@ void Verifica_Cambio_Contadores(void)
         {
             Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
             flag_premio_pagado_cashout = true;
-            
         }
 
         // DETECTA CAMBIO BILLETERO - BILLETE INSERTADO
@@ -3340,58 +3825,170 @@ void Verifica_Cambio_Contadores(void)
 }
 
 bool Cumple_Condicion=false;
+bool Ms_Https=false;
+bool Messag=false;
+bool Messag2=false;
+
+unsigned long Timer_Comunicacion_Machine_=0;
+unsigned long Timer_Comunicacion_Machine_Previous=0;
+int Flag_Comunicacion=3600000; //3600000
+int Flag_Eventos_Confirma=0;
+bool Actualizacion_Disponible=false;
+
 void Transmite_Configuracion(void)
 {
-    switch (Contador_Transmision)
+       
+    
+    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode))
     {
-    case 10:
-        if (!Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+        Contador_Transmision++;
+        Timer_Comunicacion_Machine_=millis();
+        if((Timer_Comunicacion_Machine_-Timer_Comunicacion_Machine_Previous)>=Flag_Comunicacion && Variables_globales.Get_Variable_Global(Token_Valido_Generado))
         {
-            Transmite_Confirmacion('A', '3');
+            Flag_Eventos_Confirma++;    
+
+            switch (Flag_Eventos_Confirma)
+            {
+
+            case 1:
+                if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                    Transmite_Confirmacion_Gmaster_Ap('A','0');
+                Flag_Eventos_Confirma=0;
+                break;
+           
+            default:
+                Flag_Eventos_Confirma=0;
+                break;
+            }
+            Timer_Comunicacion_Machine_Previous=Timer_Comunicacion_Machine_;
         }
+
+        switch (Contador_Transmision)
+        {
+        case 10:
+            break;
+
+        case 20:
+            Ms_Https=true;
+
+            // if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+            //     Transmite_Confirmacion('A', '0');
+            break;
+        
+        case 25: /* Verifica  si existe*/
+            // if(Variables_globales.Get_Variable_Global(Token_Valido_Generado) && !Actualizacion_Disponible)
+            // {
+            //     if(UpdateOTA.Update_Api_Mode(Variables_globales.Get_Variable_Global(Token_Valido_Generado)))
+            //         UpdateOTA.Auto_Update();
+            //     Actualizacion_Disponible=true;
+            // }
+            break;
+
+        case 30:
             
-        // if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-        // {
-        //     if (Calcula_First_Cancel_Credit(true))
-        //         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-        // }
-        break;
+            if (flag_ultimo_contador_Ok && !Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            if (flag_ultimo_contador_Ok && !Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            break;
+        case 35:
+            if (!Messag && Variables_globales.Get_Variable_Global(Token_Valido_Generado) && !Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+            {
+                Transmite_Confirmacion_Gmaster_Ap('A', '0');
+                Messag = true;
+            }
+            break;
+        case 40:
+            
+            if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && flag_ultimo_contador_Ok)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
 
-    case 20:
-        if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-            Transmite_Confirmacion('A', '0');
-
-         if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-         {
-             if (Calcula_First_Cancel_Credit(true))
-                 Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-         }
-        break;
-
-    case 30:
-        if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
-            Transmite_Confirmacion('B', 'C');
-        // if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
-        // {
-        //     if (Calcula_First_Cancel_Credit(true))
-        //         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
-        // }
-        break;
-
-    case 40:
-        if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true && flag_ultimo_contador_Ok)
-        {
-            if (Calcula_First_Cancel_Credit(true))
-                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && flag_ultimo_contador_Ok)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            Contador_Transmision = 0;
+            break;
+        default:
+            break;
         }
-        Contador_Transmision = 0;
-        break;
+        
+        if(Ms_Https) /* Espera 20 Seg despues de iniciar sistema */
+        {
+            Api_G.Verify_Expires_Token(Variables_globales.Get_Variable_Global(Sincronizacion_RTC),21,Variables_globales.Get_Variable_Global(Token_Valido_Generado),Configuracion.Get_Configuracion_ES(Metodo_Access_T,"Metodo_Access_T"));
+            Api_G.Sincroniza_Reloj_RTC_API(Configuracion.Get_Configuracion_ES(Metodo_Sincro_RTC, "Metodo_SincroRTC"));
+        }
+       
     }
-    Contador_Transmision++;
+    else
+    {
+        switch (Contador_Transmision)
+        {
+        case 10:
+            if (!Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+            {
+                Transmite_Confirmacion('A', '3');
+            }
+            break;
+
+        case 20:
+            if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                Transmite_Confirmacion('A', '0');
+
+            if (flag_ultimo_contador_Ok && !Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            if (flag_ultimo_contador_Ok && !Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            break;
+
+        case 30:
+            if (!Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
+                Transmite_Confirmacion('B', 'C');
+            // if(flag_ultimo_contador_Ok &&!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)&&Variables_globales.Get_Variable_Global(Comunicacion_Maq)==true&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+            // {
+            //     if (Calcula_First_Cancel_Credit(true))
+            //         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            // }
+            break;
+
+        case 40:
+            if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && flag_ultimo_contador_Ok)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+
+            if (!Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true && flag_ultimo_contador_Ok)
+            {
+                if (Calcula_First_Cancel_Credit(true))
+                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+            }
+            Contador_Transmision = 0;
+            break;
+        }
+        Contador_Transmision++;
+    }
 }
 
 int Ejecjuta=0;
 int Contador=0;
+
 void Transmision_Controlada_Contadores(void)
 {
     Contador_Transmision_Contadores++;
@@ -3411,7 +4008,7 @@ void Transmision_Controlada_Contadores(void)
                     #ifdef Debug_Transmision
                     Serial.println("Contadores, maquina NO juego....");
                     #endif
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                     {
                             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
 
@@ -3422,13 +4019,13 @@ void Transmision_Controlada_Contadores(void)
                     }
                         Transmite_Contadores_Accounting();
                 }
-                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
                 {
                     #ifdef Debug_Transmision
                     Serial.println("Contadores, maquina NO juego....");
                     #endif
                     Contador_Transmision_Contadores = 0;
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                     {
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                        // Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
@@ -3439,8 +4036,24 @@ void Transmision_Controlada_Contadores(void)
                     
                         Transmite_Contadores_Accounting();
                 }
-                 Contador_Transmision_Contadores = 0;
-                 New_Timer_Final=New_Timmer_Inicial;/*RESET TIMEOUT*/
+                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
+                {
+                    #ifdef Debug_Transmision
+                    Serial.println("Contadores, maquina NO juego....");
+                    #endif
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                    {
+                        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
+                        //  Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                        //  delay(200);
+                        Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                        delay(250);
+                    }
+                    Transmite_Contadores_Accounting();
+                }
+                Contador_Transmision_Contadores = 0;
+                New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
             }
         }
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
@@ -3449,13 +4062,13 @@ void Transmision_Controlada_Contadores(void)
             if (Contador_Transmision_Contadores >= Tiempo_Transmision_En_Juego)
             {
 
-                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=6)
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=14)
                 {
                     #ifdef Debug_Transmision
                     Serial.println("Contadores, maquina SI juego....");
                     #endif
                     //Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                     {
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                         Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
@@ -3473,7 +4086,23 @@ void Transmision_Controlada_Contadores(void)
                     Serial.println("Contadores, maquina SI juego....");
                     #endif
 
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                    {
+                          Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                          Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                          delay(250);
+                    }
+                    Transmite_Contadores_Accounting();
+                    //                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+                    //                flag_maquina_en_juego = false;
+                    Contador_Transmision_Contadores = 0;
+                }else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==14 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable)!=true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)==true)
+                {
+                    #ifdef Debug_Transmision
+                    Serial.println("Contadores, maquina SI juego....");
+                    #endif
+
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                     {
                           Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                           Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
@@ -3494,14 +4123,12 @@ void Transmision_Controlada_Contadores(void)
         else if (flag_premio_pagado_cashout)
         {
 
-            
-
             #ifdef Debug_Transmision
             Serial.println("Contadores, premio pagado....");
             #endif
-            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
             {
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                 {
                     Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
 
@@ -3510,16 +4137,28 @@ void Transmision_Controlada_Contadores(void)
                 }
                     Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);  
                     Transmite_Contadores_Accounting();
-            }
+                    // delay(50);
+                    // Transmite_Contadores_Accounting();
 
+                    if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }
+
+                /* --------------------------->  Add <-----------------*/
+                //Contador_Transmision_Contadores = 0;
+                New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                /*-----------------------------------------------------*/    
+            }
             flag_premio_pagado_cashout = false;
-            
         }
 
         // Si cambio el billetero, porque se ingreso un nuevo billete
         else if (flag_billete_insertado)
         {
-            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {
                 #ifdef Debug_Transmision
                 Serial.println("Contadores, billete insertado....");
@@ -3540,14 +4179,27 @@ void Transmision_Controlada_Contadores(void)
                         }
                     }
                     Transmite_Contadores_Accounting();
+                    // delay(50);
+                    // Transmite_Contadores_Accounting();
+
+                    if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }
+                        
                 }
+                /*----------------------------------------------------------------------------------*/    
+                New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                /*----------------------------------------------------------------------------------*/
             }
-            else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+            else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
             {
                 #ifdef Debug_Transmision
                 Serial.println("Contadores, billete insertado....");
                 #endif
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                 {
                     Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
 
@@ -3555,6 +4207,18 @@ void Transmision_Controlada_Contadores(void)
                     delay(350);
                 }
                     Transmite_Contadores_Accounting();
+                    // delay(50);
+                    // Transmite_Contadores_Accounting();
+
+                    if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }
+                /*----------------------------------------------------------------------------------*/
+                New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                /*----------------------------------------------------------------------------------*/        
             }
             
             flag_billete_insertado = false;
@@ -3589,16 +4253,25 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         Encuesta_Creditos_Premio();
         delay(250);
         /*----------------------------------------------------------------------------*/
-
        
         Coin_In_Poker=Convert_Char_To_Int11(Coin_In_Poker_Data);
         Coin_Out_Poker=Convert_Char_To_Int11(Coin_Out_Poker_Data);
         Drop_Poker=Convert_Char_To_Int11(Total_Drop_Poker_Data);
         Creditos_Poker=Convert_Char_To_Int11(CurrentCredit_Poker_Data);
-
+        
+        
         // Error en formato de datos  Si contiene letras el contador 
         if(Coin_In_Poker==1||Coin_Out_Poker==1||Drop_Poker==1)
         {
+            // String  Msg_Log;
+            // Msg_Log=String(" Calculo de formula Poker ")+ 
+            // String(" Coin In: ")+String(Coin_In_Poker_Data)+
+            // String(" Coin Out: ")+String(Coin_Out_Poker_Data)+
+            // String(" Drop: ")+String(Total_Drop_Poker_Data)+
+            // String(" Creditos actuales: ")+String(CurrentCredit_Poker_Data);
+            // Selector_Modo_SD();
+            // LOG_ESP_Descrip(Archivo_LOG,Variables_globales.Get_Variable_Global(Enable_Storage),Msg_Log);
+
             contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
             return false;
@@ -3703,9 +4376,9 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
       //  Serial.println(Contador_Cancel_Credit_Poker);
       //  Serial.println(Cancel_Credit_Poker_2);
 
-        Selector_Modo_SD();
-        log_e("Fallo En la conversion Cancel credit Poker", Fallo_Conversion_Cancel_Poker);
-        LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+        //Selector_Modo_SD();
+        //log_e("Fallo En la conversion Cancel credit Poker", Fallo_Conversion_Cancel_Poker);
+        //LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
         return false; /*Intenta nuevamente el calculo del premio*/
     }else{ /* Si Son iguales (No existe diferencia)*/
 
@@ -3719,7 +4392,9 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         {
             return false; /*Uno o los dos contadores fallo*/
         }
-    }  
+    }
+
+    return false;  
 }
 
 bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
@@ -3743,6 +4418,7 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
         /*--------------------------------------------------------------------*/
        
        /* ------------------> Get contadores <--------------------------------*/
+        
         Coin_In_Poker=Convert_Char_To_Int11(Coin_In_Poker_Data);
         Coin_Out_Poker=Convert_Char_To_Int11(Coin_Out_Poker_Data);
         Drop_Poker=Convert_Char_To_Int11(Total_Drop_Poker_Data);
@@ -3752,6 +4428,16 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
         /*----------------> Error en formato de uno de los contadores<-------- */
         if(Coin_In_Poker==1||Coin_Out_Poker==1||Drop_Poker==1)
         {
+
+            // String  Msg_Log;
+            // Msg_Log=String(" Calculo de formula Poker ")+ 
+            // String(" Coin In: ")+String(Coin_In_Poker_Data)+
+            // String(" Coin Out: ")+String(Coin_Out_Poker_Data)+
+            // String(" Drop: ")+String(Total_Drop_Poker_Data)+
+            // String(" Creditos actuales: ")+String(CurrentCredit_Poker_Data);
+            // Selector_Modo_SD();
+            // LOG_ESP_Descrip(Archivo_LOG,Variables_globales.Get_Variable_Global(Enable_Storage),Msg_Log);
+
             contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
             contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
             Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
@@ -3891,7 +4577,9 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
             Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
             return false; /*Uno o los dos contadores fallo*/
         }
-    }  
+    }
+
+    return false;  
 }
 
 
@@ -3909,7 +4597,7 @@ void RESET_HANDPAY_NOT_SAS(void)
         {
             Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
 
-            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {
                 Activa_Encuesta = true;
                 delay(10);
@@ -3971,23 +4659,33 @@ void RESET_HANDPAY_NOT_SAS(void)
             if (Creditos_Actuales_ == 0) /* Reset_Realizado con Exito*/
             {
                 
-                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6)
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
                 {
                     Transmite_Confirmacion('C', '0');
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                     {
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                         delay(1);
                         Encuesta_Creditos_Premio();
-                        delay(350);
+                        delay(450);
                     }
-                    Transmite_Contadores_Accounting();
+                    //Transmite_Contadores_Accounting(); /* Envia por API si Gmaster_API_Mode== API_MODE */
+                    // delay(50);
+                    // Transmite_Contadores_Accounting(); /* Envia por API si Gmaster_API_Mode== API_MODE */
+
+                    // if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    // {
+                    //     Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                    //     // delay(50);
+                    //     // Transmite_Contadores_Accounting(); /* Envia por API si Gmaster_API_Mode== API_MODE */
+                    // }
+                        
+
                     if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                         Status_Barra(Reset_Exitoso);
                     Reset_Handle_LED();
                     delay(50);
                     Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                    
                 }
                 Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO,true); /* Inicia Timer Operador */
                 Variables_globales.Set_Variable_Global(Manual_Reset, false);
@@ -4077,8 +4775,15 @@ void Task_Verifica_Hopper(void *parameter)
     int contadorActiv=0;
     
     unsigned long Respuesta_SAS = 0;
-    
-    
+    int Extern_Pulsos;
+
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+        Extern_Pulsos=10;
+    else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+        Extern_Pulsos=30;
+    else
+        Extern_Pulsos=10;
+
     for (;;)
     {
         Verifica_Cambio_Contadores();
@@ -4090,13 +4795,17 @@ void Task_Verifica_Hopper(void *parameter)
             Serial.println("Hopper HIGH");
             Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, true);
             Condicion_Cumpl=false; /* Reset Timer ID Operador  por tiempo de descarga maquina Poker*/
+             if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+            {
+                Conta_Poll_Cancel_Poker=0;
+            }
         }
                 
         else if (digitalRead(Hopper_Enable) == LOW && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable))
         {
            Serial.println("Hopper LOW");
             Conta_Poll_Cancel_Poker++;
-            if (Conta_Poll_Cancel_Poker > 10 && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
+            if (Conta_Poll_Cancel_Poker > Extern_Pulsos && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
             {
                 
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
@@ -4114,6 +4823,16 @@ void Task_Verifica_Hopper(void *parameter)
                     
                     Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
                     Transmite_Contadores_Accounting(); /*Transmite contadores por calculo de premio*/
+                    // delay(50);
+                    // Transmite_Contadores_Accounting(); /*Transmite contadores por calculo de premio*/
+
+                    if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                    }
+                        
                     /* Si  fue un operador  */
                     if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                         Status_Barra(Reset_Exitoso);
@@ -4224,8 +4943,16 @@ void Actualiza_Contadores(void)
            
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
             Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-            delay(250);
+            delay(350);
             Transmite_Contadores_Accounting();
+
+            if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+            {
+                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+            }
+            /*---------------------------------------------------------------------------*/
+            New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+            /*---------------------------------------------------------------------------*/
             Variables_globales.Set_Variable_Global(Billete_Insert, false);
         }
     }else{

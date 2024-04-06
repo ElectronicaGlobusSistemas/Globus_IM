@@ -38,9 +38,9 @@
 
 class AutoUpdate
 {
-private:
-  /* data */
-  
+  private:
+    /* data */
+
     String VERSION_FIR;
     String URL_GENERIC;
     String API_BIN;
@@ -48,22 +48,20 @@ private:
     String TOKEN_VALI;
     String VERSION_FIR_LOCAL;
     String API_VER;
-
     unsigned long Millis_R;
     unsigned long Millis_P;
     int Invert_Update;
-    
 
 public:
- 
+  
   int  FirmwareVersionCheck();
   void firmwareUpdate(void);
-
   void Init_AutoUpdate(String Version_Firmware_, String URL_Generic_,String Api_ver, String URL_Bin_,String ,String Token_ ,uint8_t Buffer[]);
-  void Auto_Update(bool Flag_Maquina_en_Juego__=false, bool Hopper_Poker__=false, bool Billete_Insert__=false, bool Flag_Premio_pagado_=false,bool Flag_Sesion_Player_Tracking=false,int Creditos_Actuales=0);
+  void Auto_Update(bool Flag_Maquina_en_Juego__=false, bool Hopper_Poker__=false, bool Billete_Insert__=false, bool Flag_Premio_pagado_=false,bool Flag_Sesion_Player_Tracking=false,int Creditos_Actuales=0,bool Mode_AP=false);
   bool Confirmacion_ACK_HTTPS(String Ack, String Code);
   String Token_Generator(void);
   bool DateTime_Update(bool Enable);
+  bool Update_Api_Mode(bool Token_Generado);
 };
 
 

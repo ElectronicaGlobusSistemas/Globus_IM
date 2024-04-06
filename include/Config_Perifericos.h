@@ -6,6 +6,8 @@
 #include <SD.h>
 #include "RFID.h"
 #include "AutoUpdate.h"
+#include "Web_Config.h"
+#include "Event_Real_Time.h"
 //#define Debug_Task
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency  240//240//
@@ -16,6 +18,10 @@
 #define MCU_Status_2     25
 #define Unlock_Machine   26
 #define FLASH_RESET_Pin  35
+
+
+#define Sensor_Open_Door 34
+#define Sensor_Stacker   35
 //-----------------------------------------------------------------
 
 //-------------------------> Extern TaskHandle_t <-----------------
@@ -32,8 +38,9 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 
 extern char Archivo_CSV[100];
 //extern int Sd_Mont;
-
+Event_Real_Time Eventos_Hardware;
 AutoUpdate UpdateOTA;
+Web_Config Task_Web_Config;
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
 
@@ -71,9 +78,8 @@ int extern Tiempo_Transmision_En_Juego;
 int extern Tiempo_Transmision_No_Juego;
 int extern Tiempo_Inactividad_Maquina;
 //------------------------------------------------------------------
-
 //---------------------------> Version de programa <----------------
-uint8_t Version_Firmware_[]={2,0,3,4}; // 1000--> en  server 1.0 {1,0,1,1};
+uint8_t Version_Firmware_[]={2,0,4,5}; // 1000--> en  server 1.0 {1,0,1,1};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
@@ -87,8 +93,9 @@ void Init_Config(void)
     pinMode(12,INPUT_PULLDOWN);
     pinMode(36,INPUT);
     pinMode(39,INPUT);
-    pinMode(34,INPUT);
-    
+   //pinMode(34,INPUT_PULLUP);
+    pinMode(Sensor_Stacker,INPUT_PULLUP);
+    pinMode(Sensor_Open_Door,INPUT);
     pinMode(Hopper_Enable, INPUT_PULLDOWN);  // Reset_Config como Entrada.
     pinMode(Reset_Config, INPUT);   // Reset_Config como Entrada.
     /* Define Salidas*/
@@ -98,10 +105,9 @@ void Init_Config(void)
     pinMode(5,OUTPUT);
     pinMode(33, OUTPUT);  
     digitalWrite(33,HIGH);
-
     pinMode (MCU_Status_2,OUTPUT);  // MCU_Status 2 Opcional.
     pinMode(Unlock_Machine,OUTPUT); // Rele Como salida.
-
+    
     //---------------------> Inicializa Indicadores <----------------
     Init_Indicadores_LED();         //  Reset Indicadores LED'S LOW.
     //---------------------------> Version de programa <----------------
@@ -126,6 +132,7 @@ void Init_Config(void)
     Init_RFID(); /* Inicializa Modulo RFID*/
     Init_SD(); // Inicializa Memoria SD.
     
+
     //------------------> AutoUpdate <-------------------------------
   //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
   //  UpdateOTA.Auto_Update(false); /* Verifica Actualizacion */
@@ -164,6 +171,77 @@ void TaskManager()
         0);                        //  Core donde se ejecutara la tarea
 }
 
+int buttonState = HIGH;    // Estado actual del botón
+int lastButtonState = HIGH;  // Estado anterior del botón
+unsigned long lastDebounceTime = 0;  // Último tiempo de rebote del botón
+unsigned long debounceDelay = 50;    // Tiempo de rebote del botón
+unsigned long buttonPressStartTime = 0;  // Tiempo de inicio de la pulsación del botón
+unsigned long buttonHoldDuration = 0; 
+bool Wifi_State_AP = LOW;
+
+void PuntoAcceso_On(int Reset_Pin)
+{
+   // Serial.println(WiFi.softAPgetStationNum());
+     int reading = digitalRead(Reset_Pin);
+
+        if (reading != lastButtonState)
+        {
+            lastDebounceTime = millis();
+        }
+
+        if ((millis() - lastDebounceTime) > debounceDelay)
+        {
+            if (reading != buttonState)
+            {
+                buttonState = reading;
+
+                if (buttonState == LOW)
+                {
+                    // Botón presionado
+                    buttonPressStartTime = millis();
+                }
+            }
+        }
+
+        // Verificar si ha pasado suficiente tiempo desde el inicio de la pulsación
+        unsigned long currentTime = millis();
+        if (buttonState == LOW && (currentTime - buttonPressStartTime >= 10000))
+        {
+
+            for (int i = 0; i < 25; i++)
+            {
+                Wifi_State_AP = !Wifi_State_AP;
+                digitalWrite(WIFI_Status, !Wifi_State_AP);
+                delay(100);
+            }
+            wifi_mode_t currentMode = WiFi.getMode();
+           // Serial.println( WiFi.getMode());
+            if (currentMode==WIFI_MODE_APSTA)
+            {
+                WiFi.softAPdisconnect();
+                WiFi.mode(WIFI_MODE_STA);
+                Variables_globales.Set_Variable_Global(Access_Point_Mode,false);
+            }else{
+                WiFi.mode(WIFI_MODE_APSTA);
+                Task_Web_Config.Init_Web_Server();
+                Variables_globales.Set_Variable_Global(Access_Point_Mode,true);
+            }
+            buttonPressStartTime=currentTime;
+
+
+            if(WiFi.status()==WL_CONNECTED)
+            {
+                digitalWrite(WIFI_Status, HIGH);
+            }else{
+                if(WiFi.status()!=WL_CONNECTED)
+                {
+                    digitalWrite(WIFI_Status, LOW);
+                }
+            }
+        }
+        lastButtonState = reading;
+}
+
 static void ManagerTasks(void *parameter)
 {
     unsigned long Tiempo_Actual = 0;
@@ -173,6 +251,7 @@ static void ManagerTasks(void *parameter)
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(1000);
 
+    
 
     for (;;)
     {
@@ -197,12 +276,12 @@ static void ManagerTasks(void *parameter)
 
         //-----------------------------> Verifica conexion WIFI <--------------------------------------------
         
-        if (WiFi.status() != WL_CONNECTED)
+        if (WiFi.status() != WL_CONNECTED && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
         {
             Variables_globales.Set_Variable_Global(Verifica_Conexion_WIFI,true);
         }
 
-        if(Variables_globales.Get_Variable_Global(Verifica_Conexion_WIFI))
+        if(Variables_globales.Get_Variable_Global(Verifica_Conexion_WIFI) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
         {
             if(!WL_DISCONNECT_OK)
             {
@@ -313,11 +392,15 @@ static void ManagerTasks(void *parameter)
         if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
         {
            
-            UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits))); /* Agregar parametros para  verificar que la maquina no este en juego */
+            UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits)),Variables_globales.Get_Variable_Global(Access_Point_Mode)); /* Agregar parametros para  verificar que la maquina no este en juego */
             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
         }
 
-        
+        PuntoAcceso_On(Reset_Config);
+
+        if(Variables_globales.Get_Variable_Global(Enable_Mechanical_Events))
+            Eventos_Hardware.EVENT_REAL_TIME();
+        //EVENT_REAL_TIME();
         //--------------------------------------------------------------------------------------------------------
         //delay(100);
         //vTaskDelay(1000);
@@ -602,10 +685,13 @@ void Init_Configuracion_Inicial(void)
         // 6 = Poker
         // 7 = IGT Riel
         // 8 = IGT Riel Con Bill
-        // 9 = Mecanicas
+        // 9 = Mecanicas 2 contadores
         // 10 = Poker-solo-SAS 5 contadores
         // 11 = Aristocrat Australiana
         // 12 = Simple No cancel
+        // 13 = Poker_Ertech_Plus (Simple-No creditos)
+        // 14 = Poker_Ertech_Slot (IGT)
+        // 15 = Mecanicas 4 contadores 
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
@@ -655,14 +741,14 @@ void Init_Configuracion_Inicial(void)
 
     if(!NVS.isKey("T_En_Juego"))
     {
-        int Timer_Transmission_In_Game=30; /* Cada 30s*/
+        int Timer_Transmission_In_Game=60;/* 1 Minuto*/  /*  antes Cada 30s*/
         Serial.println("Tiempo transmision maquina en juego por defecto...");
         NVS.putUInt("T_En_Juego",Timer_Transmission_In_Game);
     }
 
     if(!NVS.isKey("T_No_Juego"))
     {
-        int Timer_Transmission_Not_Game=150000; /* Cada 2.5 minutos */
+        int Timer_Transmission_Not_Game=180000; /* 3 Minutos */ /* antes  Cada 2.5 minutos */
         Serial.println("Tiempo transmision maquina no juego por defecto...");
         NVS.putUInt("T_No_Juego",Timer_Transmission_Not_Game);
     }
@@ -674,9 +760,66 @@ void Init_Configuracion_Inicial(void)
         NVS.putUInt("TimerUser",Timer_User);
     }
 
+    if (!NVS.isKey("TYPE_TM")) // 
+    {
+        Serial.println("Guardando tipo de Transmision por defecto Socket....");
+        // Transmision Socket = false
+        // Transmision API = true
+        bool TRANSMISSION_DATA = false;
+        NVS.putBool("TYPE_TM", TRANSMISSION_DATA);
+    }
+
+    if(!NVS.isKey("SocketAP"))
+    {
+        Serial.println("Guarda puerto AP por defecto....");
+        uint16_t portAP = 80;
+        NVS.putUInt("SocketAP", portAP);
+    }
+
+
+    if (!NVS.isKey("ID_MQ")) // Configura ID maquina 
+    {
+        Serial.println("Guardando ID Por defecto....");
+        String Id_Maquina_t = "00000";
+        //String ssid = "GLOBUS-DESARROLLO";
+        NVS.putString("ID_MQ", Id_Maquina_t); 
+    }
+
+    if(!NVS.isKey("Param_API"))
+    {
+        /* Controlador principal */
+            /* Metodo RTC */
+            /* Metodo contadores */
+            /* Metodo Eventos */
+            /* Metodo Token */
+        String Controlador_Principal="http://cashlessapi.globussistemas.net/";
+        String Metodo_RTC="api/Tarjeta/GeneraRtc";
+        String Metodo_Contadores="api/Tarjeta/ProcesarContadores";
+        String Metodo_Eventos="api/Tarjeta/ProcesarEventos";
+        String Metodo_Token="api/Token/GenerarTokenApi";
+
+        String joinedString = "";
+        joinedString=Controlador_Principal+"|"+Metodo_RTC+"|"+Metodo_Contadores+"|"+Metodo_Eventos+"|"+Metodo_Token;
+        NVS.putString("Param_API",joinedString);
+    }
+
+    if(!NVS.isKey("Event_Mecanic"))
+    {
+        /* Eventos mecanicos habilitados = True */
+        /* Eventos mecanicos inhabilitados = false */
+
+        bool Event_Mecanic = false;
+        NVS.putBool("Event_Mecanic", Event_Mecanic);
+    }
+
+    
+
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
+
+    
+    
 
     // Inicializa Direccion IP
     size_t ip_len = NVS.getBytesLength("Dir_IP");
@@ -823,10 +966,17 @@ void Init_Configuracion_Inicial(void)
     case 12:
         Serial.println("Simple No Cancel");
         break;
-
     case 13:
-        Serial.println("Simple no creditos");
+        Serial.println("Poker_Ertech_Simple");
         break;
+    case 14:
+        Serial.println("Poker_Ertech_Slot");
+        break;
+    
+    case 15:
+         Serial.println("Mecanicas 4 contadores ");
+        break;
+
     default:
         break;
     }
@@ -1011,9 +1161,19 @@ void Init_Configuracion_Inicial(void)
     case 600000:
         Serial.println(" 10 Minutos ");
         break;
-    
-    default:
 
+    case 1800000:
+        Serial.println(" 30 Minutos ");
+        break;
+
+    case 3600000:
+        Serial.println(" 1 Hora ");
+        break;
+
+    case 5400000:
+        Serial.println(" 1 hora 30 Minutos ");
+        break;   
+    default:
         Serial.println(" 2.5 Minutos ");
         break;
     }
@@ -1051,6 +1211,96 @@ void Init_Configuracion_Inicial(void)
         break;
     }
 
+
+    // Inicializa Tipo de conexion Servidor API o Socket
+    bool Type = NVS.getBool("TYPE_TM");
+    Serial.print("Tranmision de datos via: ");
+    if(Type)
+    {
+        /* Inicializar Datos de API */
+        Serial.println("API");
+        Variables_globales.Set_Variable_Global(Gmaster_API_Mode,true);
+    }
+    else
+    {
+        Serial.println("Socket");
+        Variables_globales.Set_Variable_Global(Gmaster_API_Mode,false);
+    }
+
+    uint16_t port_AP = NVS.getUInt("SocketAP", 0);
+    Configuracion.Set_Configuracion_ESP32(Puerto_AP, port_AP);
+    Serial.print("Puerto de conexion AP: ");
+    Serial.println(Configuracion.Get_Configuracion(Puerto_AP, 0));
+
+
+    String Id_Maquina_Temp = NVS.getString("ID_MQ");
+    Configuracion.Set_Configuracion_ESP32(Id_Maquina, Id_Maquina_Temp);
+    Serial.print("Id Maquina: ");
+    Serial.println(Configuracion.Get_Configuracion(Id_Maquina, "Id_Maquina"));
+
+
+    // size_t ParameterApi_len = NVS.getBytesLength("Param_API");
+    // String ParametersAp[ ParameterApi_len];
+    // NVS.getBytes("Param_API", ParametersAp, ParameterApi_len);
+
+
+
+    // String Controlador_Principal="http://cashlessapi.globussistemas.net/";
+    // String Metodo_RTC="api/Tarjeta/GeneraRtc";
+    // String Metodo_Contadores="api/Tarjeta/ProcesarContadores";
+    // String Metodo_Eventos="api/Tarjeta/ProcesarEventos";
+    // String Metodo_Token="api/Token/GenerarTokenApi";
+
+    // String ParametersAp[5];
+
+    // ParametersAp[0]=Controlador_Principal;
+    // ParametersAp[1]=Metodo_RTC;
+    // ParametersAp[2]=Metodo_Contadores;
+    // ParametersAp[3]=Metodo_Eventos;
+    // ParametersAp[4]=Metodo_Token;
+
+    String savedString = NVS.getString("Param_API", "");
+    String ParametersAp[5];
+
+    int pos = 0;
+    int startPos = 0;
+    for (int i = 0; i < savedString.length(); i++) {
+        if (savedString.charAt(i) == '|') {
+            ParametersAp[pos++] = savedString.substring(startPos, i);
+            startPos = i + 1;
+        }
+    }
+    // Agrega el último elemento
+    ParametersAp[pos] = savedString.substring(startPos);
+
+    Configuracion.Set_Configuracion_ESP32_ES(Controlador_P, ParametersAp);
+    Configuracion.Set_Configuracion_ESP32_ES(Metodo_Conta, ParametersAp);
+    Configuracion.Set_Configuracion_ESP32_ES(Metodo_Event, ParametersAp);
+    Configuracion.Set_Configuracion_ESP32_ES(Metodo_Sincro_RTC, ParametersAp);
+    Configuracion.Set_Configuracion_ESP32_ES(Metodo_Access_T, ParametersAp);
+    Serial.print("Controlador Principal: ");
+    Serial.println(Configuracion.Get_Configuracion_ES(Controlador_P,"Controlador_Principal"));
+    Api_G.Init_Controlador_Principal(Configuracion.Get_Configuracion_ES(Controlador_P,"Controlador_Principal"));
+    Serial.print("API Contadores: ");
+    Serial.println(Configuracion.Get_Configuracion_ES(Metodo_Conta,"Metodo_Contadores"));
+    Serial.print("API Eventos: ");
+    Serial.println(Configuracion.Get_Configuracion_ES(Metodo_Event,"Metodo_Eventos"));
+    Serial.print("API Sincro RTC: ");
+    Serial.println(Configuracion.Get_Configuracion_ES(Metodo_Sincro_RTC,"Metodo_SincroRTC"));
+    Serial.print("API Token: ");
+    Serial.println(Configuracion.Get_Configuracion_ES(Metodo_Access_T,"Metodo_Token"));
+        
+
+    bool Enable_Eventos= NVS.getBool("Event_Mecanic",false);
+
+    if(Enable_Eventos)
+    {
+        Variables_globales.Set_Variable_Global(Enable_Mechanical_Events,true);
+        eventos.Set_Timer_Ignore_Event(10000);
+    }
+        
+    else
+        Variables_globales.Set_Variable_Global(Enable_Mechanical_Events,false);    
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     Serial.println("\n");
@@ -1112,6 +1362,7 @@ void Config_Red_Serial(String Comando)
     unsigned long Tm=0;
     unsigned long Tf=0;
     int inter_v=20000;
+
 
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
     {
@@ -1462,7 +1713,177 @@ void Config_Red_Serial(String Comando)
             }
           //  NVS.end();
         }
-    }else{
+    }
+    else if (Comando[0] == 'M' && Comando[1] == 'E' && Comando[2] == 'C' && Comando[3] == 'A' && Comando[4] == 'N' && Comando[5] == 'I' && Comando[6] == 'C' && Comando[7] == 'A' && Comando[8] == '=')
+    {
+
+        if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        {
+
+            //  000472750000000100000001000507930000000000000000  
+            //  000472750000000100000001000507930000000000000000  
+            // MECANICA=00057275000000050000000500060793
+
+            /* Mecanica conectada */
+            
+            char res[38];
+            /* Cancel credit */
+            res[4] = (Comando[9]);
+            res[5] = Comando[10];
+            res[6] = Comando[11];
+            res[7] = Comando[12];
+            res[8] = Comando[13];
+            res[9] = Comando[14];
+            res[10] = Comando[15];
+            res[11] = Comando[16];
+
+            /* Multiplicador Cancel */
+
+            res[12] = Comando[17];
+            res[13] = Comando[18];
+            res[14] = Comando[19];
+            res[15] = Comando[20];
+            res[16] = Comando[21];
+            res[17] = Comando[22];
+            res[18] = Comando[23];
+            res[19] = Comando[24];
+
+            /* Multiplicador Billetero */
+            res[20] = Comando[25];
+            res[21] = Comando[26];
+            res[22] = Comando[27];
+            res[23] = Comando[28];
+            res[24] = Comando[29];
+            res[25] = Comando[30];
+            res[26] = Comando[31];
+            res[27] = Comando[32];
+
+            /* Cancel credit */
+            res[28] = Comando[33];
+            res[29] = Comando[34];
+            res[30] = Comando[35];
+            res[31] = Comando[36];
+            res[32] = Comando[37];
+            res[33] = Comando[38];
+            res[34] = Comando[39];
+            res[35] = Comando[40];
+
+            res[36] = 0x00;
+            res[37] = 0x00;
+
+            
+            if(Actualiza_Tarjeta_Mecanica(res))
+                Serial.println("Contadores mecanicos actualizados!");
+            else
+                Serial.println("Contadores mecanicos NO actualizados!");
+        }
+        else
+            Serial.println("----->Tarjeta Mecanica no conectada");
+        
+    }else if(Comando[0] == 'M' && Comando[1] == 'E' && Comando[2] == 'C' && Comando[3] == 'A' && Comando[4] == 'N' && Comando[5] == 'I' && Comando[6] == 'C' && Comando[7] == 'A' && Comando[8] == '2' && Comando[9] == '=' )
+    {
+
+         if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        {
+
+            /* Mecanica conectada */
+            
+            char res[70];
+           
+            res[0]=0x00;
+            res[1]=0x00;
+            res[2]=0x00;
+            res[3]=0x00;
+
+            /* Cancel credit */
+            res[4] = (Comando[10]);
+            res[5] = Comando[11];
+            res[6] = Comando[12];
+            res[7] = Comando[13];
+            res[8] = Comando[14];
+            res[9] = Comando[15];
+            res[10] = Comando[16];
+            res[11] = Comando[17];
+
+            /* Coin In */
+            res[12] = Comando[18];
+            res[13] = Comando[19];
+            res[14] = Comando[20];
+            res[15] = Comando[21];
+            res[16] = Comando[22];
+            res[17] = Comando[23];
+            res[18] = Comando[24];
+            res[19] = Comando[25];
+
+            /* Coin Out */
+            res[20] = Comando[26];
+            res[21] = Comando[27];
+            res[22] = Comando[28];
+            res[23] = Comando[29];
+            res[24] = Comando[30];
+            res[25] = Comando[31];
+            res[26] = Comando[32];
+            res[27] = Comando[33];
+
+            /* Total Drop */
+            res[28] = Comando[34];
+            res[29] = Comando[35];
+            res[30] = Comando[36];
+            res[31] = Comando[37];
+            res[32] = Comando[38];
+            res[33] = Comando[39];
+            res[34] = Comando[40];
+            res[35] = Comando[41];
+
+            /* Multiplicador cancel */
+            res[36] = Comando[42];
+            res[37] = Comando[43];
+            res[38] = Comando[44];
+            res[39] = Comando[45];
+            res[40] = Comando[46];
+            res[41] = Comando[47];
+            res[42] = Comando[48];
+            res[43] = Comando[49];
+
+            /* Multiplicador Coin In */
+            res[44] = Comando[50];
+            res[45] = Comando[51];
+            res[46] = Comando[52];
+            res[47] = Comando[53];
+            res[48] = Comando[54];
+            res[49] = Comando[55];
+            res[50] = Comando[56];
+            res[51] = Comando[57];
+
+            /* Multiplicador Coin Out */
+            res[52] = Comando[58];
+            res[53] = Comando[59];
+            res[54] = Comando[60];
+            res[55] = Comando[61];
+            res[56] = Comando[62];
+            res[57] = Comando[63];
+            res[58] = Comando[64];
+            res[59] = Comando[65];
+
+            /* Multiplicador Total drop */
+            res[60] = Comando[66];
+            res[61] = Comando[67];
+            res[62] = Comando[68];
+            res[63] = Comando[69];
+            res[64] = Comando[70];
+            res[65] = Comando[71];
+            res[66] = Comando[72];
+            res[67] = Comando[73];
+            
+            if(Actualiza_Tarjeta_Mecanica(res))
+                Serial.println("Contadores mecanicos actualizados!");
+            else
+                Serial.println("Contadores mecanicos NO actualizados!");
+        }
+        else
+            Serial.println("----->Tarjeta Mecanica no conectada");
+    }
+    else{
 
         if(Comando=="SERVER200")
         {

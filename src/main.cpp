@@ -22,6 +22,10 @@ Buffer_RX_AFT Buffer_Cashless;
 //#include "Clase_Variables_Globales.h"
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
+
+#include "API_Gmaster.h"
+
+API_Gmaster Api_G;
 Eventos_SAS eventos; // Objeto contiene eventos maquina
 #include "Tabla_Eventos.h"
 Tabla_Eventos Tabla_Evento;
@@ -141,14 +145,22 @@ int Tiempo_Inactividad_Maquina;
 
 unsigned long  Timer_Error_Wifi_Inicial=0;
 unsigned long  Timer_Error_Wifi_Previous=0;
+
+
 int Exec_Timer=30000;
+
+int buttonPressCount = 0;  // Contador de pulsaciones
+unsigned long lastButtonClickTime = 0;
+
+SPIClass spiRFID(VSPI);
+
 void setup()
 {
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
   /*--------------------> Verifica la Comunicación Maquina<------------------------- */
-  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0)!=9)
   {
     xTaskCreatePinnedToCore(
         Check_Comunicacion_Maq,
@@ -163,11 +175,11 @@ void setup()
 }
 unsigned long INT1=0;
 int Muestreo=500;
+
 void loop()
 {
 
-
-
+  eventos.TimeOut_Capture_Event();
   Time_I=millis();
   TimeOut_Conect_RFID=millis();
   Timer_Error_Wifi_Inicial=millis();
@@ -189,7 +201,7 @@ void loop()
     Time_P = millis();
   }
   /*--------------------------------------------------------------------------------------*/
- 
+  
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/
   check_SD();
   /*--------------------------------------------------------------------------------------*/
@@ -224,19 +236,21 @@ void loop()
 /* Verifica comunicacion maquina */
 static void Check_Comunicacion_Maq(void *parameter)
 {
-    for (;;)
+  for (;;)
+  {
+
+    Bandera_RS232 = millis();
+    Msg_RS232 = millis();
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15) /* Mecanica 2 */
     {
-      
-
-      Bandera_RS232 = millis();
-      Msg_RS232 = millis();
-
+      Timeout_RS232=180000; /* 3 minutos Para reportar A0 */
       if (Bandera_RS232 - Bandera_RS232_F >= Timeout_RS232)
       {
         Variables_globales.Set_Variable_Global(Comunicacion_Maq, false);
-        if(Comunica_==false)
+        if (Comunica_ == false)
         {
-          condicionCumplida=false;
+          condicionCumplida = false;
           Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
@@ -245,15 +259,15 @@ static void Check_Comunicacion_Maq(void *parameter)
           Counter_Final = false;
           Ultimo_Counter_ = false;
           Ejecuta_Instruccions_ = false;
-          Comunica_=true;
-          TimeOut_Automatico=TimeOut_Automatico_Inicial;
+          Comunica_ = true;
+          TimeOut_Automatico = TimeOut_Automatico_Inicial;
         }
         if (Msg_RS232 - Msg_RS232_F >= Timeout_Msg)
         {
-          #ifdef Debug_Comunicacion_MQ
-                    Serial.println("No  Hay Comunicación con la maquina");
-          #endif
-          condicionCumplida=false;
+#ifdef Debug_Comunicacion_MQ
+          Serial.println("No  Hay Comunicación con la maquina");
+#endif
+          condicionCumplida = false;
           Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
@@ -263,9 +277,137 @@ static void Check_Comunicacion_Maq(void *parameter)
           Ultimo_Counter_ = false;
           Ejecuta_Instruccions_ = false;
           Msg_RS232_F_ = millis();
-          TimeOut_Automatico=TimeOut_Automatico_Inicial;
+          TimeOut_Automatico = TimeOut_Automatico_Inicial;
           Msg_RS232_F = Msg_RS232;
-          
+        }
+      }
+      else
+      {
+        /*-----------------------------> Falla la comunicación <---------------------------*/
+        if (Fallo_Comunicacion == true)
+        {
+          if (Ejecuta_Instruccions_ == false)
+          {
+            // Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 1);
+            Ejecuta_Instruccions_ = true;
+            // Encuesta_Creditos_Premio();
+            // delay(300);
+          }
+
+          else if (Ejecuta_Instruccions_ == true)
+          {
+            if (Counter_Final)
+            {
+              Fallo_Comunicacion = false;
+              // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+              // Conta_Ejecuta=0;
+              Counter_Final = false;
+              Ultimo_Counter_ = false;
+              Ultimo_Counter_ = false;
+              Ejecuta_Instruccions_ = false;
+              Carga_Datos_Iniciales = true;
+#ifdef Debug_Comunicacion_MQ
+              Serial.println("Comunicación con la maquina OK");
+#endif
+              Host_ = 0;
+              /*COMUNICA OK*/
+              Comunica_ = false;
+            }
+          }
+        }
+        /*----------------------------------------------------------------------------*/
+
+        /*----------------------------> Primera conexión <----------------------------*/
+        else if (Datos_OK == true) /*Primera Conexión*/
+        {
+          if (Datos_OK == true && Carga_Datos_Iniciales == false)
+          {
+            // Conta_Ejecuta++;
+            if (!Ejecuta_Instruccions_)
+            {
+              // Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 1);
+
+              // // Encuesta_Creditos_Premio();
+              // // delay(300);
+              Ejecuta_Instruccions_ = true;
+            }
+
+            if (Ejecuta_Instruccions_)
+            {
+              if (Counter_Final == true) /*Ultimo_Counter_*/
+              {
+                // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+                Counter_Final = false;
+                Carga_Datos_Iniciales = true;
+                Conta_Ejecuta = 0;
+                Ultimo_Counter_ = false;
+                Ejecuta_Instruccions_ = false;
+#ifdef Debug_Comunicacion_MQ
+                Serial.println("Comunicación con la maquina OK");
+#endif
+                Host_ = 0;
+                Comunica_ = false;
+                TimeOut_Automatico = TimeOut_Automatico_Inicial;
+                Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+                Msg_RS232_F = Msg_RS232;
+              }
+            }
+          }
+
+          if (millis() - Msg_RS232_F_ >= Timeout_Msg_ && Datos_OK == true)
+          {
+#ifdef Debug_Comunicacion_MQ
+            Serial.println("Comunicación con la maquina OK");
+#endif
+            Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+            Msg_RS232_F_ = millis();
+            Host_ = 0;
+            Compuesta = 0;
+            TimeOut_Automatico = TimeOut_Automatico_Inicial;
+            Msg_RS232_F = Msg_RS232;
+
+           // Messag = false;
+          }
+        }
+        /*--------------------------------------------------------------------------------*/
+      }
+    }
+    else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+    {
+      if (Bandera_RS232 - Bandera_RS232_F >= Timeout_RS232)
+      {
+        Variables_globales.Set_Variable_Global(Comunicacion_Maq, false);
+        if (Comunica_ == false)
+        {
+          condicionCumplida = false;
+          Contador_Transmision_Contadores = 0;
+          Contador_Maquina_En_Juego = 0;
+          Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
+          Datos_OK = false;
+          Conta_Ejecuta = 0;
+          Counter_Final = false;
+          Ultimo_Counter_ = false;
+          Ejecuta_Instruccions_ = false;
+          Comunica_ = true;
+          TimeOut_Automatico = TimeOut_Automatico_Inicial;
+        }
+        if (Msg_RS232 - Msg_RS232_F >= Timeout_Msg)
+        {
+#ifdef Debug_Comunicacion_MQ
+          Serial.println("No  Hay Comunicación con la maquina");
+#endif
+          condicionCumplida = false;
+          Contador_Transmision_Contadores = 0;
+          Contador_Maquina_En_Juego = 0;
+          Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
+          Datos_OK = false;
+          Conta_Ejecuta = 0;
+          Counter_Final = false;
+          Ultimo_Counter_ = false;
+          Ejecuta_Instruccions_ = false;
+          Msg_RS232_F_ = millis();
+          TimeOut_Automatico = TimeOut_Automatico_Inicial;
+          Msg_RS232_F = Msg_RS232;
         }
       }
       else
@@ -286,19 +428,19 @@ static void Check_Comunicacion_Maq(void *parameter)
             if (Counter_Final)
             {
               Fallo_Comunicacion = false;
-             // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+              // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
               // Conta_Ejecuta=0;
               Counter_Final = false;
               Ultimo_Counter_ = false;
               Ultimo_Counter_ = false;
               Ejecuta_Instruccions_ = false;
               Carga_Datos_Iniciales = true;
-              #ifdef Debug_Comunicacion_MQ
+#ifdef Debug_Comunicacion_MQ
               Serial.println("Comunicación con la maquina OK");
-              #endif
-              Host_=0;
+#endif
+              Host_ = 0;
               /*COMUNICA OK*/
-              Comunica_=false;
+              Comunica_ = false;
             }
           }
         }
@@ -323,18 +465,18 @@ static void Check_Comunicacion_Maq(void *parameter)
             {
               if (Counter_Final == true) /*Ultimo_Counter_*/
               {
-               // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
+                // Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
                 Counter_Final = false;
                 Carga_Datos_Iniciales = true;
                 Conta_Ejecuta = 0;
                 Ultimo_Counter_ = false;
                 Ejecuta_Instruccions_ = false;
-                #ifdef Debug_Comunicacion_MQ
+#ifdef Debug_Comunicacion_MQ
                 Serial.println("Comunicación con la maquina OK");
-                #endif
-                Host_=0;
-                Comunica_=false;
-                TimeOut_Automatico=TimeOut_Automatico_Inicial;
+#endif
+                Host_ = 0;
+                Comunica_ = false;
+                TimeOut_Automatico = TimeOut_Automatico_Inicial;
                 Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
                 Msg_RS232_F = Msg_RS232;
               }
@@ -343,23 +485,24 @@ static void Check_Comunicacion_Maq(void *parameter)
 
           if (millis() - Msg_RS232_F_ >= Timeout_Msg_ && Datos_OK == true)
           {
-            #ifdef Debug_Comunicacion_MQ
-                        Serial.println("Comunicación con la maquina OK");
-            #endif
+#ifdef Debug_Comunicacion_MQ
+            Serial.println("Comunicación con la maquina OK");
+#endif
             Variables_globales.Set_Variable_Global(Comunicacion_Maq, true);
             Msg_RS232_F_ = millis();
-            Host_=0;
-            Compuesta=0;
-            TimeOut_Automatico=TimeOut_Automatico_Inicial;
+            Host_ = 0;
+            Compuesta = 0;
+            TimeOut_Automatico = TimeOut_Automatico_Inicial;
             Msg_RS232_F = Msg_RS232;
-            
           }
         }
         /*--------------------------------------------------------------------------------*/
       }
-      vTaskDelay(250);
     }
-    vTaskDelay(10);
+
+    vTaskDelay(250);
+  }
+  vTaskDelay(10);
 }
 
 /* Verifica y cierra sesion de usuario RFID por inactividad despues del tiempo configurado en memoria
@@ -460,7 +603,9 @@ void check_SD(void)
   {
     if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
     {
-
+      
+     
+    //  Envio_Contadores.Transmite_Eventos_API(0x11);
       FreeSpace_SD();
       uint8_t Temperatura_Procesador_GPU = temperatureRead();
       Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
@@ -481,21 +626,21 @@ void check_SD(void)
         }
       }
       /*-----------------------> Agregar  Variables_globales.Get_Variable_Global(Comunicacion_Maq) */
-      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT) )
       {
         /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
-        delay(100);
+        delay(10);
         Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-        delay(100);
+        delay(10);
         Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-        delay(100);
+        delay(10);
         Create_ARCHIVE_Txt(Archivo_LOG);
-        delay(100);
+        delay(10);
         Create_ARCHIVE_Excel(Archivo_CSV_Sesiones,Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
-        delay(100);
+        delay(10);
         Create_ARCHIVE_Excel(Archivo_CSV_Premios,Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
         Serial.println("OK Archivos Listos..");
-        Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
+       // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
         Total_SD = SD.totalBytes() / (1024 * 1024);
         Usado_SD = SD.usedBytes() / (1024 * 1024);         
         Libre_SD = Total_SD - Usado_SD;

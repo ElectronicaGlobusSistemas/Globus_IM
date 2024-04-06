@@ -531,7 +531,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     if( Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
     {
         bzero(res, 8);
-        memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_In), sizeof(res) / sizeof(res[0]));
+        memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
         pos = 31;
         for (int i = 0; i < 8; i++) // Total Cancel Credit
         {
@@ -776,29 +776,64 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     }
     req[pos] = '|'; // 187
 
-    // IP Tarjeta
-    req[188] = '0';
-    req[189] = '0';
-    req[190] = '0';
-    req[191] = '0';
-    req[192] = '0'; // 192
+    // // IP Tarjeta
 
-   
-    // Bytes libres
-    req[193] = '0';
-    req[194] = '0';
-    req[195] = '0';
-    req[196] = '0';
-    req[197] = '0';
-    req[198] = '0';
-    req[199] = '0';
-    req[200] = '0';
-    req[201] = '0';
-    req[202] = '0';
-   
-   
-    //    Serial.println(res[0], HEX);
-    
+    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode))
+    {
+        String Id_Machine = Configuracion.Get_Configuracion(Id_Maquina, "Id_Maquina");
+        int pos_Mg = 188;
+
+        for (int i = 0; i < Id_Machine.length(); i++)
+        {
+
+            req[pos_Mg] = Id_Machine[i];
+            pos_Mg++;
+            if (pos_Mg >= 202)
+            {
+                req[202] = '&';
+                break;
+            }
+        }
+        int New_Pos = pos_Mg;
+        //  Serial.println(New_Pos);
+
+        for (int i = New_Pos; i < 203; i++)
+        {
+            if (i == New_Pos)
+                req[i] = '&';
+            else
+                req[i] = '0';
+        }
+        req[207] = '|'; // 207
+    }
+    else
+    {
+
+        req[188] = '0';
+        req[189] = '0';
+        req[190] = '0';
+        req[191] = '0';
+        req[192] = '0'; // 192
+
+        // Bytes libres
+        req[193] = '0';
+        req[194] = '0';
+        req[195] = '0';
+        req[196] = '0';
+        req[197] = '0';
+        req[198] = '0';
+        req[199] = '0';
+        req[200] = '0';
+        req[201] = '0';
+        req[202] = '0';
+    }
+
+    // //    Serial.println(res[0], HEX);
+    // req[198] = Id_Machine[0];
+    // req[199] = Id_Machine[1];
+    // req[200] = Id_Machine[2];
+    // req[201] = Id_Machine[3];
+    // req[202] = Id_Machine[4];
     
     
     memcpy(Firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
@@ -818,7 +853,7 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
 
 
-    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0')
+    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
     {
         req[203]='0';
         req[204]='0';
@@ -1305,7 +1340,6 @@ char *Buffers::Get_buffer_eventos(void)
 /**********************************************************************************/
 
 bool Buffers::Set_buffer_info_tarjeta(int Com)
-
 {
     /* ID Comando */
     char req[258] = {};
@@ -2047,7 +2081,7 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
     (string_dato1[1] > 96) ? req[7] = string_dato1[1] - 32 : req[7] = string_dato1[1];
 
 
-    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0')
+    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
     {
         req[4]='0';
         req[5]='0';
@@ -2449,7 +2483,7 @@ char *Buffers::Get_buffer_info_MCU(void)
 }
 
 /**********************************************************************************/
-/*                            BUFFER TARJETA MECANICA                             */
+/*                            BUFFER TARJETA MECANICA  1                          */
 /**********************************************************************************/
 
 bool Buffers::Set_buffer_tarjeta_mecanica(char buffer[])
@@ -2518,6 +2552,180 @@ bool Buffers::Set_buffer_tarjeta_CRC(void)
 char *Buffers::Get_buffer_tarjeta_mecanica(void)
 {
     return buffer_tarjeta_mecanica_final;
+}
+
+
+/**********************************************************************************/
+/*                            BUFFER TARJETA MECANICA  2                          */
+/**********************************************************************************/
+bool Buffers::Set_buffer_tarjeta_mecanica_2(char buffer[])
+{
+    int pos;
+    char req[51] = {};
+    bzero(req, 51);
+
+    req[0] = 0x02; //  Comando  para guardar datos en mecanica.
+
+    /* Cancel credit */
+    req[1] = buffer[4] - 0x30;
+    req[2] = buffer[5] - 0x30;
+    req[3] = buffer[6] - 0x30;
+    req[4] = buffer[7] - 0x30;
+    req[5] = buffer[8] - 0x30;
+    req[6] = buffer[9] - 0x30;
+    req[7] = buffer[10] - 0x30;
+    req[8] = buffer[11] - 0x30;
+
+     /* Coin In  */
+    req[9] = buffer[12] - 0x30;
+    req[10] = buffer[13] - 0x30;
+    req[11] = buffer[14] - 0x30;
+    req[12] = buffer[15] - 0x30;
+    req[13] = buffer[16] - 0x30;
+    req[14] = buffer[17] - 0x30;
+    req[15] = buffer[18] - 0x30;
+    req[16] = buffer[19] - 0x30;
+
+
+     /* Coin Out  */
+    req[17] = buffer[20] - 0x30;
+    req[18] = buffer[21] - 0x30;
+    req[19] = buffer[22] - 0x30;
+    req[20] = buffer[23] - 0x30;
+    req[21] = buffer[24] - 0x30;
+    req[22] = buffer[25] - 0x30;
+    req[23] = buffer[26] - 0x30;
+    req[24] = buffer[27] - 0x30;
+
+
+     /* Drop */
+    req[25] = buffer[28] - 0x30;
+    req[26] = buffer[29] - 0x30;
+    req[27] = buffer[30] - 0x30;
+    req[28] = buffer[31] - 0x30;
+    req[29] = buffer[32] - 0x30;
+    req[30] = buffer[33] - 0x30;
+    req[31] = buffer[34] - 0x30;
+    req[32] = buffer[35] - 0x30;
+    
+     /* Multiplicador cancel */
+    req[33] = buffer[40] - 0x30;/* 0*/
+    req[34] = buffer[41] - 0x30;/* 0*/
+    req[35] = buffer[42] - 0x30;/* 0*/
+    req[36] = buffer[43] - 0x30;/* 8*/
+
+
+    /* Multiplicador In  */
+
+    req[37] = buffer[48] - 0x30;/* 0*/
+    req[38] = buffer[49] - 0x30;/* 0*/
+    req[39] = buffer[50] - 0x30;/* 0*/
+    req[40] = buffer[51] - 0x30;/* 8*/
+
+
+     /* Multiplicador Out */
+    req[41] = buffer[56] - 0x30;
+    req[42] = buffer[57] - 0x30;
+    req[43] = buffer[58] - 0x30;
+    req[44] = buffer[59] - 0x30;
+
+
+    /* Multiplicador Drop */
+    req[45] = buffer[64] - 0x30;
+    req[46] = buffer[65] - 0x30;
+    req[47] = buffer[66] - 0x30;
+    req[48] = buffer[67] - 0x30;
+
+    req[49]= 0x00;
+    req[50]= 0x00;
+
+    // pos = 1;
+    // for (int i = 4; i < 12; i++) // Total Cancel Credit
+    // {
+    //     req[pos] = buffer[i] - 0x30;
+    //     pos++;
+    // }
+
+    // pos = 9;
+    // for (int i = 12; i < 20; i++) // Coin In
+    // {
+    //     req[pos] = buffer[i] - 0x30;
+    //     pos++;
+    // }
+
+    // pos = 17;
+    // for (int i = 20; i < 28; i++) // Coin Out
+    // {
+    //     req[pos] = buffer[i] - 0x30;
+    //     pos++;
+    // }
+
+    // pos = 25;
+    // for (int i = 28; i < 36; i++) // Total Drop
+    // {
+    //     req[pos] = buffer[i] - 0x30;
+    //     pos++;
+    // }
+    // pos=33;
+
+    // for(int i=40;i<44;i++) /* Multiplicador Cancel  toma los ultimos 4 digitos ejem: 00000001 = 0001*/ 
+    // {
+    //     req[pos]=buffer[i] - 0x30;
+    //     pos++;
+    // }
+    // pos =37;
+
+    // for(int i=48; i<52; i++) /* Multiplicador Coin in */
+    // {
+    //     req[pos]=buffer[i] - 0x30;
+    //     pos++;
+    // }
+    // pos=41;
+
+    // for(int i=56; i<60;i++) /* Multiplicador Coin Out */
+    // {
+    //     req[pos]=buffer[i] - 0x30;
+    //     pos++;
+    // }
+
+    // pos=45;
+    // for(int i=64; i<68; i++) /* Multiplicador Total drop */
+    // {
+    //     req[pos]=buffer[i] - 0x30;
+    //     pos++;
+    // }
+    // pos=49;
+    // /* Espacio para CRC */
+    // req[49] = 0x00;
+    // req[50] = 0x00;
+
+    memcpy(buffer_tarjeta_mecanica_2, req, 51);
+
+    if (Set_buffer_tarjeta_CRC_2())
+    {
+        return true;
+    }
+    return false; 
+}
+
+bool Buffers::Set_buffer_tarjeta_CRC_2(void)
+{
+    unsigned short crc = Metodo_CRC.Calcula_CRC_Mecanicas(buffer_tarjeta_mecanica_2,49);
+
+    memcpy(buffer_tarjeta_mecanica_final_2, buffer_tarjeta_mecanica_2, 51);
+
+    unsigned char x;
+    x = ((crc & 0b1111111100000000) >> 8);
+    buffer_tarjeta_mecanica_final_2[49] = x;
+    x = crc & 0b0000000011111111;
+    buffer_tarjeta_mecanica_final_2[50] = x;
+
+    return true;
+}
+
+char *Buffers::Get_buffer_tarjeta_mecanica_2(void)
+{
+    return buffer_tarjeta_mecanica_final_2;
 }
 
 char convert(uint8_t dato)

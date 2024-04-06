@@ -23,6 +23,7 @@ unsigned long count2 = 0;
 //------------------------------------------> Archivos Header <-----------------------------------------
 #include <SPI.h>
 #include <SD.h>
+#include <FS.h>
 #include "Memory_SD.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -94,7 +95,7 @@ int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
 extern Configuracion_ESP32 Configuracion;
 
 //--------------------------------------> Bus SPI <-----------------------------------------------------
-SPIClass spiRFID(VSPI);
+extern SPIClass spiRFID;
 
 /**********************************************************************************/
 /*                              Inicializa Modulo SD                              */
@@ -103,13 +104,25 @@ void Init_SD(void)
 {
   
   spiRFID.begin(18,19,23,SD_ChipSelect);
- // spiRFID.setClockDivider(SPI_CLOCK_DIV128);
+ // spiRFID.setClockDivider(SPI_CLOCK_DIV128); /*10000000*/
   spiRFID.setFrequency(500000);
   if(SD.begin( SD_ChipSelect, spiRFID, 500000))
   {
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
     digitalWrite(SD_Status,HIGH);
+
+    // File root = SD.open("/");
+    // while (File file = root.openNextFile())
+    // {
+    //   Serial.print("Borrando archivo: ");
+    //   Serial.println(file.name());
+    //   file.close();
+    //   SD.remove(file.name());
+    // }
+    // Serial.println("Todos los archivos han sido borrados.");
+
+    // root.close();
   }else
   {
     Serial.println("Memoria SD no insertada...");
@@ -323,6 +336,7 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
       myFile.close();
       Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
       Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+      Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
     }
   }
   else if (SD.exists("/"+String(ARCHIVO)))
@@ -332,6 +346,7 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
     #endif
   //  Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
   //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+  Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
   }
 }
 //------------------------------------------------------------------------------------------------------
@@ -403,6 +418,45 @@ void LOG_ESP(char *ARCHIVO,bool Enable)
   }
 }
 
+
+void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje)
+{
+
+
+  if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
+  {
+    if (Enable == true)
+    {
+
+      
+      File myFile2;
+      myFile2 = SD.open("/"+String(ARCHIVO), FILE_APPEND);
+      if (!myFile2)
+      {
+        #ifdef Debug_Escritura
+        Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+        #endif
+        Contador_Escrituras = 0;
+      }
+      else
+      {
+        myFile2.println(RTC.getTime() + " Error: " + Mensaje);
+        myFile2.close();
+        #ifdef Debug_Escritura
+        Serial.println("LOG Guardado");
+        #endif
+        Contador_Escrituras++;
+      }
+      
+    }
+    else
+    {
+      #ifdef Debug_Escritura
+      Serial.println("Guardado Deshabilitado");
+      #endif
+    }
+  }
+}
 //-------------------------------------------------------------------------------------------------------
 //-----------------------> Función Para Crear archivo de contadores con encabezado <---------------------
 void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
@@ -427,6 +481,7 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
       #endif
     //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
     //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+      Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
     }
   }
   else if (SD.exists("/"+String(ARCHIVO)))
@@ -436,6 +491,7 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
     #endif
    // Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
    // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+   Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
   }
 }
 //-----------------------> Funcion para Crear Archivo de eventos con encabezado <------------------------

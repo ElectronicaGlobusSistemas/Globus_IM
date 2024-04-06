@@ -10,16 +10,21 @@
 #include "ESP32Time.h"
 #include "time.h"
 #include "Preferences.h"
+#include "API_Gmaster.h"
+#include "ArduinoJson.h"
 
 extern Preferences NVS;   
 extern ESP32Time RTC; // Objeto contiene hora y fecha
 //#define  Debug_HTTPS 
+extern API_Gmaster Api_G;
+
+extern uint8_t Version_Firmware_[];
 
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 /* Verifica  estado de la maquina  para definir  si puede lanzar actualización */
-void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bool Billete_Insert__, bool Flag_Premio_pagado_, bool Flag_Sesion_Player_Tracking, int Creditos_Actuales)
+void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bool Billete_Insert__, bool Flag_Premio_pagado_, bool Flag_Sesion_Player_Tracking, int Creditos_Actuales, bool Mode_AP)
 {
-  if(!Flag_Maquina_en_Juego_ &&  !Hopper_Poker_&&!Billete_Insert__&&!Flag_Premio_pagado_ &&!Flag_Sesion_Player_Tracking && Creditos_Actuales<10)
+  if(!Flag_Maquina_en_Juego_ &&  !Hopper_Poker_&&!Billete_Insert__&&!Flag_Premio_pagado_ &&!Flag_Sesion_Player_Tracking && Creditos_Actuales<10 && !Mode_AP)
   {
      if(FirmwareVersionCheck())
        firmwareUpdate();
@@ -32,6 +37,104 @@ void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bo
     #endif
     /* Transmite_ACK MAQUINA EN JUEGO ABORTA ACTUALIZACION  */
   }
+}
+
+bool AutoUpdate::Update_Api_Mode(bool Token_Generado)
+{
+  if (Token_Generado)
+  {
+    int httpCode;
+    String fwurl = "http://192.168.5.100:5364/Api/Tarjeta/ProcesarEventos?idMaquina=36087"; /* URL */
+
+    WiFiClient client;
+
+    if (client)
+    {
+      HTTPClient https;
+
+      if (https.begin(client, fwurl))
+      {
+        /* -----------------------> Configuración de la solicitud <-------------------------------- */
+        https.addHeader("Authorization", "Bearer " + String(Api_G.Get_Access_Token_String()));
+        https.addHeader("Content-Type", "application/json");
+        /*------------------------------------------------------------------------------------------*/
+        httpCode = https.GET();
+
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+          /* -----------------------> Respuesta <-------------------------------------------------*/
+          String payload = https.getString();
+          /*--------------------------------------------------------------------------------------*/
+
+          /*--------------------------------> Crea Archivo json <---------------------------------*/
+          StaticJsonDocument<500>
+              doc,
+              filter;
+          DeserializationError error = deserializeJson(doc, payload);
+          /*--------------------------------------------------------------------------------------*/
+          if (error)
+          {
+#ifdef Debug_HTTPS
+            Serial.print("deserializeJson() failed: ");
+            Serial.println(error.c_str());
+#endif
+          }
+          else
+          {
+            bool IsSuccess = doc["IsSuccess"];
+            
+            
+            if (IsSuccess)
+            {
+
+              String Version_Update = doc["Version"];
+              String Url_Descarga = doc["Url_des"];
+              String Api_Version_Update=doc["Api_Version"];
+              String Url_Request=doc["Api_Request"];
+
+              Init_AutoUpdate(Version_Update,Api_G.Get_Controlador_Api(),Api_Version_Update,Url_Descarga,Url_Request,Api_G.Get_Access_Token_String(),Version_Firmware_);
+
+              doc.clear();
+              https.end();
+            
+              #ifdef Debug_HTTPS
+              Serial.println(" Solicitud de actualización recibida! ");
+              Serial.println("---------> Parametros de actualización <----------");
+              Serial.print("Version: ");
+              Serial.println(Version_Update);
+              Serial.print("Url Descarga: ");
+              Serial.println(Url_Descarga);
+              Serial.print("Url Version: ");
+              Serial.println(Api_Version_Update);
+              Serial.print("Url Respuestas: ");
+              Serial.println(Url_Request);
+              Serial.print("Controlador: ");
+              Serial.println(Api_G.Get_Controlador_Api());
+              Serial.print("Token Acceso: ");
+              Serial.println(Api_G.Get_Access_Token_String());
+              Serial.println("--------------------------------------------------");
+              #endif
+              return true;
+            }
+            doc.clear();
+          }
+        }
+        else
+        {
+
+#ifdef Debug_HTTPS
+          Serial.print("No se pudo enviar");
+          Serial.println(httpCode);
+#endif
+        }
+        https.end();
+      }
+      // client->stop();
+      // delete client;
+    }
+  }
+  return false;
 }
 
 /* Inicializa Parametros de actualizacion
@@ -72,11 +175,10 @@ void AutoUpdate::Init_AutoUpdate(String Version_Firmware_, String URL_Generic_,S
  // Serial.println(VERSION_FIR_LOCAL);
 }
 
-
 /* Ejecuta actualización de firmware */
 void AutoUpdate::firmwareUpdate(void)
 {
-  //  http://192.168.1.55:9090/api/Tarjeta/Descargar?Mac=acb&Ver=2.5.0.0  
+  
   WiFiClient client;
   //client.setCACert(rootCACertificate);
   httpUpdate.setLedPin(4,HIGH); /* LED Status SD*/
@@ -215,8 +317,6 @@ int AutoUpdate::FirmwareVersionCheck(void)
 bool AutoUpdate::Confirmacion_ACK_HTTPS(String Ack, String Code)
 {
 
-  
-//http://192.168.1.55:9090/api/Tarjeta/Respuesta?Mac=abc&Ver=2.5.0.0&Tipo=DES_OK&Msj=10
   int httpCode;
   String fwurl;
    
@@ -325,5 +425,8 @@ bool AutoUpdate::DateTime_Update(bool Enable)
     uint8_t Datos_Fecha_B[Fecha_len];
     NVS.getBytes("Fecha_Boot", Datos_Fecha_B, sizeof(Datos_Fecha_B));
     NVS.end();
+    return true;
+  }else{
+    return false;
   }
 }

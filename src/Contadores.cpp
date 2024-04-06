@@ -1166,9 +1166,11 @@ bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
 
   int Comp, Comp2;
 
-  /* Tipo de bono */
+  /* ---------> Tipo de bono <-------------------------------*/
   Type_Legacy_Bonus_Awards_ = Type_Bonus(res[12]);
+  /*---------------------------------------------------------*/
 
+  /*----------> Contador de bonus a cargar <--------------- */
   Comp = Conve_Ascii_To_Hex_LL(res[11]);
   Comp2 = Conve_Ascii_To_Hex_HH(res[10]);
   Legacy_Bonus_Awards_[3] = (Comp2 | Comp);
@@ -1184,7 +1186,7 @@ bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
   Comp = Conve_Ascii_To_Hex_LL(res[5]);
   Comp2 = Conve_Ascii_To_Hex_HH(res[4]);
   Legacy_Bonus_Awards_[0] = (Comp2 | Comp);
-
+  /*--------------------------------------------------------*/
   return true;
 }
 
@@ -1229,7 +1231,6 @@ int Contadores_SAS::Get_Type_Legacy_Bonus_Awards(void)
 {
   return Type_Legacy_Bonus_Awards_;
 }
-
 
 /* Genera  y retorna token  de acceso desde la API */
 String Token_Generator(String Url)
@@ -1406,4 +1407,65 @@ int Contadores_SAS::Init_Parameter_Update(char res[])
     }
   }
   return 4 /* Comando no identificado no  se detecto Json */;
+}
+
+
+/* Detecta premio por cambio en cancel credit */
+
+bool contieneNumero(const char* str) {
+    for (int i = 0; i<8; i++) {
+        if (!(isdigit(static_cast<int>(str[i])))) {
+            return false; // Se encontró un caracter que no es un dígito
+        }
+    }
+    return true; // Todos los caracteres son dígitos
+}
+
+
+void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
+{
+  int Current_Cancel_Credit;
+  int Valor_Prueba=0;
+  if(contieneNumero(Counter_Cancel_Credit))
+  {
+    /* Metodo de conversion 1 */
+    for (int i = 0; i < 8; i++)
+    {
+      Valor_Prueba = Valor_Prueba * 10 + (Counter_Cancel_Credit[i] - '0');
+    }
+
+    /* Medoto de conversion 2 */
+    Current_Cancel_Credit=atoi(Counter_Cancel_Credit);
+
+    Serial.println(Valor_Prueba);
+    Serial.println(Current_Cancel_Credit);
+
+    if(Current_Cancel_Credit == Valor_Prueba)
+    {
+
+      if (Last_Cancel_Credit == 0)
+      {
+        Last_Cancel_Credit = Current_Cancel_Credit;
+        Serial.println("Inicial-------");
+      }
+      if (Current_Cancel_Credit > Last_Cancel_Credit)
+      {
+        Last_Cancel_Credit = Current_Cancel_Credit;
+        Set_Flag_Premio(true);
+        Serial.println("Cambio Premio-----");
+      }
+
+    }
+  }else{
+    Serial.println("Letra contador ");
+  }
+}
+
+void Contadores_SAS::Set_Flag_Premio(bool Change_Status)
+{
+  Flag_Premio_Pagado_Cashout=Change_Status;
+}
+bool Contadores_SAS::Get_Status_Flag_Premio(void)
+{
+  return Flag_Premio_Pagado_Cashout;
 }

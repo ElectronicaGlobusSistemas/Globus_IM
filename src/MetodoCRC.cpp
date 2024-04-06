@@ -151,12 +151,12 @@ char *MetodoCRC::Calcula_CRC_Wifi(char buffer[])
     return buffer;
 }
 
-unsigned short MetodoCRC::Calcula_CRC_Mecanicas(char buffer[])
+unsigned short MetodoCRC::Calcula_CRC_Mecanicas(char buffer[], int len)
 {
     unsigned short crc = 0xffff, i;
-    int len = 33;
-
-    while (len--)
+    //Default= 33;
+    int longitud=len;
+    while (longitud--)
     {
         crc = (crc ^ *buffer++);
         for (i = 0; i < 8; i++)
