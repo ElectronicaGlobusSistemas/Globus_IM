@@ -1,6 +1,47 @@
+#include "Cashless.h"
+#include <Arduino.h>
+#include "ArduinoJson.h"
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include "AutoUpdate.h"
+#include <esp_task_wdt.h>
+#include "API_Gmaster.h"
+#include "Contadores.h"
+#include "Configuracion.h"
+#include "ESP32Time.h"
+#include "time.h"
+#include "Clase_Variables_Globales.h"
 
 
 
+
+
+
+
+// int Fidelizacion::Consult_Customer_Information(uint8_t Id_Cliente[],char Data_Coin_In[],char Data_Coin_Out[],char Data_Total_Drop[],char Data_Total_Cancel_Credit[],char Data_Jackpot[],char Data_Total_Game[],String Access_Token)
+// {
+//     if(WiFi.status()!=WL_CONNECTED)
+//     {
+//        return OFFLINE; 
+//     }else if(Access_Token=="")
+//     {
+//         return ERROR_TOKEN;
+//     }else{
+
+//         StaticJsonDocument<500> jsonDocument;
+//         jsonDocument["Id_Client"] = Id_Cliente;
+//         jsonDocument["Coin_In"] = Data_Coin_In;
+//         jsonDocument["Coin_Out"] = Data_Coin_Out;
+//         jsonDocument["Total_Drop"] = Data_Total_Drop;
+//         jsonDocument["Cancel_Credit"] = Data_Total_Cancel_Credit;
+//         jsonDocument["Jackpot"] = Data_Jackpot;
+//         jsonDocument["Total_Game"] = Data_Total_Game;
+//         /*------------------------------------------------------------------------------------------------*/
+//         String Json;
+//         serializeJson(jsonDocument, Json); /* >Serializa Data< */
+//     }
+// }
 
 // 0-3 id comando
  //4- 27 maq

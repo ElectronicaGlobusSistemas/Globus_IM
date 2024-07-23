@@ -29,9 +29,11 @@
 #define ID_ROM_Signature 12
 #define ID_Contadores_Cashless 308
 #define ID_Informacion_Tarjeta 273
+#define ID_Informacion_Completa 611
 #define ID_Informacion_lector   601
 #define ID_Informacion_Cashless 318
 #define MAX_LIM_EVENTOS  900
+#define ID_INFO_REGISTRO_AFT    300
 
 /*----------->Hardware<--------------*/
 #define Unlock_Machine  26
@@ -56,6 +58,7 @@ extern bool flag_ultimo_contador_Ok;
 extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 
 TaskHandle_t CommandProcess;
+
 
 
 char Archivo_CSV_Contadores[200];
@@ -124,6 +127,7 @@ bool Consulta_Conexion_To_Server(void);
 void Tratamiento_Trama_Cashless(char res[]);
 bool Calcula_First_Cancel_Credit(bool Calcula_Contador);
 void Actualiza_Contadores(void);
+void Procesa_Comandos_Socket2(void);
 extern unsigned char Serial_Cashless_UniMil;
 extern unsigned char Serial_Cashless_Centenas;
 extern unsigned char Serial_Cashless_Decenas;
@@ -227,7 +231,7 @@ void init_Comunicaciones()
     xTaskCreatePinnedToCore(
         Task_Procesa_Comandos,
         "Procesa comandos server",
-        10000,
+        10100,
         NULL,
         configMAX_PRIORITIES - 3,
         &CommandProcess,
@@ -259,58 +263,134 @@ void init_Comunicaciones()
 /********************************* TRANSMITE A SERVIDOR **********************************/
 /*****************************************************************************************/
 
-void Transmite_A_Servidor(char buffer[], int len)
+void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
 {
-    if (WiFi.status() == WL_CONNECTED)
-    {   
-        #ifdef Debug_Mensajes_Server
-        Serial.print("Tamaño a enviar: ");
-        Serial.println(len);
-        #endif
-        //    Serial.println("buffer enviado: ");
-        //    Serial.println(buffer);
-        int length_ = 0;
-        if (Configuracion.Get_Configuracion(Tipo_Conexion))
-            length_ = clientTCP.write(buffer, len);
-        else
-        {
-            memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
-            IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
-            uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
 
-            clientUDP.beginPacket(serverIP, serverPort);
-            length_ = clientUDP.write((const uint8_t *)buffer, len);
-            clientUDP.endPacket();
+    if (WiFi.status() == WL_CONNECTED)
+    {
+
+        if (Channel == 1)
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.print("Tamaño a enviar: ");
+            Serial.println(len);
+#endif
+            //    Serial.println("buffer enviado: ");
+            //    Serial.println(buffer);
+            int length_ = 0;
+            if (Configuracion.Get_Configuracion(Tipo_Conexion))
+                length_ = clientTCP.write(buffer, len);
+            else
+            {
+                memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+                IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+                uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+
+                clientUDP.beginPacket(serverIP, serverPort);
+                length_ = clientUDP.write((const uint8_t *)buffer, len);
+                clientUDP.endPacket();
+            }
+#ifdef Debug_Mensajes_Server
+            Serial.print("Bytes enviados: ");
+            Serial.println(length_);
+            Serial.println("--------------------------------------------------------------------");
+#endif
         }
-        #ifdef Debug_Mensajes_Server
-        Serial.print("Bytes enviados: ");
-        Serial.println(length_);
-        Serial.println("--------------------------------------------------------------------");
-        #endif
+        else if (Channel == 2)
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.print("Tamaño a enviar: ");
+            Serial.println(len);
+#endif
+            //    Serial.println("buffer enviado: ");
+            //    Serial.println(buffer);
+            int length_2 = 0;
+            if (Configuracion.Get_Configuracion(Tipo_Conexion))
+                length_2 = clientTCP.write(buffer, len);
+            else
+            {
+                memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
+                IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
+                uint16_t serverPort2 = Configuracion.Get_Configuracion(Puerto_Server2, 0);
+
+                clientUDP2.beginPacket(serverIP2, serverPort2);
+                length_2 = clientUDP2.write((const uint8_t *)buffer, len);
+                clientUDP2.endPacket();
+            }
+#ifdef Debug_Mensajes_Server
+            Serial.print("Bytes enviados: ");
+            Serial.println(length_);
+            Serial.println("--------------------------------------------------------------------");
+#endif
+        }
     }
     else
+    {
+#ifdef Debug_Mensajes_Server
         Serial.println("No se puede enviar mensaje, no conexion a WIFI");
+#endif
+    }
 }
 
 /*****************************************************************************************/
 /********************************** TRANSMITE ACK ****************************************/
 /*****************************************************************************************/
-void Transmite_Confirmacion(char High, char Low)
+void Transmite_Confirmacion(char High, char Low, int Channel = 1)
 {
-    if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
+
+    if (Channel == 1)
     {
-        char res[258] = {};
-        bzero(res, 258); // Pone el buffer en 0
-        memcpy(res, Buffer.Get_buffer_ACK(), 258);
-        #ifdef Debug_Mensajes_Server
-        Serial.println("Set buffer general OK");
-        #endif
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len);
+        if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_ACK(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+        {
+            Serial.println("Set buffer general ERROR");
+        }
+    }
+    else if (Channel == 2)
+    {
+        if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_ACK(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len, Channel);
+        }
+        else
+        {
+            Serial.println("Set buffer general ERROR");
+        }
     }
     else
     {
-        Serial.println("Set buffer general ERROR");
+        if (Buffer.Set_buffer_ACK(ID_Eventos, High, Low))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_ACK(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+        {
+            Serial.println("Set buffer general ERROR");
+        }
     }
 }
 
@@ -504,8 +584,6 @@ void Config_Timer_Transmission_In_Game(char Datos[])
         Transmite_Confirmacion('E','C');
         delay(150);
         ESP.restart();
-
-        
         break;
 
     case  1:
@@ -868,7 +946,7 @@ void Transmite_Confirmacion_Cashless(char High, char Medium,char Low)
     }
     else
     {
-        Serial.println("Set buffer general ERROR");
+       // Serial.println("Set buffer general ERROR");
     }
 }
 
@@ -878,7 +956,8 @@ void Transmite_Confirmacion_Cashless(char High, char Medium,char Low)
 
 void Transmite_Info_Registro(void)
 {
-    if (Buffer.Set_buffer_Registro_MQ(300))
+    /*sii*/
+    if (Buffer.Set_buffer_Registro_MQ(ID_INFO_REGISTRO_AFT))
     {
         char res[258] = {};
         bzero(res, 258); // Pone el buffer en 0
@@ -1048,12 +1127,15 @@ void Transmite_Info_Cashless(void)
         char res[258] = {};
         bzero(res, 258); // Pone el buffer en 0
         memcpy(res, Buffer.Get_buffer_info_Cashless(), 258);
-        Serial.println("Set buffer general OK");
+       // Serial.println("Set buffer general OK");
         int len = sizeof(res);
         Transmite_A_Servidor(res, len);
     }
     else
+    {
         Serial.println("Set buffer general ERROR");
+    }
+        
 }
 
 /*****************************************************************************************/
@@ -1338,7 +1420,25 @@ void Transmite_Info_Tarjeta(void)
         Serial.println("Set buffer general ERROR");
 }
 
-
+void Transmite_Info_Config(int Type_Info)
+{
+    if (Type_Info < 3)
+    {
+        if (Buffer.Set_buffer_info_Config(ID_Informacion_Completa, Type_Info))
+        {
+            char res[258] = {};
+            bzero(res, 258); // Pone el buffer en 0
+            memcpy(res, Buffer.Get_buffer_info_Config(), 258);
+#ifdef Debug_Mensajes_Server
+            Serial.println("Set buffer general OK");
+#endif
+            int len = sizeof(res);
+            Transmite_A_Servidor(res, len);
+        }
+        else
+            Serial.println("Set buffer general ERROR");
+    }
+}
 
 /*
 Consulta y Transmite informacion de lector RFID
@@ -1374,227 +1474,446 @@ void Transmite_Info_Lector(void)
 /******************************* RESPONDE ECO BROADCAST **********************************/
 /*****************************************************************************************/
 
-void Transmite_Eco_Broadcast(void)
+void Transmite_Eco_Broadcast(int Channel = 1)
 {
+
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
-
-    // Direccion MAC ESP32
-    #ifdef Debug_Mensajes_Server
-    Serial.print("Direccion MAC: ");
-    Serial.println(WiFi.macAddress());
-    #endif
-    String mac = WiFi.macAddress();
-
-    // Direccion IP ESP32
-    #ifdef Debug_Mensajes_Server
-    Serial.print("Direccion IP Local: ");
-    #endif
-    uint32_t ip = WiFi.localIP();
-    #ifdef Debug_Mensajes_Server
-    Serial.println(WiFi.localIP());
-    #endif
-
-    // Socket de conexion
-    #ifdef Debug_Mensajes_Server
-    Serial.print("Socket: ");
-    #endif
-    string socket;
-    if (Configuracion.Get_Configuracion(Tipo_Conexion))
+    if (Channel == 1)
     {
-        #ifdef Debug_Mensajes_Server
-        Serial.println(clientTCP.remotePort());
-        #endif
-        socket = std::to_string(clientTCP.remotePort());
-    }
-    else
+        // Direccion MAC ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Direccion MAC: ");
+        Serial.println(WiFi.macAddress());
+#endif
+        String mac = WiFi.macAddress();
+
+// Direccion IP ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Direccion IP Local: ");
+#endif
+        uint32_t ip = WiFi.localIP();
+#ifdef Debug_Mensajes_Server
+        Serial.println(WiFi.localIP());
+#endif
+
+// Socket de conexion
+#ifdef Debug_Mensajes_Server
+        Serial.print("Socket: ");
+#endif
+        string socket;
+        if (Configuracion.Get_Configuracion(Tipo_Conexion))
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.println(clientTCP.remotePort());
+#endif
+            socket = std::to_string(clientTCP.remotePort());
+        }
+        else
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.println(clientUDP.remotePort());
+#endif
+            socket = std::to_string(clientUDP.remotePort());
+        }
+
+// Mascara subred ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Mascara Subred: ");
+        Serial.println(WiFi.subnetMask());
+
+        // Puerta de enlace ESP32
+        Serial.print("Puerta de enlace: ");
+        Serial.println(WiFi.gatewayIP());
+
+        // Nombre de la maquina
+        Serial.print("Nombre de MAQ: ");
+#endif
+        String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
+#ifdef Debug_Mensajes_Server
+        Serial.println(Name);
+
+        Serial.print("**************************************************************************************");
+        Serial.println();
+#endif
+        char IP[4];
+        bzero(IP, 4);
+        memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
+
+        char dir_ip[12] = {};
+        int j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP[i];
+            dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            dir_ip[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        char IP_GW[4];
+        bzero(IP_GW, 4);
+        memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+
+        char dir_ip_gw[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP_GW[i];
+            dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            dir_ip_gw[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        char SN_MASK[4];
+        bzero(SN_MASK, 4);
+        memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+        char sn_mask[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)SN_MASK[i];
+            sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            sn_mask[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        res[0] = 'L';
+        res[1] = '|';
+        res[2] = '0';
+        res[3] = '1';
+        res[4] = '|';
+        // MAC
+        res[5] = mac[0];
+        res[6] = mac[1];
+        res[7] = mac[2];
+        res[8] = mac[3];
+        res[9] = mac[4];
+        res[10] = mac[5];
+        res[11] = mac[6];
+        res[12] = mac[7];
+        res[13] = mac[8];
+        res[14] = mac[9];
+        res[15] = mac[10];
+        res[16] = mac[11];
+        res[17] = mac[12];
+        res[18] = mac[13];
+        res[19] = mac[14];
+        res[20] = mac[15];
+        res[21] = mac[16];
+        res[22] = '|';
+        // PORT
+        res[23] = '0';
+        res[24] = socket[0];
+        res[25] = socket[1];
+        res[26] = socket[2];
+        res[27] = socket[3];
+        res[28] = '|';
+        // IP
+        res[29] = dir_ip[0];
+        res[30] = dir_ip[1];
+        res[31] = dir_ip[2];
+        res[32] = '.';
+        res[33] = dir_ip[3];
+        res[34] = dir_ip[4];
+        res[35] = dir_ip[5];
+        res[36] = '.';
+        res[37] = dir_ip[6];
+        res[38] = dir_ip[7];
+        res[39] = dir_ip[8];
+        res[40] = '.';
+        res[41] = dir_ip[9];
+        res[42] = dir_ip[10];
+        res[43] = dir_ip[11];
+        res[44] = '|';
+        // MASCARA
+        res[45] = sn_mask[0];
+        res[46] = sn_mask[1];
+        res[47] = sn_mask[2];
+        res[48] = '.';
+        res[49] = sn_mask[3];
+        res[50] = sn_mask[4];
+        res[51] = sn_mask[5];
+        res[52] = '.';
+        res[53] = sn_mask[6];
+        res[54] = sn_mask[7];
+        res[55] = sn_mask[8];
+        res[56] = '.';
+        res[57] = sn_mask[9];
+        res[58] = sn_mask[10];
+        res[59] = sn_mask[11];
+        res[60] = '|';
+        // IP Enlace
+        res[61] = dir_ip_gw[0];
+        res[62] = dir_ip_gw[1];
+        res[63] = dir_ip_gw[2];
+        res[64] = '.';
+        res[65] = dir_ip_gw[3];
+        res[66] = dir_ip_gw[4];
+        res[67] = dir_ip_gw[5];
+        res[68] = '.';
+        res[69] = dir_ip_gw[6];
+        res[70] = dir_ip_gw[7];
+        res[71] = dir_ip_gw[8];
+        res[72] = '.';
+        res[73] = dir_ip_gw[9];
+        res[74] = dir_ip_gw[10];
+        res[75] = dir_ip_gw[11];
+        res[76] = '|';
+        // Nombre MAQ
+        res[77] = Name[0];
+        res[78] = Name[1];
+        res[79] = Name[2];
+        res[80] = Name[3];
+        res[81] = Name[4];
+        res[82] = Name[5];
+        res[83] = Name[6];
+        res[84] = Name[7];
+        res[85] = Name[8];
+        res[86] = Name[9];
+        res[87] = Name[10];
+        res[88] = Name[11];
+        res[89] = Name[12];
+        res[90] = Name[13];
+        res[91] = Name[14];
+        res[92] = Name[15];
+
+#ifdef Debug_Mensajes_Server
+        Serial.println("Set buffer general OK");
+#endif
+
+        int len = sizeof(res);
+        Transmite_A_Servidor(res, len);
+    }else if(Channel ==2)
     {
-        #ifdef Debug_Mensajes_Server
-        Serial.println(clientUDP.remotePort());
-        #endif
-        socket = std::to_string(clientUDP.remotePort());
+          // Direccion MAC ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Direccion MAC: ");
+        Serial.println(WiFi.macAddress());
+#endif
+        String mac = WiFi.macAddress();
+
+// Direccion IP ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Direccion IP Local: ");
+#endif
+        uint32_t ip = WiFi.localIP();
+#ifdef Debug_Mensajes_Server
+        Serial.println(WiFi.localIP());
+#endif
+
+// Socket de conexion
+#ifdef Debug_Mensajes_Server
+        Serial.print("Socket: ");
+#endif
+        string socket;
+        if (Configuracion.Get_Configuracion(Tipo_Conexion))
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.println(clientTCP.remotePort());
+#endif
+            socket = std::to_string(clientTCP.remotePort());
+        }
+        else
+        {
+#ifdef Debug_Mensajes_Server
+            Serial.println(clientUDP.remotePort());
+#endif
+            socket = std::to_string(clientUDP2.remotePort());
+        }
+
+// Mascara subred ESP32
+#ifdef Debug_Mensajes_Server
+        Serial.print("Mascara Subred: ");
+        Serial.println(WiFi.subnetMask());
+
+        // Puerta de enlace ESP32
+        Serial.print("Puerta de enlace: ");
+        Serial.println(WiFi.gatewayIP());
+
+        // Nombre de la maquina
+        Serial.print("Nombre de MAQ: ");
+#endif
+        String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
+#ifdef Debug_Mensajes_Server
+        Serial.println(Name);
+
+        Serial.print("**************************************************************************************");
+        Serial.println();
+#endif
+        char IP[4];
+        bzero(IP, 4);
+        memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
+
+        char dir_ip[12] = {};
+        int j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP[i];
+            dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            dir_ip[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        char IP_GW[4];
+        bzero(IP_GW, 4);
+        memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+
+        char dir_ip_gw[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)IP_GW[i];
+            dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            dir_ip_gw[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        char SN_MASK[4];
+        bzero(SN_MASK, 4);
+        memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+        char sn_mask[12] = {};
+        j = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int octeto = (int)SN_MASK[i];
+            sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+            j++;
+            int resultado = octeto % 100;
+            sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+            j++;
+            sn_mask[j] = (resultado % 10) + '0';
+            j++;
+        }
+
+        res[0] = 'L';
+        res[1] = '|';
+        res[2] = '0';
+        res[3] = '1';
+        res[4] = '|';
+        // MAC
+        res[5] = mac[0];
+        res[6] = mac[1];
+        res[7] = mac[2];
+        res[8] = mac[3];
+        res[9] = mac[4];
+        res[10] = mac[5];
+        res[11] = mac[6];
+        res[12] = mac[7];
+        res[13] = mac[8];
+        res[14] = mac[9];
+        res[15] = mac[10];
+        res[16] = mac[11];
+        res[17] = mac[12];
+        res[18] = mac[13];
+        res[19] = mac[14];
+        res[20] = mac[15];
+        res[21] = mac[16];
+        res[22] = '|';
+        // PORT
+        res[23] = '0';
+        res[24] = socket[0];
+        res[25] = socket[1];
+        res[26] = socket[2];
+        res[27] = socket[3];
+        res[28] = '|';
+        // IP
+        res[29] = dir_ip[0];
+        res[30] = dir_ip[1];
+        res[31] = dir_ip[2];
+        res[32] = '.';
+        res[33] = dir_ip[3];
+        res[34] = dir_ip[4];
+        res[35] = dir_ip[5];
+        res[36] = '.';
+        res[37] = dir_ip[6];
+        res[38] = dir_ip[7];
+        res[39] = dir_ip[8];
+        res[40] = '.';
+        res[41] = dir_ip[9];
+        res[42] = dir_ip[10];
+        res[43] = dir_ip[11];
+        res[44] = '|';
+        // MASCARA
+        res[45] = sn_mask[0];
+        res[46] = sn_mask[1];
+        res[47] = sn_mask[2];
+        res[48] = '.';
+        res[49] = sn_mask[3];
+        res[50] = sn_mask[4];
+        res[51] = sn_mask[5];
+        res[52] = '.';
+        res[53] = sn_mask[6];
+        res[54] = sn_mask[7];
+        res[55] = sn_mask[8];
+        res[56] = '.';
+        res[57] = sn_mask[9];
+        res[58] = sn_mask[10];
+        res[59] = sn_mask[11];
+        res[60] = '|';
+        // IP Enlace
+        res[61] = dir_ip_gw[0];
+        res[62] = dir_ip_gw[1];
+        res[63] = dir_ip_gw[2];
+        res[64] = '.';
+        res[65] = dir_ip_gw[3];
+        res[66] = dir_ip_gw[4];
+        res[67] = dir_ip_gw[5];
+        res[68] = '.';
+        res[69] = dir_ip_gw[6];
+        res[70] = dir_ip_gw[7];
+        res[71] = dir_ip_gw[8];
+        res[72] = '.';
+        res[73] = dir_ip_gw[9];
+        res[74] = dir_ip_gw[10];
+        res[75] = dir_ip_gw[11];
+        res[76] = '|';
+        // Nombre MAQ
+        res[77] = Name[0];
+        res[78] = Name[1];
+        res[79] = Name[2];
+        res[80] = Name[3];
+        res[81] = Name[4];
+        res[82] = Name[5];
+        res[83] = Name[6];
+        res[84] = Name[7];
+        res[85] = Name[8];
+        res[86] = Name[9];
+        res[87] = Name[10];
+        res[88] = Name[11];
+        res[89] = Name[12];
+        res[90] = Name[13];
+        res[91] = Name[14];
+        res[92] = Name[15];
+
+#ifdef Debug_Mensajes_Server
+        Serial.println("Set buffer general OK");
+#endif
+
+        int len = sizeof(res);
+        Transmite_A_Servidor(res, len,Channel);
     }
-
-    // Mascara subred ESP32
-    #ifdef Debug_Mensajes_Server
-    Serial.print("Mascara Subred: ");
-    Serial.println(WiFi.subnetMask());
-
-    // Puerta de enlace ESP32
-    Serial.print("Puerta de enlace: ");
-    Serial.println(WiFi.gatewayIP());
-
-    // Nombre de la maquina
-    Serial.print("Nombre de MAQ: ");
-    #endif
-    String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
-    #ifdef Debug_Mensajes_Server
-    Serial.println(Name);
-
-    Serial.print("**************************************************************************************");
-    Serial.println();
-    #endif
-    char IP[4];
-    bzero(IP, 4);
-    memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
-
-    char dir_ip[12] = {};
-    int j = 0;
-    for (int i = 0; i < 4; i++)
-    {
-        int octeto = (int)IP[i];
-        dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
-        j++;
-        int resultado = octeto % 100;
-        dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
-        j++;
-        dir_ip[j] = (resultado % 10) + '0';
-        j++;
-    }
-
-    char IP_GW[4];
-    bzero(IP_GW, 4);
-    memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
-
-    char dir_ip_gw[12] = {};
-    j = 0;
-    for (int i = 0; i < 4; i++)
-    {
-        int octeto = (int)IP_GW[i];
-        dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
-        j++;
-        int resultado = octeto % 100;
-        dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
-        j++;
-        dir_ip_gw[j] = (resultado % 10) + '0';
-        j++;
-    }
-
-    char SN_MASK[4];
-    bzero(SN_MASK, 4);
-    memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
-
-    char sn_mask[12] = {};
-    j = 0;
-    for (int i = 0; i < 4; i++)
-    {
-        int octeto = (int)SN_MASK[i];
-        sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
-        j++;
-        int resultado = octeto % 100;
-        sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
-        j++;
-        sn_mask[j] = (resultado % 10) + '0';
-        j++;
-    }
-
-    res[0] = 'L';
-    res[1] = '|';
-    res[2] = '0';
-    res[3] = '1';
-    res[4] = '|';
-    // MAC
-    res[5] = mac[0];
-    res[6] = mac[1];
-    res[7] = mac[2];
-    res[8] = mac[3];
-    res[9] = mac[4];
-    res[10] = mac[5];
-    res[11] = mac[6];
-    res[12] = mac[7];
-    res[13] = mac[8];
-    res[14] = mac[9];
-    res[15] = mac[10];
-    res[16] = mac[11];
-    res[17] = mac[12];
-    res[18] = mac[13];
-    res[19] = mac[14];
-    res[20] = mac[15];
-    res[21] = mac[16];
-    res[22] = '|';
-    // PORT
-    res[23] = '0';
-    res[24] = socket[0];
-    res[25] = socket[1];
-    res[26] = socket[2];
-    res[27] = socket[3];
-    res[28] = '|';
-    // IP
-    res[29] = dir_ip[0];
-    res[30] = dir_ip[1];
-    res[31] = dir_ip[2];
-    res[32] = '.';
-    res[33] = dir_ip[3];
-    res[34] = dir_ip[4];
-    res[35] = dir_ip[5];
-    res[36] = '.';
-    res[37] = dir_ip[6];
-    res[38] = dir_ip[7];
-    res[39] = dir_ip[8];
-    res[40] = '.';
-    res[41] = dir_ip[9];
-    res[42] = dir_ip[10];
-    res[43] = dir_ip[11];
-    res[44] = '|';
-    // MASCARA
-    res[45] = sn_mask[0];
-    res[46] = sn_mask[1];
-    res[47] = sn_mask[2];
-    res[48] = '.';
-    res[49] = sn_mask[3];
-    res[50] = sn_mask[4];
-    res[51] = sn_mask[5];
-    res[52] = '.';
-    res[53] = sn_mask[6];
-    res[54] = sn_mask[7];
-    res[55] = sn_mask[8];
-    res[56] = '.';
-    res[57] = sn_mask[9];
-    res[58] = sn_mask[10];
-    res[59] = sn_mask[11];
-    res[60] = '|';
-    // IP Enlace
-    res[61] = dir_ip_gw[0];
-    res[62] = dir_ip_gw[1];
-    res[63] = dir_ip_gw[2];
-    res[64] = '.';
-    res[65] = dir_ip_gw[3];
-    res[66] = dir_ip_gw[4];
-    res[67] = dir_ip_gw[5];
-    res[68] = '.';
-    res[69] = dir_ip_gw[6];
-    res[70] = dir_ip_gw[7];
-    res[71] = dir_ip_gw[8];
-    res[72] = '.';
-    res[73] = dir_ip_gw[9];
-    res[74] = dir_ip_gw[10];
-    res[75] = dir_ip_gw[11];
-    res[76] = '|';
-    // Nombre MAQ
-    res[77] = Name[0];
-    res[78] = Name[1];
-    res[79] = Name[2];
-    res[80] = Name[3];
-    res[81] = Name[4];
-    res[82] = Name[5];
-    res[83] = Name[6];
-    res[84] = Name[7];
-    res[85] = Name[8];
-    res[86] = Name[9];
-    res[87] = Name[10];
-    res[88] = Name[11];
-    res[89] = Name[12];
-    res[90] = Name[13];
-    res[91] = Name[14];
-    res[92] = Name[15];
-
-    #ifdef Debug_Mensajes_Server
-    Serial.println("Set buffer general OK");
-    #endif
-
-    int len = sizeof(res);
-    Transmite_A_Servidor(res, len);
-    
 }
 
 /*****************************************************************************************/
@@ -2217,10 +2536,27 @@ int Comando_Recibido(void)
     return (Comando);
 }
 
+int Comando_Recibido_Socket_2(void)
+{
+    int32_t Comando, Aux1, Aux2, Aux3, Aux4;
 
-/*****************************************************************************************/
-/********************************** MENSAJES RFID ****************************************/
-/*****************************************************************************************/
+    char res[258] = {};
+    bzero(res, 258); // Pone el buffer en 0
+    memcpy(res, Buffer.Get_buffer_recepcion2(), 258);
+
+    Aux1 = res[0];
+    Aux2 = res[1];
+    Aux2 = Aux2 << 8;   
+    Aux3 = res[2];
+    Aux3 = Aux3 << 16;
+    Aux4 = res[3];
+    Aux4 = Aux4 << 24;
+    Comando = Aux4 | Aux3 | Aux2 | Aux1;
+    return (Comando);
+}
+
+
+
 
 class Data_Forwarding{
 
@@ -2309,6 +2645,11 @@ void Data_Forwarding::Forwarding_Contadores_Accounting(void)
 
 Data_Forwarding Transmite_Reenvio_Contadores;
 
+
+
+/*****************************************************************************************/
+/********************************** MENSAJES RFID ****************************************/
+/*****************************************************************************************/
 void Mensajes_RFID(void)
 {
 
@@ -2493,6 +2834,25 @@ void Mensajes_RFID(void)
     }
     /* --------------------------------------------------------------------------------------------*/
     /* -------------------------> CASHLESS <--------------------------------------------------------*/
+
+    // if(Variables_globales.Get_Variable_Global(Status_Load_Bonus))
+    // {
+
+    //     if(Cashless.Get_ACK_Bonus()[0]==BONUS_OK||Cashless.Get_ACK_Bonus()[0]==EVENTO_CARGA_BONUS)
+    //     {
+    //         Transmite_Confirmacion_Cashless('4', '1', '5');
+    //         Serial.println("Carga realiza con exito!");
+    //     }else if(Cashless.Get_ACK_Bonus()[0]==EXCEPTION)
+    //     {
+    //         Serial.println("Maquina rechazo la carga");
+    //     }else{
+    //         Serial.println(" No respuesta de la maquina ");
+    //     }
+
+    //     Variables_globales.Set_Variable_Global(Status_Load_Bonus,false);
+    // }
+
+
     if(Variables_globales.Get_Variable_Global(Consulta_Conexion_To_Host))
     {
         Consulta_Conexion_To_Server();
@@ -2508,20 +2868,112 @@ void Mensajes_RFID(void)
         Transmite_Info_Cliente();
         Variables_globales.Set_Variable_Global(Consulta_Info_Cliente,false);
     }
+
     /*-----------------------------------------------------------------------------------------------*/
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+    {
+        if (flag_ultimo_contador_Ok && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        {
+            if (contadores.Get_Status_Flag_Premio())
+            {
 
-    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
-    // {
-    //     Serial.println("Bono Pendiente por Cargar...!");
-    //     Variables_globales.Set_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente,false);
-    // }
+                #ifdef Debug_Transmision
+                Serial.println("Contadores, premio pagado");
+                #endif
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+                {
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                    {
+                        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
 
-    // if(Variables_globales.Get_Variable_Global(Status_Load_Bonus))
-    // {
-    //     Serial.println("Bono Cargado a la maquina con exito");
-    //     Variables_globales.Set_Variable_Global(Status_Load_Bonus,false);
-    // } 
-   
+                        Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                        delay(350);
+                    }
+                    Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+                    Transmite_Contadores_Accounting();
+                    // delay(50);
+                    // Transmite_Contadores_Accounting();
+
+                    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }
+
+                    /* --------------------------->  Add <-----------------*/
+                    // Contador_Transmision_Contadores = 0;
+                    New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                    /*-----------------------------------------------------*/
+                }
+
+                contadores.Set_Flag_Premio(false);
+            }
+
+            if(contadores.Get_Status_Flag_Bill_In())
+            {
+
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+                {
+                    #ifdef Debug_Transmision
+                    Serial.println("Contadores, billete insertado....");
+                    #endif
+                    Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                    Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                    delay(350);
+
+                    if (Variables_globales.Get_Variable_Global(Flag_Creditos_D_P))
+                    {
+                        Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
+                        if (Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == false && flag_ultimo_contador_Ok && Variables_globales.Get_Variable_Global(Comunicacion_Maq) == true)
+                        {
+                            /* Un no existe cancel credit y se ingreso un billete*/
+                            if (Calcula_Cancel_Credit(true))
+                            {
+                                Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+                            }
+                        }
+                        Transmite_Contadores_Accounting();
+                        if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                        {
+                            Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        }
+                    }
+                    /*----------------------------------------------------------------------------------*/
+                    New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                    /*----------------------------------------------------------------------------------*/
+                }
+                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+                {
+#ifdef Debug_Transmision
+                    Serial.println("Contadores, billete insertado....");
+#endif
+                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                    {
+                        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
+                        Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                        delay(350);
+                    }
+                    Transmite_Contadores_Accounting();
+                    // delay(50);
+                    // Transmite_Contadores_Accounting();
+
+                    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+                    {
+                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        // delay(50);
+                        // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }
+                    /*----------------------------------------------------------------------------------*/
+                    New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                    /*----------------------------------------------------------------------------------*/
+                }
+
+                contadores.Set_Flag_Bill_In(false);
+            }
+        }
+    }
 }
 
 
@@ -2658,7 +3110,7 @@ void Task_Procesa_Comandos(void *parameter)
                 {
                     Transmite_Confirmacion('A', '0');
                 }
-                break;
+            break;
             case 4:
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de billetes SAS");
@@ -2846,6 +3298,7 @@ void Task_Procesa_Comandos(void *parameter)
                     #endif
                     if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     {
+                        
                         Consulta_Info_Cashless();
                         if(Variables_globales.Get_Variable_Global(Consulta_Info_Cashless_OK))
                         {
@@ -2856,6 +3309,7 @@ void Task_Procesa_Comandos(void *parameter)
                         Transmite_Confirmacion('A', '0');
                     }
                     Variables_globales.Set_Variable_Global(Consulta_Info_Cashless_OK,false);
+                    
                     break;
             case 200:
                 #ifdef Debug_Mensajes_Server
@@ -2995,6 +3449,7 @@ void Task_Procesa_Comandos(void *parameter)
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud Reset Premio Handpay");
                 #endif
+                
                 contadores.Close_ID_Operador();
                 condicionCumplida=false;
                 
@@ -3102,6 +3557,8 @@ void Task_Procesa_Comandos(void *parameter)
                             delay(400);
                             Transmite_Contadores_Accounting();
                             Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
+                            
                             if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                                 Status_Barra(Reset_Exitoso);
                             Reset_Handle_LED();
@@ -3121,8 +3578,8 @@ void Task_Procesa_Comandos(void *parameter)
                             contadores.Close_ID_Operador();
                             Transmite_Confirmacion('C', '2');
                             Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
-
                             Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
                             if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                                 Status_Barra(ERROR_RESET_HANDPAY);
                             Reset_Handle_LED();
@@ -3140,7 +3597,7 @@ void Task_Procesa_Comandos(void *parameter)
                         default:
                             Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                             Reset_Handle_LED();
-                        break;
+                            break;
                         }
                     }
                 }
@@ -3239,21 +3696,12 @@ void Task_Procesa_Comandos(void *parameter)
                 
                  case 138:
                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
-
-                    // Variables_globales.Set_Variable_Global(AutoUPDATE_OK,true);
-                    //   Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,true);
-                    //   contadores.Set_Meter_Legacy_Bonus_Awards(res);
-                    //   Carga_Bonus_Maquina();
-                    //   delay(600);
-
-                    // if(Variables_globales.Get_Variable_Global(Flag_ACK_Carga_Bonus_Pendiente))
-                    //     Transmite_Confirmacion_Cashless('A','A','A');
                     break;
 
                  case 603:
-                    // #ifdef Debug_Mensajes_Server
-                    // Serial.println("Solicitud de actualizacion de firmware!"); /* OK*/
-                    // #endif
+#ifdef Debug_Mensajes_Server
+                     Serial.println("Solicitud de actualizacion de firmware!"); /* OK*/
+#endif
 
                      if (!Variables_globales.Get_Variable_Global(Updating_System))
                      {
@@ -3261,51 +3709,50 @@ void Task_Procesa_Comandos(void *parameter)
                          {
 
                          case 0:
-                           //  #ifdef Debug_Mensajes_Server
-                           //  Serial.println("URL Recibidas con exito!");
-                           //  #endif
-                            Variables_globales.Set_Variable_Global(Updating_System, true);
-                            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
-                            delay(1);
-                            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
-                            break;
+                             //  #ifdef Debug_Mensajes_Server
+                             //  Serial.println("URL Recibidas con exito!");
+                             //  #endif
+                             Variables_globales.Set_Variable_Global(Updating_System, true);
+                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
+                             delay(1);
+                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
+                             break;
 
                          case 1:
-                             #ifdef Debug_Mensajes_Server
+#ifdef Debug_Mensajes_Server
                              Serial.println("Falla deserializando Json de solititud ");
-                             #endif
+#endif
                              Variables_globales.Set_Variable_Global(Updating_System, false);
                              break;
 
                          case 2:
-                           //  #ifdef Debug_Mensajes_Server
-                           //  Serial.println("Token de acceso no generado");
-                           //  #endif
+                             //  #ifdef Debug_Mensajes_Server
+                             //  Serial.println("Token de acceso no generado");
+                             //  #endif
                              Variables_globales.Set_Variable_Global(Updating_System, false);
                              break;
 
                          case 3:
-                             #ifdef Debug_Mensajes_Server
+#ifdef Debug_Mensajes_Server
                              Serial.println("Proceso no identificado ");
-                             #endif
+#endif
                              Variables_globales.Set_Variable_Global(Updating_System, false);
                              break;
 
                          case 4:
-                             #ifdef Debug_Mensajes_Server
+#ifdef Debug_Mensajes_Server
                              Serial.println("Proceso no identificado ");
-                             #endif
+#endif
                              Variables_globales.Set_Variable_Global(Updating_System, false);
                              break;
 
                          default:
-                             #ifdef Debug_Mensajes_Server
-                             Serial.println("Proceso no identificado ");
-                             #endif
-                             Variables_globales.Set_Variable_Global(Updating_System, false);
-                             break;
+                            #ifdef Debug_Mensajes_Server
+                            Serial.println("Proceso no identificado ");
+                            #endif
+                            Variables_globales.Set_Variable_Global(Updating_System, false);
+                            break;
                          }
-                         break;
                      }
                      break;
                  case 604:
@@ -3354,17 +3801,15 @@ void Task_Procesa_Comandos(void *parameter)
                         if (res[4] - 48 == 0)
                         {
                             Enable_Mechanical = false;
+                            NVS.putBool("Event_Mecanic", Enable_Mechanical);
                             Transmite_Confirmacion('C', 'C'); /* Eventos mecanicos deshabilitados */
                         }
-                            
                         else
                         {
                             Enable_Mechanical = true;
+                            NVS.putBool("Event_Mecanic", Enable_Mechanical);
                             Transmite_Confirmacion('D', 'C'); /* Eventos mecanicos habilitados */
                         }
-                            
-
-                        NVS.putBool("Event_Mecanic", Enable_Mechanical);
                         NVS.end();
                         
                         delay(350);
@@ -3384,10 +3829,6 @@ void Task_Procesa_Comandos(void *parameter)
 
                         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
                         {
-                            // for(int i=0; i<100; i++)
-                            // {
-                            //     Serial.println(res[i]);
-                            // }
                             if (Actualiza_Tarjeta_Mecanica(res))
                             {
                                 Transmite_Confirmacion('A', '7');
@@ -3397,6 +3838,26 @@ void Task_Procesa_Comandos(void *parameter)
                         }else
                                 Transmite_Confirmacion('A', '8');
 
+                    break;
+
+                    case 611:
+
+                        switch (res[4]-48)
+                        {
+                        case 0:
+                            Transmite_Info_Config(0); /* INFO RED */
+                            break;
+                        case 1:
+                            Transmite_Info_Config(1); /* INFO API */
+                            break;
+                        case 2:
+                            Transmite_Info_Config(2); /* INFO GENERICA */
+                            break;
+                        
+                        default:
+                            break;
+                        }
+                    
                     break;
 
                     // case 603:
@@ -3423,51 +3884,62 @@ void Task_Procesa_Comandos(void *parameter)
                     //      Transmite_Info_Lector();
                     //    break;
 
-                    // case 300:
-                    //     #ifdef Debug_Mensajes_Server
-                    //     Serial.println("Solicitud de registro AFT");
-                    //     #endif
-                    //     int Status;
-                    //     Status=Registra_Machine();
-                    //     if(Status==1)
-                    //     {
-                    //         #ifdef Debug_Mensajes_Server
-                    //         Serial.println("MAQUINA REGISTRADA OK");
-                    //         #endif
-                    //         Transmite_Info_Registro();
-                    //     }else if(Status==2)
-                    //     {
-                    //         Transmite_Confirmacion_Cashless('4','0','2');
-                    //     }else if(Status==3)
-                    //     {
-                    //         Transmite_Confirmacion_Cashless('4','0','0');
-                    //     }
-                    //     /* Aqui Validar */
-                    // break;
+                    case 300:
+                       // #ifdef Debug_Mensajes_Server
+                        Serial.println("Solicitud de registro AFT");
+                       // #endif
+                        int Status;
+                        
+                        Status=Registra_Machine();
+                        delay(300); /* Espera Por respuesta de la maquina */
+                        if(Status==1)
+                        {
+                            #ifdef Debug_Mensajes_Server
+                            Serial.println("MAQUINA REGISTRADA CON EXITO!");
+                            #endif
+                            Transmite_Info_Registro();
+                        }else if(Status==2)
+                        {
+                            Transmite_Confirmacion_Cashless('4','0','2');
+                        }else if(Status==3)
+                        {
+                            Transmite_Confirmacion_Cashless('4','0','0');
+                        }
+                        /* Aqui Validar */
+                    break;
 
-                    //  case 301:
-                    //     #ifdef Debug_Mensajes_Server
-                    //     Serial.println("Confirmacion registro AFT Maq");
-                    //     #endif
+                    // //  case 301:
+                    // //     #ifdef Debug_Mensajes_Server
+                    // //     Serial.println("Confirmacion registro AFT Maq");
+                    // //     #endif
 
-                    // break;
+                    // // break;
 
-                    // case 302:
-                    //     #ifdef Debug_Mensajes_Server
-                    //     Serial.println("Cancelacion registro AFT");
-                    //     #endif
-                    //     if(Delete_Registro_Machine())
-                    //     {
-                    //         #ifdef Debug_Mensajes_Server
-                    //         Serial.println("Maquina no registrada..");
-                    //         #endif
+                    case 302:
 
-                    //     }else{
-                    //         #ifdef Debug_Mensajes_Server
-                    //         Serial.println("Registro no cancelado..");
-                    //         #endif
-                    //     }
-                    // break;
+                        /* Borra Transaccion ID */
+                        
+
+                        #ifdef Debug_Mensajes_Server
+                        Serial.println("Cancelacion registro AFT");
+                        #endif
+                        if(Delete_Registro_Machine())
+                        {
+                            #ifdef Debug_Mensajes_Server
+                            Serial.println("Registro AFT cancelado..");
+                            #endif
+                            Cashless.Delete_Trans_ID();
+                            if(Buffer_Cashless.Delete_Key_Register_AFT(true))
+                                Variables_globales.Set_Variable_Global(Status_AFT_Machine,false);
+                            Transmite_Confirmacion_Cashless('4','0','3');
+
+                        }else{
+                            #ifdef Debug_Mensajes_Server
+                            Serial.println("Registro no cancelado..");
+                            #endif
+                            Transmite_Confirmacion_Cashless('4','0','4');
+                        }
+                    break;
 
                     // case 303:
                     //     #ifdef Debug_Mensajes_Server
@@ -3727,7 +4199,7 @@ void Task_Procesa_Comandos(void *parameter)
             /* Reset timer*/
             Finally_Timer = Start_Timer;
         }
-
+        Procesa_Comandos_Socket2();
        // Mensajes_RFID();
         vTaskDelay(100 / portTICK_PERIOD_MS);
       //  continue;
@@ -3735,6 +4207,93 @@ void Task_Procesa_Comandos(void *parameter)
     vTaskDelay(10);
 }
 
+void Procesa_Comandos_Socket2(void)
+{
+    #define SOCKET2 2
+    if (Variables_globales.Get_Variable_Global(Dato_Entrante_Valido_Socket2))
+    {
+        // esp_task_wdt_reset();
+        Variables_globales.Set_Variable_Global(Dato_Entrante_Valido_Socket2, false);
+        //            flag_dato_valido_recibido = false;
+
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+
+        char Tmp[258] = {};
+        bzero(Tmp, 258);
+
+        memcpy(res, Buffer.Get_buffer_recepcion2(), 258);
+
+        switch (Comando_Recibido_Socket_2())
+        {
+        case 503:
+            #ifdef Debug_Mensajes_Server
+            Serial.println("Solicitud de Cierre Sesion");
+            #endif
+            Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
+            if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+            {
+                if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                {
+                    if (Close_Sesion_Player_Tracking())
+                    {
+
+                        Transmite_Confirmacion('D', 'D', SOCKET2);
+                    }
+                }
+            }
+            else
+            {
+                Transmite_Confirmacion('A', '0',SOCKET2);
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
+    else if (Variables_globales.Get_Variable_Global(Dato_Entrante_No_Valido_Socket2))
+    {
+        Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido_Socket2, false);
+
+        char res[258] = {};
+        bzero(res, 258); // Pone el buffer en 0
+        memcpy(res, Buffer.Get_buffer_recepcion2(), 258);
+        
+        if (res[0] == 'E' && res[1] == 'B')
+        {
+
+            #ifdef Debug_Mensajes_Server
+            Serial.println("Eco Broadcast");
+            #endif
+
+            IPAddress serverIP_Remote2(clientUDP2.remoteIP()[0], clientUDP2.remoteIP()[1], clientUDP2.remoteIP()[2], clientUDP2.remoteIP()[3]);
+
+            memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
+
+            if (serverIP_Remote2[3] != IP_Server2[3] && serverIP_Remote2[2] == IP_Server2[2]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
+            {
+
+                NVS.begin("Config_ESP32", false);
+                uint8_t ip_server_dest2[] = {serverIP_Remote2[0], serverIP_Remote2[1], IP_Server2[2], serverIP_Remote2[3]};
+                NVS.putBytes("Dir_IP_Serv2", ip_server_dest2, sizeof(ip_server_dest2));
+                size_t ip_serv_len2 = NVS.getBytesLength("Dir_IP_Serv");
+                char IP_SERV2[ip_serv_len2];
+                NVS.getBytes("Dir_IP_Serv2", IP_SERV2, ip_serv_len2);
+
+                NVS.end();
+                Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server2, IP_SERV2);
+                memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
+                IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
+            }
+            Transmite_Eco_Broadcast(SOCKET2);
+        }
+        else{
+            Transmite_Confirmacion('C', 'R',SOCKET2);
+        }
+    }
+}
 /*****************************************************************************************/
 /******************************** TAREA DE TRANSMISION ***********************************/
 /*****************************************************************************************/
@@ -3781,36 +4340,35 @@ int Bill_Insert(void)
     return contadores.Get_Contadores_Int(Bill_Amount);   
 }
 
-
 void Verifica_Cambio_Contadores(void)
 {
+
     if (flag_ultimo_contador_Ok && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
         // DETECTA CAMBIO COIN IN - MAQUINA EN JUEGO
-        
+
         Contador_Coin_In_Act = contadores.Get_Contadores_Int(Coin_In);
         if (Contador_Coin_In_Ant == 0)
             Contador_Coin_In_Ant = Contador_Coin_In_Act;
-        
+
         else if (Contador_Coin_In_Act > Contador_Coin_In_Ant)
         {
             Contador_Coin_In_Ant = Contador_Coin_In_Act;
             Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, true);
             //            flag_maquina_en_juego = true;
-            New_Timer_Final=New_Timmer_Inicial; /*RESET TIMEOUT*/
+            New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
             startTime = currentTime;
-            
         }
-        
-        // DETECTA CAMBIO CANCEL CREDIT - PREMIO PAGADO
-        Contador_Cancel_Credit_Act = contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
-        if (Contador_Cancel_Credit_Ant == 0)
-            Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
-        else if (Contador_Cancel_Credit_Act > Contador_Cancel_Credit_Ant)
-        {
-            Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
-            flag_premio_pagado_cashout = true;
-        }
+
+        // // DETECTA CAMBIO CANCEL CREDIT - PREMIO PAGADO
+        // Contador_Cancel_Credit_Act = contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+        // if (Contador_Cancel_Credit_Ant == 0)
+        //     Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
+        // else if (Contador_Cancel_Credit_Act > Contador_Cancel_Credit_Ant)
+        // {
+        //     Contador_Cancel_Credit_Ant = Contador_Cancel_Credit_Act;
+        //     flag_premio_pagado_cashout = true;
+        // }
 
         // DETECTA CAMBIO BILLETERO - BILLETE INSERTADO
         Contador_Bill_In_Act = contadores.Get_Contadores_Int(Bill_Amount);
@@ -3997,7 +4555,7 @@ void Transmision_Controlada_Contadores(void)
     {
         
         // Si la maquina NO esta en juego, transmite cada 2 minutos, si el valor es 120
-        if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !Variables_globales.Get_Variable_Global(Operador_Detected))
+        if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !Variables_globales.Get_Variable_Global(Operador_Detected) && !contadores.Get_Status_Flag_Premio())
         {
             New_Timmer_Inicial=millis();
             /*----------------------> Trama de contadores  2 minutos <-----------------------------------------------------------*/
@@ -4057,7 +4615,7 @@ void Transmision_Controlada_Contadores(void)
             }
         }
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
-        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado)
+        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !contadores.Get_Status_Flag_Premio())
         {
             if (Contador_Transmision_Contadores >= Tiempo_Transmision_En_Juego)
             {
@@ -4597,7 +5155,7 @@ void RESET_HANDPAY_NOT_SAS(void)
         {
             Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
 
-            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
             {
                 Activa_Encuesta = true;
                 delay(10);
@@ -4705,33 +5263,30 @@ void RESET_HANDPAY_NOT_SAS(void)
 
                 if(!Enable_Failed)
                 {
-
-
                     Timer_Out_Failed_Final=Timer_Out_Failed;
                     Enable_Failed=true;
                 }
 
                 if((Timer_Out_Failed-Timer_Out_Failed_Final)>=Timer_Failed_OK)
                 {
-                    
+
                     Transmite_Confirmacion('C', '4');
 
                     /* Si  fue un operador  */
-                    
-                        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
-                            Status_Barra(ERROR_RESET_HANDPAY);
-                        Reset_Handle_LED();
-                    Enable_Timer_No_reset=false; 
+
+                    if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                        Status_Barra(ERROR_RESET_HANDPAY);
+                    Reset_Handle_LED();
+                    Enable_Timer_No_reset = false;
                     contadores.Close_ID_Operador();
                     Variables_globales.Set_Variable_Global(Manual_Reset, false);
                     Variables_globales.Set_Variable_Global(Manual_Detected, false);
-                    Variables_globales.Set_Variable_Global(Handle_RFID_Lector,false);
+                    Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                     Activa_Encuesta = false;
-                    Valida_Creditos_Actuales=0;
-                    Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process,false);    
-                    Enable_Failed=false;
-                    Timer_Out_Failed_Final=Timer_Out_Failed;
-                    
+                    Valida_Creditos_Actuales = 0;
+                    Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+                    Enable_Failed = false;
+                    Timer_Out_Failed_Final = Timer_Out_Failed;
                 }
             }
 
@@ -4852,7 +5407,6 @@ void Task_Verifica_Hopper(void *parameter)
     }
 }
 
-
 void Inicializa_Buffer_Eventos(void)
 {
     unsigned short i;
@@ -4932,13 +5486,12 @@ void Tratamiento_Trama_Cashless(char res[])
     }
 }
 
-
 void Actualiza_Contadores(void)
 {
     /* Actualiza Contadores Por eventos Maquina */
     if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
-        if (Variables_globales.Get_Variable_Global(Billete_Insert))
+        if (Variables_globales.Get_Variable_Global(Billete_Insert) && !contadores.Get_Status_Flag_Premio() && !flag_premio_pagado_cashout && !flag_billete_insertado)
         {
            
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);

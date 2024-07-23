@@ -9,17 +9,27 @@ unsigned long interval = 30000;
 
 WiFiClient clientTCP; // Declara un objeto cliente para conectarse al servidor
 WiFiUDP clientUDP;    // Declara un objeto para cliente UDP
+WiFiUDP clientUDP2;    // Declara un objeto para cliente UDP 2
+
 
 String buffer;
 char incomingPacket[258];
+char incomingPacket2[258];
 
 char IP_Local[4];   // IP del ESP32
 char IP_GW[4];      // IP de enlace
 char SN_MASK[4];    // Mascara Subred
 char IP_Server[4];  // IP del servidor
+char IP_Server2[4];  // IP del servidor
 IPAddress serverIP; // Objeto IP Servidor
+IPAddress serverIP2; // Objeto IP Servidor
+
+char DNS_Primario[4];
+char DNS_Secundario[4];
+
 // const IPAddress serverIP(192, 168, 5, 208); // Direccion del servidor
 uint16_t serverPort;  // Puerto del servidor
+uint16_t serverPort2;  // Puerto del servidor
 String SSID_Wifi;     // Nombre de red
 String Password_Wifi; // Contraseña de la red
 
@@ -175,13 +185,18 @@ void CONNECT_WIFI(void)
   // NVS.getBytes("Dir_SN_MASK", SN_MASK, dir_sn_mask);
   //-----------------------------------------------------------------------------------------------------------
   //WiFi.mode(WIFI_MODE_APSTA); // MODO STA y AP.
+
+  memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
+
+  memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
+
   WiFi.mode(WIFI_MODE_STA);
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
   IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
-  IPAddress primaryDNS(8, 8, 8, 8);   // optional
-  IPAddress secondaryDNS(8, 8, 4, 4); // optional
+  IPAddress primaryDNS(DNS_Primario[0], DNS_Primario[1], DNS_Primario[2], DNS_Primario[3]);   // optional
+  IPAddress secondaryDNS(DNS_Secundario[0], DNS_Secundario[1], DNS_Secundario[2], DNS_Secundario[3]); //
    
   //  bool WiFiSTAClass::config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
   if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
@@ -268,12 +283,19 @@ void Conec()
     // Obtiene direccion IP de enlace guardada en Objeto configuracion
     memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
     memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+    memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
+    memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
+
+
+
+
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
     IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
-    IPAddress primaryDNS(8, 8, 8, 8);   // optional
-    IPAddress secondaryDNS(8, 8, 4, 4); // optional
+    IPAddress primaryDNS(DNS_Primario[0], DNS_Primario[1], DNS_Primario[2], DNS_Primario[3]);   // optional
+    IPAddress secondaryDNS(DNS_Secundario[0], DNS_Secundario[1], DNS_Secundario[2], DNS_Secundario[3]); // optional
 
     if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
     {
@@ -302,6 +324,7 @@ void RECONECT_WIFI_ESP()
     memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
     IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
     serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
+    serverPort2 = Configuracion.Get_Configuracion(Puerto_Server2, 0);
     digitalWrite(WIFI_Status, HIGH);
     Serial.print("Conectado a: ");
     Serial.println(SSID_Wifi);
@@ -311,6 +334,8 @@ void RECONECT_WIFI_ESP()
     Serial.println(WiFi.macAddress());
     clientUDP.begin(serverPort);
     Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+    clientUDP2.begin(serverPort2);
+    Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
     Serial.print("Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
     Selector_Modo_SD();
@@ -346,12 +371,16 @@ void RECONECT_WIFI_ESP()
     // Obtiene direccion IP de enlace guardada en Objeto configuracion
     memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
     memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+    memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
+    memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
+
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
     IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
-    IPAddress primaryDNS(8, 8, 8, 8);   // optional
-    IPAddress secondaryDNS(8, 8, 4, 4); // optional
+    IPAddress primaryDNS(DNS_Primario[0], DNS_Primario[1], DNS_Primario[2], DNS_Primario[3]);   // optional
+    IPAddress secondaryDNS(DNS_Secundario[0], DNS_Secundario[1], DNS_Secundario[2], DNS_Secundario[3]); // optional
 
     if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
     {
@@ -377,7 +406,14 @@ void RECONECT_WIFI_ESP()
 
     tiempo_final = tiempo_inicial;
     /* ---------------> Verifica Intentos Conexion WIFI <------------------------------------------------------ */
+
+    
     WIFI_VERIFY(Intentos_Conexion_WIFI);
+
+    if (Variables_globales.Get_Variable_Global(Access_Point_Mode) == true)
+    {
+      Intentos_Conexion_WIFI = 0;
+    }
     /*-----------------------------------------------------------------------------------------------------------*/
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -461,12 +497,16 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       // Obtiene direccion IP de enlace guardada en Objeto configuracion
       memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
       memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+      memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
+      memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
+
       WiFi.mode(WIFI_MODE_STA);
       IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
       IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
       IPAddress SubnetMask(SN_MASK[0], SN_MASK[1], SN_MASK[2], SN_MASK[3]);
-      IPAddress primaryDNS(8, 8, 8, 8);   // optional
-      IPAddress secondaryDNS(8, 8, 4, 4); // optional
+      IPAddress primaryDNS(DNS_Primario[0], DNS_Primario[1], DNS_Primario[2], DNS_Primario[3]);   // optional
+      IPAddress secondaryDNS(DNS_Secundario[0], DNS_Secundario[1], DNS_Secundario[2], DNS_Secundario[3]); // optional
 
       if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
       {
@@ -494,6 +534,12 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       /* ---------------> Verifica Intentos Conexion WIFI <------------------------------------------------------ */
       WIFI_VERIFY(Intentos_Conexion_WIFI);
       /*-----------------------------------------------------------------------------------------------------------*/
+
+      if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true)
+      {
+        Intentos_Conexion_WIFI=0;
+      }
+      
       if (WiFi.status() != WL_CONNECTED)
       {
 
@@ -531,6 +577,7 @@ void CONNECT_SERVER_TCP(void)
     // Obtiene Numero de puerto guardada en NVS
     serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
     // serverPort = NVS.getUInt("Socket", 0);
+    serverPort2 = Configuracion.Get_Configuracion(Puerto_Server2, 0);
 
     if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
@@ -553,6 +600,8 @@ void CONNECT_SERVER_TCP(void)
     {
       clientUDP.begin(serverPort);
       Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+      clientUDP2.begin(serverPort2);
+      Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
     }
   }
 }
@@ -676,6 +725,7 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
     {
       // Mensajes Servidor UDP
       int packetSize = clientUDP.parsePacket();
+      int packetSize2= clientUDP2.parsePacket();
       if (packetSize)
       {
         // receive incoming UDP packets
@@ -722,11 +772,10 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
 
           memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
 
-          if (serverIP_Remote[3] != IP_Server[3] && serverIP_Remote[2] == IP_Server[2]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
+          if (serverIP_Remote[3] != IP_Server[3] || serverIP_Remote[2] != IP_Server[2] || serverIP_Remote[0] != IP_Server[0] || serverIP_Remote[1] != IP_Server[1]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
           {
-
             NVS.begin("Config_ESP32", false);
-            uint8_t ip_server_dest[] = {serverIP_Remote[0], serverIP_Remote[1], IP_Server[2], serverIP_Remote[3]};
+            uint8_t ip_server_dest[] = {serverIP_Remote[0], serverIP_Remote[1], serverIP_Remote[2], serverIP_Remote[3]};
             NVS.putBytes("Dir_IP_Serv", ip_server_dest, sizeof(ip_server_dest));
             size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
             char IP_SERV[ip_serv_len];
@@ -749,6 +798,78 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
           Serial.println("CRC de datos entrante ERROR");
           #endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+        }
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        continue;
+      }
+      else if (packetSize2)
+      {
+        // receive incoming UDP packets
+        #ifdef RX_Data_Server
+        Serial.printf("Received %d bytes from %s, port %d\n", packetSize2, clientUDP2.remoteIP().toString().c_str(), clientUDP2.remotePort());
+        #endif
+        int len = clientUDP2.read(incomingPacket2, sizeof(incomingPacket2));
+        if (len > 0)
+        {
+          incomingPacket2[len] = 0;
+
+          /* Guarda dirección IP  respuesta */
+          // Serial.println(clientUDP.remoteIP());
+
+          // IP_Recepcion[0]=clientUDP.remoteIP()[0];
+          // IP_Recepcion[1]=clientUDP.remoteIP()[1];
+          // IP_Recepcion[2]=clientUDP.remoteIP()[2];
+          // IP_Recepcion[3]=clientUDP.remoteIP()[3];
+
+          // memcpy(IP_Storage, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+          // if(IP_Recepcion[3]!=IP_Storage[3] &&IP_Recepcion[2]==IP_Storage[2]) /* Ip recepcion diferente a IP  guardada  y estan en el mismo segmento de red */
+          // {
+
+          //   NVS.begin("Config_ESP32", false);
+          //   uint8_t ip_server_dest[] = {IP_Recepcion[0], IP_Recepcion[1], IP_Storage[2], IP_Recepcion[3]};
+          //   NVS.putBytes("Dir_IP_Serv", ip_server_dest, sizeof(ip_server_dest));
+          //   size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
+          //   char IP_SERV[ip_serv_len];
+          //   NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
+
+          //   NVS.end();
+          //   Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
+          // }
+        }
+        if (Buffer.Set_buffer_recepcion_UDP2(incomingPacket2))
+        {
+          
+          IPAddress serverIP_Remote2(clientUDP2.remoteIP()[0], clientUDP2.remoteIP()[1], clientUDP2.remoteIP()[2], clientUDP2.remoteIP()[3]);
+
+          memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
+
+          if (serverIP_Remote2[3] != IP_Server2[3] || serverIP_Remote2[2] != IP_Server2[2] || serverIP_Remote2[0] != IP_Server2[0] || serverIP_Remote2[1] != IP_Server2[1]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
+          {
+            NVS.begin("Config_ESP32", false);
+            uint8_t ip_server_dest2[] = {serverIP_Remote2[0], serverIP_Remote2[1], serverIP_Remote2[2], serverIP_Remote2[3]};
+            NVS.putBytes("Dir_IP_Serv2", ip_server_dest2, sizeof(ip_server_dest2));
+            size_t ip_serv_len2 = NVS.getBytesLength("Dir_IP_Serv2");
+            char IP_SERV2[ip_serv_len2];
+            NVS.getBytes("Dir_IP_Serv2", IP_SERV2, ip_serv_len2);
+
+            NVS.end();
+            Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server2, IP_SERV2);
+            memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
+            IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
+          }
+#ifdef RX_Data_Server
+          Serial.println("CRC de datos entrante OK");
+#endif
+          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido_Socket2, true);
+          //Variables_globales.Set_Variable_Global(Dato_Socket_Valido, true);
+        }
+        else
+        {
+#ifdef RX_Data_Server
+          Serial.println("CRC de datos entrante ERROR");
+#endif
+          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido_Socket2, true);
         }
         vTaskDelay(50 / portTICK_PERIOD_MS);
         continue;

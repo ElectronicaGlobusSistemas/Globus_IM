@@ -19,6 +19,7 @@ Contadores_SAS contadores; // Objeto contiene contadores maquina
 
 #include "Buffer_Cashless.h"
 Buffer_RX_AFT Buffer_Cashless;
+Transsaccion_Cashless Cashless;
 //#include "Clase_Variables_Globales.h"
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
@@ -172,13 +173,24 @@ void setup()
         1); // Core donde se ejecutara la tarea
   }
   /*----------------------------------------------------------------------------------*/
+  if(Info_Cashless.Inicialize_File_System())
+  {
+    Serial.println("Sistema de archivos iniciado");
+    Info_Cashless.Load_Pending_Transactions();
+  }
+   
+
+  else
+    Serial.println("No se inicio el sistema de archivos");
+  Cashless.Init_API_Server();
 }
 unsigned long INT1=0;
 int Muestreo=500;
 
 void loop()
 {
-
+  Cashless.Registra_Maquina_Auto();
+  Info_Cashless.Reporting_Pending_Transfers();
   eventos.TimeOut_Capture_Event();
   Time_I=millis();
   TimeOut_Conect_RFID=millis();
@@ -519,6 +531,9 @@ static void Check_Comunicacion_Maq(void *parameter)
 */
 void TimeOut_Player_Tracking_Sesion(void)
 {
+
+  if (!Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless)) /* En Cashless Ignora TimeOut Player Tracking */
+  {
     currentTime = millis();
 
     if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) == false && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) == true)
@@ -533,7 +548,7 @@ void TimeOut_Player_Tracking_Sesion(void)
       if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
       {
         startTime = currentTime;
-        condicionCumplida=false;
+        condicionCumplida = false;
       }
       if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
       {
@@ -551,6 +566,7 @@ void TimeOut_Player_Tracking_Sesion(void)
 
       condicionCumplida = false;
     }
+  }
 }
 
 /* Elimina ID Operador si no se recibe  ACK  191 despues de 60s */

@@ -189,6 +189,11 @@ bool Eventos_SAS::Ignore_Event(int Event)
 bool Eventos_SAS::Set_Timer_Ignore_Event(unsigned long Time)
 {
     TimeOut_Exec=Time;
+
+    if(TimeOut_Exec==Time)
+        return true;
+    else
+        return false;
 }
 
 /*  Ignora  eventos  repetidos en una lista durante TimeOut_Exec

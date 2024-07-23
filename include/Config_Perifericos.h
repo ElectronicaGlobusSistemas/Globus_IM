@@ -8,6 +8,7 @@
 #include "AutoUpdate.h"
 #include "Web_Config.h"
 #include "Event_Real_Time.h"
+
 //#define Debug_Task
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency  240//240//
@@ -41,10 +42,14 @@ extern char Archivo_CSV[100];
 Event_Real_Time Eventos_Hardware;
 AutoUpdate UpdateOTA;
 Web_Config Task_Web_Config;
+Web_Config Web_Info_Config;
+
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
 
 extern TaskHandle_t CommandProcess;
+
+extern Buffer_RX_AFT Buffer_Cashless;
 //------------------------------------------------------------------
 
 //-----------------------> Prototipo de Funciones <-----------------
@@ -157,6 +162,8 @@ void Init_Config(void)
     //--------------------> Task Manager <---------------------------
     TaskManager(); // Inicia Manejador de Tareas de Verificación
     //---------------------------------------------------------------  
+
+   
 }
 
 void TaskManager()
@@ -257,11 +264,12 @@ static void ManagerTasks(void *parameter)
     {
         TIMEOUT_WiFi_CONNECT=millis();
         //---------------------------------> Config via Serial <-----------------------------------------
-        while (Serial.available() > 0)
-        {
-            String Command = Serial.readString(); // read until timeout
-            Config_Red_Serial(Command);
-        }
+        // if (Serial.available() > 0)
+        // {
+        //     String Command = Serial.readString(); // read until timeout
+        //     Config_Red_Serial(Command);
+        //     Serial.flush();
+        // }
         //------------------------------------------------------------------------------------------------
         //-----------------------------> MCU piloto <-----------------------------------------------------
         Tiempo_Actual = millis();
@@ -634,11 +642,39 @@ void Init_Configuracion_Inicial(void)
         NVS.putBytes("Dir_IP_Serv", ip_server, sizeof(ip_server));
     }
 
+    if (!NVS.isKey("Dir_IP_Serv2")) // Configura la IP de servidor
+    {
+        Serial.println("Guardando IP Server 2 por defecto...");
+        uint8_t ip_server2[] = {192, 168, 5, 200};
+        NVS.putBytes("Dir_IP_Serv2", ip_server2, sizeof(ip_server2));
+    }
+
+
+    if(!NVS.isKey("Dns_Primary"))
+    {
+        uint8_t Dns_One[] = {8, 8, 8, 8}; // optional
+        NVS.putBytes("Dns_Primary", Dns_One, sizeof(Dns_One));
+    }
+
+    if(!NVS.isKey("Dns_Secondary"))
+    {
+        uint8_t Dns_Two[] = {8, 8, 4, 4}; // optional
+        NVS.putBytes("Dns_Secondary", Dns_Two, sizeof(Dns_Two));
+    }
+
+
     if (!NVS.isKey("Socket")) // Configura el numero de socket
     {
         Serial.println("Guardando Puerto por defecto...");
         uint16_t port = 1001;
         NVS.putUInt("Socket", port);
+    }
+
+    if (!NVS.isKey("Socket2")) // Configura el numero de socket
+    {
+        Serial.println("Guardando Puerto por defecto 2...");
+        uint16_t port2 = 1005;
+        NVS.putUInt("Socket2", port2);
     }
 
     if (!NVS.isKey("Name_Maq")) // Configura el nombre de la MAQ
@@ -812,14 +848,37 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Event_Mecanic", Event_Mecanic);
     }
 
+
+    /* *************************** CASHLESS **************************************/
+    if(!NVS.isKey("Reg_AFT"))
+    {
+        char Temp_Register_AFT[20];
+
+        for(int i=0; i<20; i++)
+        {
+            Temp_Register_AFT[i]=0x00;
+        }
+        NVS.getBytes("Reg_AFT", Temp_Register_AFT, sizeof(Temp_Register_AFT));
+    }
+
+
     
+
+    if(!NVS.isKey("Trans_ID"))
+    {
+        uint32_t Trans_ID=0;
+        NVS.putUInt("Trans_ID",Trans_ID);
+    }
+
+    if(!NVS.isKey("Enable_Cashless"))
+    {
+        bool Enable=false; /* Deshabilitado por defecto!*/
+        NVS.putBool("Enable_Cashless",Enable);
+    }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
-
-    
-    
 
     // Inicializa Direccion IP
     size_t ip_len = NVS.getBytesLength("Dir_IP");
@@ -872,7 +931,7 @@ void Init_Configuracion_Inicial(void)
     Serial.println();
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
-    // Inicializa Direccion IP Servidor
+    // // Inicializa Direccion IP Servidor
     size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
     char IP_SERV[ip_serv_len];
     NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
@@ -887,13 +946,69 @@ void Init_Configuracion_Inicial(void)
         Serial.print(" ");
     }
     Serial.println();
+
+    size_t ip_serv_len2 = NVS.getBytesLength("Dir_IP_Serv2");
+    char IP_SERV2[ip_serv_len2];
+    char IP_prueba2[4];
+    NVS.getBytes("Dir_IP_Serv2", IP_SERV2, ip_serv_len2);
+    Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server2, IP_SERV2);
+    IP_prueba[4];
+    bzero(IP_prueba2, 4);
+    memcpy(IP_prueba2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_prueba2) / sizeof(IP_prueba2[0]));
+    Serial.print("Direccion IP Servidor 2: ");
+    for (int i = 0; i < 4; i++)
+    {
+        Serial.print((int)IP_prueba2[i]);
+        Serial.print(" ");
+    }
+    Serial.println();
     /*--------------------------------------------------------------------------------------------------------------------------*/
+
+     size_t ip_dns_len = NVS.getBytesLength("Dns_Primary");
+    char IP_DNS[ip_dns_len];
+
+    NVS.getBytes("Dns_Primary", IP_DNS, ip_dns_len);
+    Configuracion.Set_Configuracion_ESP32(Dns_One_IP, IP_DNS);
+    IP_prueba[4];
+    bzero(IP_prueba, 4);
+    memcpy(IP_prueba, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(IP_prueba) / sizeof(IP_prueba[0]));
+    Serial.print("DNS Primario: ");
+    for (int i = 0; i < 4; i++)
+    {
+        Serial.print((int)IP_prueba[i]);
+        Serial.print(" ");
+    }
+    Serial.println();
+
+    size_t ip_dns_len_two = NVS.getBytesLength("Dns_Secondary");
+    char IP_DNS_two[ip_dns_len_two];
+
+    NVS.getBytes("Dns_Secondary", IP_DNS_two, ip_dns_len_two);
+    Configuracion.Set_Configuracion_ESP32(Dns_Two_IP, IP_DNS_two);
+    IP_prueba[4];
+    bzero(IP_prueba, 4);
+    memcpy(IP_prueba, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(IP_prueba) / sizeof(IP_prueba[0]));
+    Serial.print("DNS Secundario: ");
+    for (int i = 0; i < 4; i++)
+    {
+        Serial.print((int)IP_prueba[i]);
+        Serial.print(" ");
+    }
+    Serial.println();
 
     // Inicializa Puerto de conexion a servidor
     uint16_t port_server = NVS.getUInt("Socket", 0);
     Configuracion.Set_Configuracion_ESP32(Puerto_Server, port_server);
     Serial.print("Puerto de conexion: ");
     Serial.println(Configuracion.Get_Configuracion(Puerto_Server, 0));
+
+
+    uint16_t port_server2 = NVS.getUInt("Socket2", 0);
+    Configuracion.Set_Configuracion_ESP32(Puerto_Server2, port_server2);
+    Serial.print("Puerto de conexion 2: ");
+    Serial.println(Configuracion.Get_Configuracion(Puerto_Server2, 0));
+
+
     /*--------------------------------------------------------------------------------------------------------------------------*/
 
     // Inicializa Nombre Maq
@@ -1297,12 +1412,54 @@ void Init_Configuracion_Inicial(void)
     {
         Variables_globales.Set_Variable_Global(Enable_Mechanical_Events,true);
         eventos.Set_Timer_Ignore_Event(10000);
+        Serial.println("Eventos Mecanicos habilitados ");
+    }else{
+        Variables_globales.Set_Variable_Global(Enable_Mechanical_Events,false);
+        Serial.println("Eventos mecanicos deshabilitados ");
+    }
+
+    uint16_t Port_COM = NVS.getUInt("COM",1);
+    Variables_globales.Set_Variable_Global_Uint16(Uart_Port_Select,Port_COM);
+    if(Port_COM==1)
+        Serial.println("Puerto RS232: COM1");
+    else if(Port_COM==2)
+        Serial.println("Puerto RS232: COM2");
+
+    /*--------------------------------------------------------------------------------------------------------------------------*/
+
+
+    /********************************************************** Cashless ****************************************************** */
+    size_t Key_AFT_Size = NVS.getBytesLength("Reg_AFT");
+    char AFT_Key[Key_AFT_Size];
+    NVS.getBytes("Reg_AFT", AFT_Key, Key_AFT_Size);
+    Buffer_Cashless.Set_Key_Register_AFT(AFT_Key);
+
+    Serial.print("Estado de maquina AFT: ");
+    if(AFT_Key[0]==0x00 &&AFT_Key[19]==0x00)
+    {
+        Variables_globales.Set_Variable_Global(Status_AFT_Machine,false);
+        Serial.println("No registrada");
     }
         
     else
-        Variables_globales.Set_Variable_Global(Enable_Mechanical_Events,false);    
-    /*--------------------------------------------------------------------------------------------------------------------------*/
+    {
+        Variables_globales.Set_Variable_Global(Status_AFT_Machine,true);
+        Serial.println("Registrada");
+    }
 
+    Serial.print("ID Transaccion Maquina : ");
+    /* ---------------> Trans ID <-------------*/
+    uint32_t Trans_ID=NVS.getUInt("Trans_ID",0);
+    Cashless.Set_Inicial_Trans_ID(Trans_ID);
+    /*-----------------------------------------*/
+    Serial.println(Cashless.Get_Trans_ID_Int());
+
+    bool Status_Cashless=NVS.getBool("Enable_Cashless",false);
+    Variables_globales.Set_Variable_Global(Enable_Cashless,Status_Cashless);
+    if(Variables_globales.Get_Variable_Global(Enable_Cashless))
+        Serial.println("Transacciones Cashless Habilitado");
+    else
+        Serial.println("Transacciones Cashless Inhabilitado");
     Serial.println("\n");
     NVS.end();
 }

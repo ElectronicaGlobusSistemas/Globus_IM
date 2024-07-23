@@ -8,11 +8,22 @@ using namespace std;
 #include <stdlib.h>
 #include "Utilidades_Maquina.h"
 #include "CRC_Kermit.h"
+#include "RFID.h"
+
+
+
+
+
 int Envio=0;
 char Prueba_AFT[128];
 char Data_TX_AFT[33];
+
+char FF[63];
 extern bool Condicion_Cumpl;
 extern bool  condicionCumplida;
+extern Cashless_API Info_Cashless;
+
+extern bool hayTransaccionesPendientes;
 /*-------------------> Cashless <------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------------------------------------*/
@@ -84,20 +95,27 @@ String Estructura_CSV[27] = {"n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/a,", "n/
 //------------------------------------> Prototipo de Funciones <------------------------------------------------
 void Transmite_Sincronizacion(void);
 static void UART_ISR_ROUTINE(void *pvParameters);
-
+bool Solicitud_Descarga_Cashless(void);
 static void UART_ISR_ROUTINE_NUM1(void *pvParameters);
 void Encuestas_Maquina_NUM1(void *pvParameters);
-
+void Transmite_Download_AFT_Maq(void);
 void Encuestas_Maquina(void *pvParameters);
 //--------------Guarda Contadores SD
 void Storage_Contadores_SD(char *ARCHIVO, String Encabezado1, bool Enable);
 void Add_String(char *contador, String stringDT, bool Separador);
 void Add_String_Hora(String Horario);
+void Transmite_Load_AFT_Maq(void);
+
+void Actualiza_Entradas_Cashless(void);
+void Actualiza_Salidas_Cashless(void);
+bool Actualiza_Cashless_Salidas(void);
+bool Actualiza_Cashless_Entradas(void);
 //-------------------------------------
 //--------------Guarda Eventos SD
 void Store_Eventos_SD(char *ARCHIVO, bool Enable);
 void Add_String_Hora_EVEN(String Horario);
 void Add_String_EVEN(String EVENTO, bool Separador);
+bool Solicitud_Carga_Cashless(void);
 //---------------------------------------
 void Encuestas_Maquinas_Poker_Ertech_Slot(void);
 void Encuestas_Maquinas_Simple_No_Cancel(void);
@@ -136,8 +154,10 @@ void Encuestas_Aristocrat_Australiana(void);
 void Transmite_Encuesta_Creditos(void);
 void Transmite_Encuesta_Maquina_Juego(void);
 void Transmite_Encuesta_ROM(void);
-bool Transmite_Carga_legacy_bonus_awards(void);
+void Transmite_Carga_legacy_bonus_awards(void);
 bool Filtro_Eventos_Mq(int Evento);
+
+bool Carga_Bonus_Maquina(void);
 extern unsigned long Bandera_RS232;
 extern unsigned long Bandera_RS232_F;
 //---------------------------------------------------------------------------------------------------------------
@@ -154,7 +174,10 @@ int Conta_Poll_Billetes = 0;
 bool flag_ultimo_contador_Ok = false;
 int conta_poll_comunicacion_maquina = 0;
 bool flag_handle_maquina = false;
+
+bool flag_handle_maquina_Cashless = false;
 int Handle_Maquina = 0;
+int Handle_Maquina_Cashless = 0;
 
 bool Act_Coin_in_Poker = false;
 bool Act_Coin_out_Poker = false;
@@ -179,6 +202,11 @@ int Cuenta_Save_Mecanicas=0;
 #define Flag_Encuesta_Maquina_Juego 14
 #define Flag_Encuesta_ROM        15
 #define Flag_Carga_Bonus         16
+#define Flag_Carga_Cashless      17
+#define Flag_Descarga_Cashless   18
+
+#define Flag_Update_Out_Cashless   19
+#define Flag_Update_In_Cashless   20
 
 // MetodoCRC CRC_Maq;
 // Contadores_SAS contadores;
@@ -224,10 +252,10 @@ void Init_UART2()
  // ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &Configurazione_UART2));
 
    // Inicializa configuracion tipo de maquina
-    NVS.begin("Config_ESP32", false);
-    uint16_t Port_COM = NVS.getUInt("COM");
-    NVS.end();
-
+    // NVS.begin("Config_ESP32", false);
+    // uint16_t Port_COM = NVS.getUInt("COM");
+    // NVS.end();
+    uint16_t Port_COM=Variables_globales.Get_Variable_Global_Uint16(Uart_Port_Select);
     if (Port_COM == 1)
     {
       uart_set_pin(NUMERO_PORTA_SERIALE, U2TXD, U2RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
@@ -253,7 +281,7 @@ void Init_RS232()
   NVS.begin("Config_ESP32", false);
   uint16_t Port_COM = NVS.getUInt("COM");
   NVS.end();
-
+ 
   if (Port_COM == 1)
   {
     uart_config_t Configurazione_UART2 = {
@@ -515,8 +543,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           conta_bytes++;
         }
         //        Serial.println();
-       
-        
       }
       
       
@@ -531,7 +557,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           #endif
           ACK_Maq = true;
         }
-        
+
+        if(buffer[0]==0x01 && Variables_globales.Get_Variable_Global(Solicitud_Carga_Bonus)||buffer[0]==0x81 && Variables_globales.Get_Variable_Global(Solicitud_Carga_Bonus)||buffer[0]==0x7C && Variables_globales.Get_Variable_Global(Solicitud_Carga_Bonus))
+        {
+          Cashless.Set_ACK_Bonus(buffer);
+          Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,false);
+        }
       }
       if (buffer[3] == 0xF3 && buffer[4] == 0x07||buffer[3]==0xE1 &&buffer[4]==0x24)
       {
@@ -594,6 +625,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                     Add_Contador(contador, Total_Cancel_Credit, false);
                     contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
                     Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+
+                    /* ----------------->Se agrego<--------------------------------- */
+                    contadores.Change_Counters(contador);
+                    /*---------------------------------------------------------------*/
                     break;
                   case 1:
 
@@ -609,12 +644,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                     Add_Contador(contador, Total_Drop, false);
                     contadores.Set_Contadores(Bill_Amount, contador);
                     Add_Contador(contador, Bill_Amount, false);
-
+                    contadores.Change_Counters_Bill_In(contador);
                     Selector_Modo_SD(); // Ftp o Storage
 
                     if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
                     {
-
                       for (int i = 0; i < Max_Encuestas; i++)
                       {
                         SD_Cont = SD_Cont + Estructura_CSV[i];
@@ -705,6 +739,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                     Add_Contador(contador, Total_Cancel_Credit, false);
                     contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
                     Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+
+                    contadores.Change_Counters(contador);
                     break;
                   case 1:
 
@@ -720,6 +756,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                     Add_Contador(contador, Total_Drop, false);
                     contadores.Set_Contadores(Bill_Amount, contador);
                     Add_Contador(contador, Bill_Amount, false);
+                    contadores.Change_Counters_Bill_In(contador);
                     break;
 
                   default:
@@ -829,12 +866,34 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
         {
-          
+
+         
+
+          if (buffer[0] == 0x01 && buffer[1] == 0x72)
+          {
+            Buffer_Cashless.Set_Buffer_Transfer_AFT(buffer);
+          }
+
+          if(buffer[1]==0x74 && buffer[7] == 0xFF||buffer[1]==0x74 && buffer[7] == 0x40||buffer[1]==0x74 && buffer[7] == 0x00)
+          {
+            Buffer_Cashless.Set_RX_AFT(Buffer_RX_Cashless,buffer);
+          }
+
+          if (buffer[0] == 0x01 && buffer[1] == 0x73)
+          {
+#ifdef Debug_Contadores
+            Serial.println("Genial.........>>>>>");
+#endif
+            Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
+          }
+
           if (Buffer.Verifica_buffer_Maq(buffer, conta_bytes))
           {
             Bandera_RS232_F=Bandera_RS232;
             numero_contador++;
             Datos_OK=true;
+
+
 
             for (int index = 0; index < conta_bytes; index++)
             {
@@ -844,22 +903,14 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             if (buffer_contadores[0] == 0x01 && buffer[1] == 0x73 && buffer[3] == 0x01)
             {
-              #ifdef Debug_Contadores
+#ifdef Debug_Contadores
               Serial.println("Genial.........>>>>>");
-              #endif
+#endif
 
-              Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
+              //Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
             }
-              if (buffer[0] == 0x01 && buffer[1] == 0x73)
-              {
-                #ifdef Debug_Contadores
-                Serial.println("Genial.........>>>>>");
-                #endif
-                Buffer_Cashless.Set_RX_AFT(Buffer_RX_AFT_, buffer);
-              }
-
-           
-
+            
+            
             if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
             {
               char contador[7] = {};
@@ -885,6 +936,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 {
                   contadores.Set_Contadores(Copia_Cancel_Credit, contador);
+                  
                 }
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
                 {
@@ -904,6 +956,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 {
                   contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
                   Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+                  /* ----------------->Se agrego<--------------------------------- */
+                  contadores.Change_Counters(contador);
+                  /*---------------------------------------------------------------*/
                 }
 
                 
@@ -1002,19 +1057,27 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 Add_Contador(contador, Games_Played, false);
                 break;
               case 46:
-                contadores.Set_Contadores(Bill_Amount, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+
+                if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 2)
+                {
+                  contadores.Set_Contadores(Bill_Amount, contador); // ? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
+                  Add_Contador(contador, Bill_Amount, false);
+                }
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 && contadores.Get_Contadores_Int(Bill_Amount) == 0)
                 {
                   char res[7] = {};
                   bzero(res, 7); // Pone el buffer en 0
                   memcpy(res, contadores.Get_Contadores_Char(Total_Drop), 7);
                   contadores.Set_Contadores(Bill_Amount, res);
+                  Add_Contador(res, Bill_Amount, false);
+                  
                 }
                 else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
                 {
-                   Calcula_Bill_In_550();
+                  contadores.Set_Contadores(Copia_Bill_Amount,contador);
+                  Calcula_Bill_In_550();
+                  Add_Contador(contadores.Get_Contadores_Char(Copia_Bill_Amount), Bill_Amount, false);
                 }
-                Add_Contador(contador, Bill_Amount, false);
                 break;
               }
               if (buffer[1] == 0x1A)
@@ -1414,10 +1477,20 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               {
                 contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
                 contadores.Set_Contadores(Total_Cancel_Credit, contador);
+                Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+                Add_Contador(contador, Total_Cancel_Credit, false);
+
+                /* ----------------->Se agrego<--------------------------------- */
+                contadores.Change_Counters(contador);
+                /*---------------------------------------------------------------*/
               }else{
                 contadores.Set_Contadores(Cancel_Credit_Hand_Pay, contador);
+                Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+                /* ----------------->Se agrego<--------------------------------- */
+                contadores.Change_Counters(contador);
+                /*---------------------------------------------------------------*/
               }
-              Add_Contador(contador, Cancel_Credit_Hand_Pay, false);
+             
              // contadores.Change_Counters(contador);
             }
 
@@ -1732,6 +1805,33 @@ void Encuestas_Maquina(void *pvParameters)
     {
       numero_encuesta++;
       Conta_Poll = 0;
+
+      if(flag_handle_maquina_Cashless)
+      {
+        switch (Handle_Maquina_Cashless)
+        {
+        case Flag_Carga_Cashless:
+
+          delay(50);
+          Transmite_Load_AFT_Maq();
+          Handle_Maquina_Cashless=0;
+          delay(50);
+        break;
+
+        case Flag_Descarga_Cashless:
+          delay(50);
+          Transmite_Download_AFT_Maq();
+          Handle_Maquina_Cashless=0;
+          delay(50);
+        break;
+
+        default:
+          Handle_Maquina_Cashless=0;
+          break;
+        }
+
+        flag_handle_maquina_Cashless=false;
+      }
       if (flag_handle_maquina)
       {
         switch (Handle_Maquina)
@@ -1753,8 +1853,6 @@ void Encuestas_Maquina(void *pvParameters)
           break;
         case 4:
           //    Serial.println("Encuesta Premio");
-          
-
           if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
             Escribe_Tarjeta_Mecanica(Buffer.Get_buffer_tarjeta_mecanica());
 
@@ -1819,6 +1917,17 @@ void Encuestas_Maquina(void *pvParameters)
           Transmite_Carga_legacy_bonus_awards();
           Handle_Maquina=0;
           break;
+
+        case Flag_Update_In_Cashless:
+          Actualiza_Cashless_Entradas();
+          Handle_Maquina=0;
+        break;
+
+        case Flag_Update_Out_Cashless:
+          Actualiza_Cashless_Salidas();
+          Handle_Maquina=0;
+        break;
+
         default:
           Handle_Maquina = 0;
           break;
@@ -5057,7 +5166,7 @@ void Transmite_Reset_Handpay(void)
     Transmite_Poll_Long(0xCB);
   }
 
-  void Encuesta_contador_1B(void)
+void Encuesta_contador_1B(void)
   {
     Transmite_Poll(0x1B);
   }
@@ -5175,6 +5284,10 @@ void Calcula_Cancel_Credit_IRT(void)
       {
         contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
         contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
+
+        /* ----------------->Se agrego<--------------------------------- */
+        contadores.Change_Counters(Contador_Cancel_Credit_IRT);
+        /*---------------------------------------------------------------*/
       }
     //  contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_IRT);
     //  contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_IRT);
@@ -5188,12 +5301,12 @@ void Calcula_Bill_In_550(void)
     char Contador_Bill_In_550[9];
     bzero(Contador_Bill_In_550, 9);
 
-    Bill_In_550 = contadores.Get_Contadores_Int(Bill_Amount);
+    Bill_In_550 = contadores.Get_Contadores_Int(Copia_Bill_Amount);
 
     Bill_In_550 *= 10;
 
-    Serial.print("contador bill_in int 550 es: ");
-    Serial.println(Bill_In_550);
+    // Serial.print("contador bill_in int 550 es: ");
+    // Serial.println(Bill_In_550);
 
     decmill = Bill_In_550 / 10000000;
     Contador_Bill_In_550[0] = decmill + 48;
@@ -5226,12 +5339,12 @@ void Calcula_Bill_In_550(void)
     uni = Residuo;
     Contador_Bill_In_550[7] = uni + 48;
 
-    Serial.print("contador bill_in char 550 es: ");
-    Serial.println(Contador_Bill_In_550);
+    // Serial.print("contador bill_in char 550 es: ");
+    // Serial.println(Contador_Bill_In_550);
     contadores.Set_Contadores(Bill_Amount, Contador_Bill_In_550);
   }
 
-  void Escribe_Tarjeta_Mecanica_2(char buf[])
+void Escribe_Tarjeta_Mecanica_2(char buf[])
   {
     
     for (int i = 0; i < 51; i++)
@@ -5242,7 +5355,7 @@ void Calcula_Bill_In_550(void)
     Recibe_Mecanicas = true;
   }
 
-  void Escribe_Tarjeta_Mecanica(char buf[])
+void Escribe_Tarjeta_Mecanica(char buf[])
   {
     for (int i = 0; i < 35; i++)
     {
@@ -5365,7 +5478,7 @@ void Transmite_Encuesta_Maquina_Juego(void)
 
 bool Transmite_AFT_Registro_Machine(void)
 {
-    Serial.println("REGISTRA MAQUINA....");
+   // Serial.println("REGISTRA MAQUINA....");
     Data_TX_AFT[0] = 0x01;
     Data_TX_AFT[1] = 0x73;
     Data_TX_AFT[2] = 0x1D;
@@ -5492,10 +5605,15 @@ bool Carga_Bonus_Maquina(void)
 
 char Data_TX[8];
 
+/* ***************** CASHLESS ********************/
 
-
-bool Transmite_Carga_legacy_bonus_awards(void)
+void Transmite_Carga_legacy_bonus_awards(void)
 {
+  Cashless.Delete_ACK_Bonus();
+  #define BONUS_OK           0x01
+  #define EXCEPTION          0x81
+  #define SIN_RESPUESTA      0XFF
+  #define EVENTO_CARGA_BONUS 0x7C
 
   Data_TX[0]=0x01;
   Data_TX[1]=0x8A;    
@@ -5508,6 +5626,14 @@ bool Transmite_Carga_legacy_bonus_awards(void)
 
   CalcularCRC_Datos();
 
+  // /* Bloque MAQUINA */
+  // sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  // Transmite_Poll_Long(0x01);
+  // Transmite_Poll_Long(0x51);
+  // Transmite_Poll_Long(0x08);
+
+  // delay(300);
+
   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
   Transmite_Poll_Long(Data_TX[1]);
   Transmite_Poll_Long(Data_TX[2]);
@@ -5517,12 +5643,16 @@ bool Transmite_Carga_legacy_bonus_awards(void)
   Transmite_Poll_Long(Data_TX[6]);
   Transmite_Poll_Long(Data_TX[7]);
   Transmite_Poll_Long(Data_TX[8]);
-
-  return true;
+  
+  delay(500); /* Espera  respuesta Maq */
+   /* Aqui validacion  Buffer*/
+  Variables_globales.Set_Variable_Global(Status_Load_Bonus,true); 
 }
+
+
 bool Transmite_Init_Registro(void)
 {
-  Serial.println("INICIALIZA REGISTRO....");
+ // Serial.println("INICIALIZA REGISTRO....");
   Data_TX_AFT[0] = 0x01;
   Data_TX_AFT[1] = 0x73;
   Data_TX_AFT[2] = 0x1D;
@@ -5605,7 +5735,7 @@ bool Transmite_Init_Registro(void)
 bool Transmite_Registro_AFT_Maq(void)
 {
 
-  Serial.println("Consulta Registro AFT....");
+  //Serial.println("Consulta Registro AFT....");
   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
   Transmite_Poll_Long(0x73);
   Transmite_Poll_Long(0x01);
@@ -5616,6 +5746,525 @@ bool Transmite_Registro_AFT_Maq(void)
   return true;
 }
 /*---------------------------------------------------------------------------------------------*/
+
+bool Solicitud_Carga_Cashless(void)
+{
+  flag_handle_maquina_Cashless = true;
+  Handle_Maquina_Cashless = Flag_Carga_Cashless;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Solicitud_Descarga_Cashless(void)
+{
+  flag_handle_maquina_Cashless = true;
+  Handle_Maquina_Cashless = Flag_Descarga_Cashless;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Actualiza_Cashless_Entradas(void)
+{
+  flag_handle_maquina_Cashless = true;
+  Handle_Maquina_Cashless = Flag_Update_In_Cashless;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Actualiza_Cashless_Salidas(void)
+{
+  flag_handle_maquina_Cashless = true;
+  Handle_Maquina_Cashless = Flag_Update_Out_Cashless;
+  delay(600);
+  if (ACK_Maq)
+  {
+    ACK_Maq = false;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Transmite_Status_AFT_Maq(void)
+{
+
+  // TX>= 01 74 FF 00 05 00 A2 87
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x74);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x05);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0xA2);
+  Transmite_Poll_Long(0x87);
+
+  delay(500); /* Espera tiempo de respuesta Maq */
+
+  return true; /* Condicion OK carga  o descarga  */
+}
+
+void Transmite_Download_AFT_Maq(void)
+{
+  Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
+
+  char Request_Credit[9];
+  int Size_Command_Data = 7;
+
+  Request_Credit[0] = 0x01; // DIRECCION MAQUINA
+  Request_Credit[1] = 0x74; // COMANDO
+  Request_Credit[2] = 0xFF; // Request Look
+  Request_Credit[3] = 0x03; // Trasnfer Condition
+  Request_Credit[4] = 0x05; // Duracion Bloqueo H
+  Request_Credit[5] = 0x00; // Duracion Bloqueo L
+  Request_Credit[6] = 0xC6; // CRC
+  Request_Credit[7] = 0x68; // CRC
+
+ 
+
+  for (int i = 0; i < 8; i++)
+  {
+    if (i == 0)
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    else
+    {
+      Transmite_Poll_Long(Request_Credit[i]);
+    }
+  }
+
+  delay(500); /* Espera respuesta de maquina */
+
+
+
+  char Transfer_Command_Down[63];
+  int Size_Command = 60;
+  Cashless.Increase_Transaction_Number_ID();
+
+  Transfer_Command_Down[0] = 0x01;
+  Transfer_Command_Down[1] = 0x72;
+  Transfer_Command_Down[2] = 0x3A;
+  Transfer_Command_Down[3] = 0x01;
+  Transfer_Command_Down[4] = 0x00;
+  Transfer_Command_Down[5] = 0x80;
+
+  // CASHABLES
+  Transfer_Command_Down[6] = 0x99;
+  Transfer_Command_Down[7] = 0x99;
+  Transfer_Command_Down[8] = 0x99;
+  Transfer_Command_Down[9] = 0x99;
+  Transfer_Command_Down[10] = 0x99;
+  // RESTRICTED
+  Transfer_Command_Down[11] = 0x99;
+  Transfer_Command_Down[12] = 0x99;
+  Transfer_Command_Down[13] = 0x99;
+  Transfer_Command_Down[14] = 0x99;
+  Transfer_Command_Down[15] = 0x99;
+  // NO RESTRICTED
+  Transfer_Command_Down[16] = 0x99;
+  Transfer_Command_Down[17] = 0x99;
+  Transfer_Command_Down[18] = 0x99;
+  Transfer_Command_Down[19] = 0x99;
+  Transfer_Command_Down[20] = 0x99;
+
+  Transfer_Command_Down[21] = 0b00000001; // TRANSFER FLAGS
+
+  // ASSET NUMEBER
+  Transfer_Command_Down[22] = Buffer_Cashless.Get_Key_Register_AFT()[0];
+  Transfer_Command_Down[23] = Buffer_Cashless.Get_Key_Register_AFT()[1];
+  Transfer_Command_Down[24] = Buffer_Cashless.Get_Key_Register_AFT()[2];
+  Transfer_Command_Down[25] = Buffer_Cashless.Get_Key_Register_AFT()[3];
+
+  // REG KEY
+  Transfer_Command_Down[26] = Buffer_Cashless.Get_Key_Register_AFT()[0];
+  Transfer_Command_Down[27] = Buffer_Cashless.Get_Key_Register_AFT()[1];
+  Transfer_Command_Down[28] = Buffer_Cashless.Get_Key_Register_AFT()[2];
+  Transfer_Command_Down[29] = Buffer_Cashless.Get_Key_Register_AFT()[3];
+
+  Transfer_Command_Down[30] = Buffer_Cashless.Get_Key_Register_AFT()[4];
+  Transfer_Command_Down[31] = Buffer_Cashless.Get_Key_Register_AFT()[5];
+  Transfer_Command_Down[32] = Buffer_Cashless.Get_Key_Register_AFT()[6];
+  Transfer_Command_Down[33] = Buffer_Cashless.Get_Key_Register_AFT()[7];
+
+  Transfer_Command_Down[34] = Buffer_Cashless.Get_Key_Register_AFT()[8];
+  Transfer_Command_Down[35] = Buffer_Cashless.Get_Key_Register_AFT()[9];
+  Transfer_Command_Down[36] = Buffer_Cashless.Get_Key_Register_AFT()[10];
+  Transfer_Command_Down[37] = Buffer_Cashless.Get_Key_Register_AFT()[11];
+
+  Transfer_Command_Down[38] = Buffer_Cashless.Get_Key_Register_AFT()[12];
+  Transfer_Command_Down[39] = Buffer_Cashless.Get_Key_Register_AFT()[13];
+  Transfer_Command_Down[40] = Buffer_Cashless.Get_Key_Register_AFT()[14];
+  Transfer_Command_Down[41] = Buffer_Cashless.Get_Key_Register_AFT()[15];
+
+  Transfer_Command_Down[42] = Buffer_Cashless.Get_Key_Register_AFT()[16];
+  Transfer_Command_Down[43] = Buffer_Cashless.Get_Key_Register_AFT()[17];
+  Transfer_Command_Down[44] = Buffer_Cashless.Get_Key_Register_AFT()[18];
+  Transfer_Command_Down[45] = Buffer_Cashless.Get_Key_Register_AFT()[19];
+
+  Transfer_Command_Down[46] = 0x07; // LENGT TRASN_ID
+
+  // //TRANS_ID
+  // AFT_Transfer[47] = Cashless.Get_Trans_ID()[0];
+  // AFT_Transfer[48] = Cashless.Get_Trans_ID()[1];
+  // AFT_Transfer[49] = Cashless.Get_Trans_ID()[2];
+  // AFT_Transfer[50] = Cashless.Get_Trans_ID()[3];
+
+  // AFT_Transfer[51] = Cashless.Get_Trans_ID()[4];
+  // AFT_Transfer[52] = Cashless.Get_Trans_ID()[5];
+  // AFT_Transfer[53] = Cashless.Get_Trans_ID()[6];
+
+  // TRANS_ID
+  Transfer_Command_Down[47] = Cashless.Get_Trans_ID()[0];
+  Transfer_Command_Down[48] = Cashless.Get_Trans_ID()[1];
+  Transfer_Command_Down[49] = Cashless.Get_Trans_ID()[2];
+  Transfer_Command_Down[50] = Cashless.Get_Trans_ID()[3];
+  Transfer_Command_Down[51] = Cashless.Get_Trans_ID()[4];
+  Transfer_Command_Down[52] = Cashless.Get_Trans_ID()[5];
+  Transfer_Command_Down[53] = Cashless.Get_Trans_ID()[6];
+
+  // EXPIRATION
+  Transfer_Command_Down[54] = 0x00;
+  Transfer_Command_Down[55] = 0x00;
+  Transfer_Command_Down[56] = 0x00;
+  Transfer_Command_Down[57] = 0x00;
+
+  // POLL ID
+  Transfer_Command_Down[58] = 0x00;
+  Transfer_Command_Down[59] = 0x00;
+
+  // RECEIPT DATA LENGT
+  Transfer_Command_Down[60] = 0x00;
+
+  CalcularCRC_Transfer(Transfer_Command_Down, Size_Command);
+
+  /* ----------> Interroga AFT Maq <-------------- */
+
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x72);     //  Comando
+  Transmite_Poll_Long(0x02);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x0F);
+  Transmite_Poll_Long(0x22);
+  delay(250); /* Espera respuesta de maquina */
+  /*-----------------------------------------------*/
+
+  for (int i = 0; i < 63; i++)
+  {
+    if (i == 0)
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    else
+    {
+      Transmite_Poll_Long(Transfer_Command_Down[i]);
+    }
+  }
+  /*------------------------------------------------
+   */
+  delay(500); /* Espera respuesta de maquina */
+
+
+  if(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0x40||Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0xAA)
+    delay(500);
+
+  /* ----------> Interroga AFT Maq <-------------- */
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x72);     //  Comando
+  Transmite_Poll_Long(0x02);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x0F);
+  Transmite_Poll_Long(0x22);
+  /*-----------------------------------------------*/
+  delay(500); /* Espera respuesta de maquina */
+  /* Transfer recibida */
+  if(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0x40||Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0xAA)
+    delay(500);
+
+  if (Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x00||Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x01)
+  {
+    Info_Cashless.Status_Transfer_Download(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC);
+    Info_Cashless.Close_Player_Tracking_Sesion(true);
+    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+    Info_Cashless.Reader_Lock(false);
+    contadores.Close_ID_Client_Transaccion();
+  }
+  else
+  {
+    Info_Cashless.Reader_Lock(false);
+    Info_Cashless.Status_Transfer_Download(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC);
+  }
+}
+
+void Actualiza_Entradas_Cashless(void)
+{
+  #ifdef Debug_Encuestas
+  Serial.println("Casheable In"); // Casheable in
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x2E);
+  Transmite_Poll_Long(0xF7);
+  Transmite_Poll_Long(0xE3);
+
+  delay(150);
+
+#ifdef Debug_Encuestas
+  Serial.println("Casheable Restricted In"); // Casheable restricted in
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x7E);
+  Transmite_Poll_Long(0xF2);
+
+  delay(150);
+
+#ifdef Debug_Encuestas
+  Serial.println("Casheable Nonrestricted In"); // Casheable Nonrestricted in
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x30);
+  Transmite_Poll_Long(0x08);
+  Transmite_Poll_Long(0x1A);
+
+}
+
+
+void Actualiza_Salidas(void)
+{
+
+#ifdef Debug_Encuestas
+  Serial.println("Casheable Out"); // Casheable out
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x32);
+  Transmite_Poll_Long(0x1A);
+  Transmite_Poll_Long(0x39);
+
+  delay(150);
+
+#ifdef Debug_Encuestas
+  Serial.println("Casheable Restricted Out"); // Casheable restricted out
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x33);
+  Transmite_Poll_Long(0x93);
+  Transmite_Poll_Long(0x28);
+
+  delay(150);
+
+#ifdef Debug_Encuestas
+  Serial.println("Casheable Nonrestricted Out"); // Casheable nonrestricted out
+#endif
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x2F);
+  Transmite_Poll_Long(0x03);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x34);
+  Transmite_Poll_Long(0x2C);
+  Transmite_Poll_Long(0x5C);
+}
+
+
+void Transmite_Load_AFT_Maq(void)
+{
+
+  Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
+
+  char Transfer_Command[63];
+  int Size_Command=60;
+  Cashless.Increase_Transaction_Number_ID();
+  
+  Transfer_Command[0] = 0x01; // DIRECCION MAQUINA 01
+  Transfer_Command[1] = 0x72; // COMANDO 72
+  Transfer_Command[2] = 0x3A; // LONGITUD 3A
+  Transfer_Command[3] = 0x00; // TRANSFER CODE 00
+  Transfer_Command[4] = 0x00; // TRANSACTION INDEX 00 
+  Transfer_Command[5] = 0x00; // TRANSFER TYPE 00
+
+  // CASHABLES
+  Transfer_Command[6]=Cashless.Get_Credit_To_Load()[0]; // MILLONES
+  Transfer_Command[7]=Cashless.Get_Credit_To_Load()[1]; // MIL
+  Transfer_Command[8]=Cashless.Get_Credit_To_Load()[2]; // PESOS
+  Transfer_Command[9]=Cashless.Get_Credit_To_Load()[3]; //0x01
+  Transfer_Command[10]=Cashless.Get_Credit_To_Load()[4];
+  //RESTRICTED
+  Transfer_Command[11]=Cashless.Get_Credit_To_Load()[5];
+  Transfer_Command[12]=Cashless.Get_Credit_To_Load()[6];
+  Transfer_Command[13]=Cashless.Get_Credit_To_Load()[7];
+  Transfer_Command[14]=Cashless.Get_Credit_To_Load()[8];
+  Transfer_Command[15]=Cashless.Get_Credit_To_Load()[9];
+
+  //NO RESTRICTED
+  Transfer_Command[16]=Cashless.Get_Credit_To_Load()[10];
+  Transfer_Command[17]=Cashless.Get_Credit_To_Load()[11];
+  Transfer_Command[18]=Cashless.Get_Credit_To_Load()[12];
+  Transfer_Command[19]=Cashless.Get_Credit_To_Load()[13];
+  Transfer_Command[20]=Cashless.Get_Credit_To_Load()[14];
+
+  // TRANSFER FLAGS
+  Transfer_Command[21] = 0b00000111;
+
+  // ASSET NUMEBER
+  Transfer_Command[22] = Buffer_Cashless.Get_Key_Register_AFT()[0];
+  Transfer_Command[23] = Buffer_Cashless.Get_Key_Register_AFT()[1];
+  Transfer_Command[24] = Buffer_Cashless.Get_Key_Register_AFT()[2];
+  Transfer_Command[25] = Buffer_Cashless.Get_Key_Register_AFT()[3];
+
+  // REG KEY
+  Transfer_Command[26] = Buffer_Cashless.Get_Key_Register_AFT()[0];
+  Transfer_Command[27] = Buffer_Cashless.Get_Key_Register_AFT()[1];
+  Transfer_Command[28] = Buffer_Cashless.Get_Key_Register_AFT()[2];
+  Transfer_Command[29] = Buffer_Cashless.Get_Key_Register_AFT()[3];
+  
+  Transfer_Command[30] = Buffer_Cashless.Get_Key_Register_AFT()[4];
+  Transfer_Command[31] = Buffer_Cashless.Get_Key_Register_AFT()[5];
+  Transfer_Command[32] = Buffer_Cashless.Get_Key_Register_AFT()[6];
+  Transfer_Command[33] = Buffer_Cashless.Get_Key_Register_AFT()[7];
+
+  Transfer_Command[34] = Buffer_Cashless.Get_Key_Register_AFT()[8];
+  Transfer_Command[35] = Buffer_Cashless.Get_Key_Register_AFT()[9];
+  Transfer_Command[36] = Buffer_Cashless.Get_Key_Register_AFT()[10];
+  Transfer_Command[37] = Buffer_Cashless.Get_Key_Register_AFT()[11];
+
+  Transfer_Command[38] = Buffer_Cashless.Get_Key_Register_AFT()[12];
+  Transfer_Command[39] = Buffer_Cashless.Get_Key_Register_AFT()[13];
+  Transfer_Command[40] = Buffer_Cashless.Get_Key_Register_AFT()[14];
+  Transfer_Command[41] = Buffer_Cashless.Get_Key_Register_AFT()[15];
+
+  Transfer_Command[42] = Buffer_Cashless.Get_Key_Register_AFT()[16];
+  Transfer_Command[43] = Buffer_Cashless.Get_Key_Register_AFT()[17];
+  Transfer_Command[44] = Buffer_Cashless.Get_Key_Register_AFT()[18];
+  Transfer_Command[45] = Buffer_Cashless.Get_Key_Register_AFT()[19];
+
+  Transfer_Command[46] = 0x07; // LENGT TRASN_ID
+
+  // TRANS_ID
+  Transfer_Command[47] = Cashless.Get_Trans_ID()[0];
+  Transfer_Command[48] = Cashless.Get_Trans_ID()[1];
+  Transfer_Command[49] = Cashless.Get_Trans_ID()[2];
+  Transfer_Command[50] = Cashless.Get_Trans_ID()[3];
+  Transfer_Command[51] = Cashless.Get_Trans_ID()[4];
+  Transfer_Command[52] = Cashless.Get_Trans_ID()[5];
+  Transfer_Command[53] = Cashless.Get_Trans_ID()[6];
+ 
+  // EXPIRATION
+  Transfer_Command[54] = 0x00;
+  Transfer_Command[55] = 0x00;
+  Transfer_Command[56] = 0x00;
+  Transfer_Command[57] = 0x00;
+
+  // POLL ID
+  Transfer_Command[58] = 0x00;
+  Transfer_Command[59] = 0x00;
+
+  // RECEIPT DATA LENGT
+  Transfer_Command[60] = 0x00;
+
+  
+  //CalcularCRC_Tmp(); // Calcula CRC 
+  CalcularCRC_Transfer(Transfer_Command,Size_Command);
+  /* ----------> Interroga AFT Maq <-------------- */
+
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x72);    //  Comando 
+  Transmite_Poll_Long(0x02);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x0F);
+  Transmite_Poll_Long(0x22);
+  delay(250); /* Espera respuesta de maquina */
+  /*-----------------------------------------------*/
+
+
+  /*-----------> Transmite  AFT Maq <--------------*/
+  for(int i=0; i< 63; i++)
+  {
+    if(i==0)
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    else{
+      Transmite_Poll_Long(Transfer_Command[i]);
+    }
+  }
+  /*------------------------------------------------
+
+  */
+
+  delay(500); /* Espera respuesta de maquina */
+  
+  if(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0xAA)
+    delay(500);
+
+  /* AFT FUNDS TRANSFER STATUS */
+  sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+  Transmite_Poll_Long(0x72);
+  Transmite_Poll_Long(0x02);
+  Transmite_Poll_Long(0xFF);
+  Transmite_Poll_Long(0x00);
+  Transmite_Poll_Long(0x0F);
+  Transmite_Poll_Long(0x22);
+
+  delay(500); /* Espera respuesta de maquina */
+  /* Transfer recibida */
+
+  if(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0x40||Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0xAA)
+    delay(500);
+
+  if(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0x00 ||Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4]==0x01)
+  {
+    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION,true); /*INICIA SESION PLAYER CASHLESS*/
+    Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());
+    Info_Cashless.Status_Transfer(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4],Buffer_Cashless.Get_Bufffer_Transfer_AFT(),RTC);
+  }else{
+    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION,false);
+    Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());
+    Info_Cashless.Status_Transfer(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4],Buffer_Cashless.Get_Bufffer_Transfer_AFT(),RTC);
+  }
+  Info_Cashless.Reader_Lock(false);
+}
 
 /* Lista Negra de eventos */
 bool Filtro_Eventos_Mq(int Evento)

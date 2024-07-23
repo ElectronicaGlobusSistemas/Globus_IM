@@ -278,6 +278,11 @@ int Contadores_SAS::Get_Contadores_Int(int Filtro_Contador)
     res = Convert_Char_To_Int(Copia_Cancel_Credit_);
     return res;
     break;
+  
+  case 54:
+    res = Convert_Char_To_Int(Copia_Bill_Amount_);
+    return res;
+    break;
   }
   return 0;
 }
@@ -586,8 +591,6 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
    memcpy(Copia_Bill_Amount_2_, Data_Contador, sizeof(Copia_Bill_Amount_2_) / sizeof(Copia_Bill_Amount_2_[0]));
    return true;
    break;
-
-   
 
   }
   return false;
@@ -1078,6 +1081,62 @@ bool Contadores_SAS::Set_Client_ID(byte Cliente[])
   return true;
 }
 
+
+int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
+{
+  char clientIDString[8];
+  memcpy(clientIDString, ID_Client_Transaccion, sizeof(ID_Client_Transaccion));
+  int Client_Id_Int=atoi(clientIDString);
+  return Client_Id_Int;
+}
+bool Contadores_SAS::Set_Client_ID_Transaccion(byte Client[])
+{
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Client_Transaccion[i] = '0';
+  }
+  ID_Client_Transaccion[0] = Client[0];
+  ID_Client_Transaccion[1] = Client[1];
+  ID_Client_Transaccion[2] = Client[2];
+  ID_Client_Transaccion[3] = Client[3];
+  ID_Client_Transaccion[4] = Client[4];
+  ID_Client_Transaccion[5] = Client[5];
+  ID_Client_Transaccion[6] = Client[6];
+  ID_Client_Transaccion[7] = Client[7];
+
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Client_Transaccion[i] == NULL)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+byte* Contadores_SAS::Get_Client_ID_Transaccion(void)
+{
+  return ID_Client_Transaccion;
+}
+
+bool Contadores_SAS::Close_ID_Client_Transaccion(void)
+{
+  /* Cierra Sesión Cliente*/
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Client_Transaccion[i] = '0';
+  }
+  /*Verifica Cierre de Sesión Cliente*/
+  for (int i = 0; i < 8; i++)
+  {
+    if (ID_Client_Transaccion[i] != 48)
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
 byte *Contadores_SAS::Get_Client_ID(void)
 {
 return ID_Client;
@@ -1437,8 +1496,8 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
     /* Medoto de conversion 2 */
     Current_Cancel_Credit=atoi(Counter_Cancel_Credit);
 
-    Serial.println(Valor_Prueba);
-    Serial.println(Current_Cancel_Credit);
+    // Serial.println(Valor_Prueba);
+    // Serial.println(Current_Cancel_Credit);
 
     if(Current_Cancel_Credit == Valor_Prueba)
     {
@@ -1446,18 +1505,55 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
       if (Last_Cancel_Credit == 0)
       {
         Last_Cancel_Credit = Current_Cancel_Credit;
-        Serial.println("Inicial-------");
+        // Serial.println("Inicial-------");
       }
       if (Current_Cancel_Credit > Last_Cancel_Credit)
       {
         Last_Cancel_Credit = Current_Cancel_Credit;
         Set_Flag_Premio(true);
-        Serial.println("Cambio Premio-----");
+        // Serial.println("Cambio Premio-----");
       }
 
     }
   }else{
-    Serial.println("Letra contador ");
+    // Serial.println("Letra contador ");
+  }
+}
+
+void Contadores_SAS::Change_Counters_Bill_In(char Counter_Bill_In[7])
+{
+  int Current_Bill_In=0;
+  int Valor_Prueba=0;
+  if(contieneNumero(Counter_Bill_In))
+  {
+    /* Metodo de conversion 1 */
+    for (int i = 0; i < 8; i++)
+    {
+      Valor_Prueba = Valor_Prueba * 10 + (Counter_Bill_In[i] - '0');
+    }
+
+    /* Medoto de conversion 2 */
+    Current_Bill_In=atoi(Counter_Bill_In);
+
+    // Serial.println(Valor_Prueba);
+    // Serial.println(Current_Cancel_Credit);
+
+    if(Current_Bill_In == Valor_Prueba)
+    {
+      if (Last_Bill_In == 0)
+      {
+        Last_Bill_In = Current_Bill_In;
+        // Serial.println("Inicial-------");
+      }
+      if (Current_Bill_In > Last_Bill_In)
+      {
+        Last_Bill_In = Current_Bill_In;
+        Set_Flag_Bill_In(true);
+       // Serial.println("Cambio Billete-----");
+      }
+    }
+  }else{
+    // Serial.println("Letra contador ");
   }
 }
 
@@ -1468,4 +1564,13 @@ void Contadores_SAS::Set_Flag_Premio(bool Change_Status)
 bool Contadores_SAS::Get_Status_Flag_Premio(void)
 {
   return Flag_Premio_Pagado_Cashout;
+}
+
+void Contadores_SAS::Set_Flag_Bill_In(bool Change_Status)
+{
+  Flag_Bill_In=Change_Status;
+}
+bool Contadores_SAS::Get_Status_Flag_Bill_In(void)
+{
+  return Flag_Bill_In;
 }

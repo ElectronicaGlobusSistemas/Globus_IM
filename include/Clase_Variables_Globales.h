@@ -89,6 +89,14 @@ using namespace std;
 #define Consulta_Status_Token          80
 #define Enable_Mechanical_Events       81
 #define Firts_Cancel_IRT               82
+#define Uart_Port_Select               83
+
+#define Dato_Entrante_Valido_Socket2    84
+#define Dato_Entrante_No_Valido_Socket2 85
+
+#define Status_AFT_Machine              86
+#define Enable_Cashless                 87
+#define Flag_Sesion_Cashless            88
 
 class Variables_Globales
 {
@@ -96,6 +104,8 @@ private:
     bool Ftp_Mode_;
     bool Bootloader_Mode_;
     bool Dato_Entrante_Valido_;
+    bool Dato_Entrante_Valido_Socket2_;
+    bool Dato_Entrante_No_Valido_Socket2_;
     bool Dato_Entrante_No_Valido_;
     bool Dato_Evento_Valido_;
     bool Sincronizacion_RTC_;
@@ -170,6 +180,12 @@ private:
     bool Consulta_Status_Token_;
     bool Enable_Mechanical_Events_;
     bool Firts_Cancel_IRT_;
+    uint16_t Uart_Port_Select_;
+    bool Status_AFT_Machine_;
+    bool Enable_Cashless_;
+    bool Flag_Sesion_Cashless_;
+
+    
     
 
 public:
@@ -183,4 +199,7 @@ public:
     char Get_Variable_Global_Char(int filtro);
     int Get_Variable_Global_Int(int filtro);
     void Set_Variable_Global_Int(int filtro, int Change_estado);
+
+    void Set_Variable_Global_Uint16(int Filtro,uint16_t Change_estado);
+    uint16_t Get_Variable_Global_Uint16(int Filtro);
 };

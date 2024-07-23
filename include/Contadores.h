@@ -99,6 +99,7 @@ private: // Variables Privadas Para contadores
 
   byte ID_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Client[8]={'0', '0', '0', '0','0','0','0','0'};
+  byte ID_Client_Transaccion[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Client_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Operador_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Consulta_Info_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
@@ -109,6 +110,9 @@ private: // Variables Privadas Para contadores
 
   bool Flag_Premio_Pagado_Cashout=false;
   int Last_Cancel_Credit=0;
+  
+  int Last_Bill_In=0;
+  bool Flag_Bill_In=false;
 
 
 public:
@@ -128,6 +132,7 @@ public:
   byte* Get_Client_ID(void);
   bool Close_ID_Client(void);
 
+  int Get_Client_ID_Transaccion_Int(void);
 
   bool Set_ID_Cliente_Temp(byte Cliente[]);
   byte* Get_Client_ID_Temp(void);
@@ -152,6 +157,18 @@ public:
   void Set_Flag_Premio(bool Change_Status);
   bool Get_Status_Flag_Premio(void);
 
+  void Change_Counters_Bill_In(char Counter_Bill_In[7]);
+  void Set_Flag_Bill_In(bool Change_Status);
+  bool Get_Status_Flag_Bill_In(void);
+
+  
+  /* Cashless*/
+
+ bool Set_Client_ID_Transaccion(byte Client[]);
+ byte* Get_Client_ID_Transaccion(void);
+ bool Close_ID_Client_Transaccion(void);
+  
+
   /* Bonus*/
   bool Set_Meter_Legacy_Bonus_Awards(char res[]);
   bool Delete_Meter_Legacy_Bonus_Awards(void);
@@ -160,5 +177,4 @@ public:
   char*  Get_Amount_Legacy_Bonus_Awards(void);
   bool Set_Type_Legacy_Bonus(char res[]);
   int Init_Parameter_Update(char res[]);
-
 };

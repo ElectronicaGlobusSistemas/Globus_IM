@@ -4,7 +4,7 @@
 #include "Configuracion.h"
 #include "Buffer_Cashless.h"
 #include "Json_Datos.h"
-
+#include "Web_Config.h"
 
 /*-------------------------------->Debug Buffer<----------------------------*/
 //#define Debug_Buffer
@@ -42,6 +42,9 @@ unsigned char New_Serial_Cashless_UniMil;
 unsigned char New_Serial_Cashless_Centenas;
 unsigned char New_Serial_Cashless_Decenas;
 unsigned char New_Serial_Cashless_Unidades;
+
+
+extern Web_Config Web_Info_Config;
 
 /**********************************************************************************/
 /*                              BUFFERS DE ACK                                    */
@@ -266,6 +269,8 @@ char *Buffers::Get_buffer_Registro_MQ(void)
     return buffer_Registro_MQ_final;
 }
 
+
+
 bool Buffers::Set_buffer_Registro_MQ(int Com)
 {
     char req[258] = {};
@@ -349,8 +354,12 @@ bool Buffers::Set_buffer_Registro_MQ(int Com)
     req[43] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[18]);
     req[44] = Hex_Ascci_H(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19]);
     req[45] = Hex_Ascci_L(Buffer_Cashless.Get_RX_AFT(Buffer_registro_Mq_)[19]);
-   // req[46]='|';
+    req[46]='|';
 
+    for(int i=47; i<258; i++)
+    {
+        req[i]='0';
+    }
     memcpy(buffer_Registro_MQ, req, 258);
 
     #ifdef Debug_Buffer
@@ -453,11 +462,54 @@ bool Buffers::Set_buffer_recepcion_UDP(char buffer[])
 }
 
 /**********************************************************************************/
+/*                BUFFER DE RECEPCION DE DATOS SERVIDOR UDP2                      */
+/**********************************************************************************/
+
+bool Buffers::Set_buffer_recepcion_desencriptado2(String buffer)
+{
+    memcpy(buffer_recepcion2, Metodo_AES.Desencripta_Mensaje_Servidor(buffer), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_recepcion2(void)
+{
+    return buffer_recepcion2;
+}
+
+bool Buffers::Set_buffer_recepcion_UDP2(char buffer[])
+{
+    if (Metodo_CRC.Verifica_CRC_Wifi(buffer))
+    {
+        if (Set_buffer_recepcion_desencriptado2(buffer))
+        {
+            return true;
+        }
+        return false;
+    }
+    memcpy(buffer_recepcion2, buffer, 258);
+    return false;
+}
+
+/**********************************************************************************/
 /*                       BUFFER DE CONTADORES ACCOUTING                           */
 /**********************************************************************************/
 
 bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
 {
+
+
+    // String    Info_Red= Web_Info_Config.Get_Info_Config(INFO_RED);
+    // String    Info_Api = Web_Info_Config.Get_Info_Config(INFO_API);
+    // String    Info_Generic = Web_Info_Config.Get_Info_Config(INFO_GENERIC);
+
+    // Serial.println(Info_Red);
+
+    // Serial.println();
+    // Serial.println(Info_Api);
+    // Serial.println();
+    // Serial.println(Info_Generic);
+    // Serial.println();
+
     int pos;
     char req[258] = {};
     char res[10] = {};
@@ -1335,6 +1387,117 @@ char *Buffers::Get_buffer_eventos(void)
     return buffer_eventos_final;
 }
 
+
+bool Buffers::Set_buffer_info_Config(int Com,int Type_Info)
+{
+
+    String    Info_Red= Web_Info_Config.Get_Info_Config(INFO_RED);
+    String    Info_Api = Web_Info_Config.Get_Info_Config(INFO_API);
+    String    Info_Generic = Web_Info_Config.Get_Info_Config(INFO_GENERIC);
+
+    int32_t Aux1;
+    char req[258] = {};
+    bzero(req, 258);
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = Aux1;
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = Aux1;
+
+   // req[4]='|';
+
+    int Limit=4;
+
+    if(Type_Info==INFO_RED)
+    {
+        for(int i=0; i<Info_Red.length(); i++)
+        {
+            req[Limit]=Info_Red[i];
+            Limit++;
+        }
+        req[Limit]='|';
+    }
+
+    else if(Type_Info==INFO_API)
+    {
+
+        for(int i=0; i<Info_Api.length(); i++)
+        {
+            req[Limit]=Info_Api[i];
+            Limit++;
+        }
+        req[Limit]='|';
+
+    }else if(Type_Info==INFO_GENERIC)
+    {
+        for(int i=0; i<Info_Generic.length(); i++)
+        {
+            req[Limit]=Info_Generic[i];
+            Limit++;
+        }
+        req[Limit]='|';
+    }
+    
+    for(int i=Limit+1;i<258; i++)
+    {
+        req[i]='0';
+    }
+    memcpy(buffer_info_Config, req, 258);
+
+    #ifdef Debug_Buffer
+    for (int indice = 0; indice < 256; indice++)
+    {
+        Serial.print(buffer_info_Config[indice]);
+    }
+    Serial.println();
+    #endif
+
+    //Reset Variables 
+    if (Set_buffer_info_Config_encriptado())
+    {
+        if (Set_buffer_info_Config_CRC())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool Buffers::Set_buffer_info_Config_encriptado(void)
+{
+    memcpy(buffer_info_Config_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_info_Config), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_info_Config_CRC(void)
+{
+    memcpy(buffer_info_Config_final, Metodo_CRC.Calcula_CRC_Wifi(buffer_info_Config_encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_buffer_info_Config(void)
+{
+    return buffer_info_Config_final;
+}
+
+
+
+
 /**********************************************************************************/
 /*                           BUFFER DE INFO TARJETA                               */
 /**********************************************************************************/
@@ -1603,12 +1766,6 @@ char *Buffers::Get_buffer_info_tarjeta(void)
 }
 
 
-
-
-
-
-
-
 /**********************************************************************************/
 /*                           BUFFER DE INFO LECTOR                                */
 /**********************************************************************************/
@@ -1783,14 +1940,6 @@ char *Buffers::Get_buffer_info_lector(void)
 {
     return buffer_info_lector_final;
 }
-
-
-
-
-
-
-
-
 
 
 /**********************************************************************************/

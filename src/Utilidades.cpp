@@ -63,11 +63,20 @@ bool Almacena_Serial_Cashless_Extern(unsigned int Dato)
         //--------------------------------------------------------------------------
         Ant_Serial_Cashless_UniMil = Serial_Cashless_UniMil;
         //--------------------------------------------------------------------------
+        return true;
         break;
     case 2:
+        return true;
         break;
 
+    default:
+    return false;
+    break;
+    
+
     }
+    return false;
+    
 
 }
 
@@ -88,15 +97,15 @@ return (10)  = No realizo Ningun proceso
 */
 unsigned char Registra_Machine(void)
 {
-    Buffer_Cashless.Clear_Buffer(Buffer_RX_AFT_);
+   // Buffer_Cashless.Clear_Buffer(Buffer_RX_AFT_);
     unsigned char Status;
    
     Status=Interroga_Est_Reg_AFT_Funcion();
 
-    if (Status == 1)
+    if (Status == 1) /* Si  no esta registrada hace el registro */
     {
         Genera_Registro_Maquina();
-        /**/
+        /* Genera clave de registro AFT */
       
         if (Transmite_Poll_Registro_AFT_Mq(Init_Registro) == 1)
         {
@@ -121,6 +130,8 @@ unsigned char Registra_Machine(void)
     {
         return 10;
     }
+
+    return 10;
 }
 /*
 Return  (1) = Registro Cancelado
@@ -161,7 +172,7 @@ unsigned char  Transmite_Poll_Registro_AFT_Mq(int Type_Transmite_Poll)
     }
 
     delay(350);
-    Serial.println(Buffer_Cashless.Get_RX_AFT(Buffer_RX_AFT_)[3],DEC);
+   // Serial.println(Buffer_Cashless.Get_RX_AFT(Buffer_RX_AFT_)[3],DEC);
     if(Buffer_Cashless.Get_RX_AFT(Buffer_RX_AFT_)[3]==0x00)
     {
        return 1;
@@ -185,6 +196,7 @@ unsigned char  Transmite_Poll_Registro_AFT_Mq(int Type_Transmite_Poll)
     }
 }
 
+
 unsigned char Interroga_Est_Reg_AFT_Funcion(void) {
 
     unsigned char Status;
@@ -201,4 +213,6 @@ unsigned char Interroga_Est_Reg_AFT_Funcion(void) {
     {
         return 6; // Hubo error de registro
     }
+
+    return 6;
 }

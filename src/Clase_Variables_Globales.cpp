@@ -27,6 +27,15 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Dato_Entrante_No_Valido:
         return Dato_Entrante_No_Valido_;
         break;
+
+    case Dato_Entrante_Valido_Socket2:
+        return Dato_Entrante_Valido_Socket2_;
+        break;
+    
+    case Dato_Entrante_No_Valido_Socket2:
+        return Dato_Entrante_No_Valido_Socket2_;
+        break;
+
     case Dato_Evento_Valido:
         return Dato_Evento_Valido_;
         break;
@@ -237,6 +246,18 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Firts_Cancel_IRT:
         return Firts_Cancel_IRT_;
         break;
+
+    case Status_AFT_Machine:
+        return Status_AFT_Machine_;
+        break;
+
+    case Enable_Cashless:
+        return Enable_Cashless_;
+        break;
+
+    case Flag_Sesion_Cashless:
+        return Flag_Sesion_Cashless_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -266,9 +287,19 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Dato_Entrante_No_Valido:
         Dato_Entrante_No_Valido_ = Change_estado;
         break;
+
+    case Dato_Entrante_Valido_Socket2:
+        Dato_Entrante_Valido_Socket2_ = Change_estado;
+        break;
+
+    case Dato_Entrante_No_Valido_Socket2:
+        Dato_Entrante_No_Valido_Socket2_ = Change_estado;
+        break;
+
     case Dato_Evento_Valido:
         Dato_Evento_Valido_ = Change_estado;
         break;
+
     case Sincronizacion_RTC:
         Sincronizacion_RTC_ = Change_estado;
         break;
@@ -425,7 +456,7 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
         break;
 
     case Solicitud_Carga_Bonus:
-        Status_Load_Bonus_=Change_estado;
+        Solicitud_Carga_Bonus_=Change_estado;
         break;
 
     case Flag_ACK_Carga_Bonus_Pendiente:
@@ -473,6 +504,18 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Firts_Cancel_IRT:
         Firts_Cancel_IRT_=Change_estado;
         break;
+
+    case Status_AFT_Machine:
+        Status_AFT_Machine_=Change_estado;
+        break;
+
+    case Enable_Cashless:
+        Enable_Cashless_=Change_estado;
+        break;
+
+    case Flag_Sesion_Cashless:
+        Flag_Sesion_Cashless_=Change_estado;
+        break;
     }
 }
 
@@ -495,6 +538,10 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     
     Dato_Entrante_Valido_ = false;
     Dato_Entrante_No_Valido_ = false;
+
+    Dato_Entrante_Valido_Socket2_=false;
+    Dato_Entrante_No_Valido_Socket2_=false;
+
     Dato_Evento_Valido_ = false;
     Sincronizacion_RTC_ = false;
     Serializacion_Serie_Trama_ = false;
@@ -563,6 +610,10 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Consulta_Status_Token_=false;
     Enable_Mechanical_Events_=false;
     Firts_Cancel_IRT_=false;
+    Uart_Port_Select_=1;
+    Status_AFT_Machine_=false;
+    Enable_Cashless_=false;
+    Flag_Sesion_Cashless_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
@@ -689,4 +740,31 @@ int Variables_Globales::Get_Variable_Global_Int(int filtro)
         return Sig_Estado_RFID_;
         break;
     }  
+}
+
+void Variables_Globales::Set_Variable_Global_Uint16(int filtro, uint16_t Change_estado)
+{
+    switch (filtro)
+    {
+    case Uart_Port_Select:
+        Uart_Port_Select_=Change_estado;
+        break;
+    
+    default:
+        break;
+    }
+}
+
+uint16_t Variables_Globales::Get_Variable_Global_Uint16(int filtro)
+{
+    switch (filtro)
+    {
+    case Uart_Port_Select:
+        return Uart_Port_Select_;
+        break;
+    
+    default:
+        return 1;
+        break;
+    }
 }

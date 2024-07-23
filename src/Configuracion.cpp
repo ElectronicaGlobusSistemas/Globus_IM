@@ -21,6 +21,20 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, char data[])
         return true;
         break;
 
+    case Direccion_IP_Server2:
+        memcpy(Direccion_IP_Server2_, data, sizeof(Direccion_IP_Server2_) / sizeof(Direccion_IP_Server2_[0]));
+        return true;
+        break;
+
+    case Dns_One_IP:
+        memcpy(DNS_P, data, sizeof(DNS_P) / sizeof(DNS_P[0]));
+        return true;
+        break;
+    case Dns_Two_IP:
+        memcpy(DNS_S, data, sizeof(DNS_S) / sizeof(DNS_S[0]));
+        return true;
+        break;
+
     default:
         return false;
         break;
@@ -41,6 +55,11 @@ bool Configuracion_ESP32::Set_Configuracion_ESP32(int expression, uint16_t dato)
         break;
     case 11:
         Puerto_AP_=dato;
+        return true;
+        break;
+
+    case Puerto_Server2:
+        Puerto_Server_2=dato;
         return true;
         break;
 
@@ -110,6 +129,18 @@ char *Configuracion_ESP32::Get_Configuracion(int expression, char)
         return Direccion_IP_Server_;
         break;
 
+    case Direccion_IP_Server2:
+        return Direccion_IP_Server2_;
+        break;
+
+    case Dns_One_IP:
+        return DNS_P;
+        break;
+    
+    case Dns_Two_IP:
+        return DNS_S;
+        break;    
+
     default:
         return 0x00;
         break;
@@ -129,6 +160,10 @@ uint16_t Configuracion_ESP32::Get_Configuracion(int expression, int)
 
     case 11:
         return Puerto_AP_;
+        break;
+
+    case Puerto_Server2:
+        return Puerto_Server_2;
         break;
 
     default:

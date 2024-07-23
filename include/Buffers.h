@@ -28,6 +28,8 @@ private:
 
     /* Buffer de Recepcion Servidor */
     char buffer_recepcion[258];
+    /* Buffer de Recepcion Servidor 2*/
+    char buffer_recepcion2[258];
 
     /* Buffer de contadores */
     char buffer_contadores_ACC[258];
@@ -53,6 +55,12 @@ private:
     char buffer_info_tarjeta[258];
     char buffer_info_tarjeta_encriptado[258];
     char buffer_info_tarjeta_final[258];
+
+
+    /* Buffer info completa */
+    char buffer_info_Config[258];
+    char buffer_info_Config_encriptado[258];
+    char buffer_info_Config_final[258];
 
      /* Buffer info tarjeta */
     char buffer_info_lector[258];
@@ -139,10 +147,14 @@ public:
     /* Buffer de Recepcion Servidor TCP */
     bool Set_buffer_recepcion_TCP(String);
     bool Set_buffer_recepcion_desencriptado(String);
+    
     char *Get_buffer_recepcion(void);
+    char *Get_buffer_recepcion2(void);
 
     /* Buffer de Recepcion Servidor UDP */
     bool Set_buffer_recepcion_UDP(char[]);
+    bool Set_buffer_recepcion_UDP2(char[]);
+    bool Set_buffer_recepcion_desencriptado2(String);
 
     /* Buffer de contadores */
     bool Set_buffer_contadores_ACC(int, Contadores_SAS, ESP32Time, Variables_Globales);
@@ -187,6 +199,13 @@ public:
     char *Get_buffer_info_tarjeta(void);
 
 
+    /*Buffer info completa*/
+    bool Set_buffer_info_Config(int,int);
+    bool Set_buffer_info_Config_encriptado(void);
+    bool Set_buffer_info_Config_CRC(void);
+    char *Get_buffer_info_Config(void);
+
+   
     /*Buffer info lector*/
     bool Set_buffer_info_lector(int);
     bool Set_buffer_info_lector_encriptado(void);

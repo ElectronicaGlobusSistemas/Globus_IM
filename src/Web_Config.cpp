@@ -11,6 +11,7 @@
 #include "Preferences.h"
 #include "Clase_Variables_Globales.h"
 
+
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 extern Configuracion_ESP32 Configuracion;
 extern Preferences NVS;
@@ -34,13 +35,15 @@ void Web_Config::Init_Web_Server(void)
     /* --------------------------> Genera Direccion IP para punto de acceso <------------------------------------*/
     char SegMentoAp[4];
     memcpy(SegMentoAp, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(SegMentoAp) / sizeof(SegMentoAp[0]));
-    IPAddress localIP(192, 168, SegMentoAp[2], 2);
-    IPAddress gateway(192, 168, SegMentoAp[2], 1);
+    IPAddress localIP(192, 168, 5, 2);
+    IPAddress gateway(192, 168, 5, 1);
     IPAddress subnet(255, 255, 255, 0);
     /*-----------------------------------------------------------------------------------------------------------*/
 
     /*------------------------------------> Configura e inicia modo AP <-----------------------------------------*/
     WiFi.softAPConfig(localIP, gateway, subnet);
+    WiFi.disconnect(true,true);
+    WiFi.mode(WIFI_MODE_AP);
     String Ssid="GLOBUS-Config-"+ WiFi.macAddress();
     WiFi.softAP(Ssid.c_str(),password);
     /*-------------------------------------------------------------------------------------------------------------*/
@@ -135,6 +138,9 @@ void Web_Config::Upload_Form(void)
     memcpy(Current_IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(Current_IP_GW) / sizeof(Current_IP_GW[0]));
     memcpy(Current_Mask, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(Current_Mask) / sizeof(Current_Mask[0]));
     memcpy(Current_IP_SERVER, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(Current_IP_SERVER) / sizeof(Current_IP_SERVER[0]));
+    memcpy(Currnet_Primary_DNS, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(Currnet_Primary_DNS) / sizeof(Currnet_Primary_DNS[0]));
+    memcpy(Current_Secundary_DNS, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(Current_Secundary_DNS) / sizeof(Current_Secundary_DNS[0]));
+
     Current_Name_Machine= Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
     Current_SSID=Configuracion.Get_Configuracion(SSID, "Nombre_Red");
     Current_Type_Machine=Configuracion.Get_Configuracion(Tipo_Maquina, 0);
@@ -142,6 +148,7 @@ void Web_Config::Upload_Form(void)
     Current_Password=Configuracion.Get_Configuracion(Password, "Password_red");
 
     Current_Type_transmission = Variables_globales.Get_Variable_Global(Gmaster_API_Mode);
+
 
     switch (Inactividad_Usuario_Player_Tracking)
     {
@@ -348,8 +355,8 @@ void Web_Config::Upload_Form(void)
     jsonDocument["nombre_maquina"] =Current_Name_Machine;
     jsonDocument["subnet_mask"] = IP_toString(Current_Mask);
     jsonDocument["gateway"] = IP_toString(Current_IP_GW);
-    jsonDocument["primary_dns"] = "8.8.8.8";
-    jsonDocument["secondary_dns"] ="8.8.4.4";
+    jsonDocument["primary_dns"] = IP_toString(Currnet_Primary_DNS);
+    jsonDocument["secondary_dns"] =IP_toString(Current_Secundary_DNS);
     jsonDocument["tipo_maquina"] =  Current_Type_Machine;
 
     jsonDocument["tipo_transmision"] =Convert_bool_to_String(Current_Type_transmission);
@@ -447,6 +454,297 @@ void Web_Config::Off_AP(void)
     });
 }
 
+/* Retorna  json con informacion de condiguracion 
+Type = (0)  retorna información de red 
+Type = (1)  retorna informacion de API
+Type = (2)  retorna informacion generica de tarjeta 
+*/
+String Web_Config::Get_Info_Config(int Type_Info)
+{
+
+    char Current_IP[4];
+    char Current_IP_GW[4];
+    char Current_Mask[4];
+    char Current_IP_SERVER[4];
+    String Current_Name_Machine;
+    String Current_SSID;
+    String Current_Password = "";
+    int Current_Type_Machine;
+    int Current_Server_Port;
+    char Currnet_Primary_DNS[4];
+    char Current_Secundary_DNS[4];
+    bool Current_Type_transmission;
+    String Current_Timeout_Player_Tracking;
+    String Current_Tiempo_Transmission_Game;
+    String Current_Tiempo_Transmission_Not_Game;
+    String Current_Timeout_Inactivity_Machine;
+    bool Current_Tipo_Socket;
+    String Current_Id_Maquina;
+    String Current_Controlador_Principal_;
+    String Current_Metodo_RTC_;
+    String Current_Metodo_Contadores_;
+    String Current_Metodo_Eventos_;
+    String Current_Metodo_Token_;
+
+    bool Current_Status_Reset_Premio_;
+    bool Current_Status_Event_Mecanic_;
+    uint16_t Current_Puerto_RS232_SAS_;
+
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+    memcpy(Current_IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(Current_IP_GW) / sizeof(Current_IP_GW[0]));
+    memcpy(Current_Mask, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(Current_Mask) / sizeof(Current_Mask[0]));
+    memcpy(Current_IP_SERVER, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(Current_IP_SERVER) / sizeof(Current_IP_SERVER[0]));
+
+    memcpy(Currnet_Primary_DNS, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(Currnet_Primary_DNS) / sizeof(Currnet_Primary_DNS[0]));
+    memcpy(Current_Secundary_DNS, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(Current_Secundary_DNS) / sizeof(Current_Secundary_DNS[0]));
+
+    Current_Name_Machine = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
+    Current_SSID = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+    Current_Type_Machine = Configuracion.Get_Configuracion(Tipo_Maquina, 0);
+    Current_Server_Port = Configuracion.Get_Configuracion(Puerto_Server, 0);
+    Current_Password = Configuracion.Get_Configuracion(Password, "Password_red");
+    Current_Type_transmission = Variables_globales.Get_Variable_Global(Gmaster_API_Mode);
+
+    switch (Inactividad_Usuario_Player_Tracking)
+    {
+    case 90000:
+        Current_Timeout_Player_Tracking = "0";
+        break;
+
+    case 120000:
+        Current_Timeout_Player_Tracking = "1";
+        break;
+
+    case 150000:
+        Current_Timeout_Player_Tracking = "2";
+        break;
+    case 180000:
+        Current_Timeout_Player_Tracking = "3";
+        break;
+
+    case 210000:
+        Current_Timeout_Player_Tracking = "4";
+        break;
+
+    case 240000:
+        Current_Timeout_Player_Tracking = "5";
+        break;
+
+    case 270000:
+        Current_Timeout_Player_Tracking = "6";
+        break;
+
+    case 300000:
+        Current_Timeout_Player_Tracking = "7";
+        break;
+
+    case 330000:
+        Current_Timeout_Player_Tracking = "8";
+        break;
+
+    case 360000:
+        Current_Timeout_Player_Tracking = "9";
+        break;
+
+    default:
+        Current_Timeout_Player_Tracking = "0";
+        break;
+    }
+
+    switch (Tiempo_Transmision_En_Juego)
+    {
+    case 30:
+        Current_Tiempo_Transmission_Game = "0";
+        break;
+
+    case 40:
+        Current_Tiempo_Transmission_Game = "1";
+        break;
+
+    case 50:
+        Current_Tiempo_Transmission_Game = "2";
+        break;
+    case 60:
+        Current_Tiempo_Transmission_Game = "3";
+        break;
+
+    case 70:
+        Current_Tiempo_Transmission_Game = "4";
+        ;
+        break;
+
+    case 80:
+        Current_Tiempo_Transmission_Game = "5";
+        break;
+
+    case 90:
+        Current_Tiempo_Transmission_Game = "6";
+        break;
+
+    case 100:
+        Current_Tiempo_Transmission_Game = "7";
+        break;
+
+    case 110:
+        Current_Tiempo_Transmission_Game = "8";
+        break;
+
+    case 120:
+        Current_Tiempo_Transmission_Game = "9";
+        break;
+
+    default:
+        Current_Tiempo_Transmission_Game = "0";
+        break;
+    }
+
+    switch (Tiempo_Transmision_No_Juego)
+    {
+    case 150000:
+        Current_Tiempo_Transmission_Not_Game = "0";
+        break;
+
+    case 180000:
+        Current_Tiempo_Transmission_Not_Game = "1";
+        break;
+
+    case 210000:
+        Current_Tiempo_Transmission_Not_Game = "2";
+        break;
+    case 240000:
+        Current_Tiempo_Transmission_Not_Game = "3";
+        break;
+
+    case 270000:
+        Current_Tiempo_Transmission_Not_Game = "4";
+        break;
+
+    case 300000:
+        Current_Tiempo_Transmission_Not_Game = "5";
+        break;
+
+    case 330000:
+        Current_Tiempo_Transmission_Not_Game = "6";
+        break;
+
+    case 360000:
+        Current_Tiempo_Transmission_Not_Game = "7";
+        break;
+
+    case 480000:
+        Current_Tiempo_Transmission_Not_Game = "8";
+        break;
+
+    case 600000:
+        Current_Tiempo_Transmission_Not_Game = "9";
+        break;
+
+    case 1800000:
+        Current_Tiempo_Transmission_Not_Game = "10";
+        break;
+
+    case 3600000:
+        Current_Tiempo_Transmission_Not_Game = "11";
+        break;
+
+    case 5400000:
+        Current_Tiempo_Transmission_Not_Game = "12";
+        break;
+
+    default:
+        Current_Tiempo_Transmission_Not_Game = "0";
+        break;
+    }
+
+    switch (Tiempo_Inactividad_Maquina)
+    {
+    case 50:
+        Current_Timeout_Inactivity_Machine = "0";
+        break;
+
+    case 80:
+        Current_Timeout_Inactivity_Machine = "1";
+        break;
+
+    case 115:
+        Current_Timeout_Inactivity_Machine = "2";
+        break;
+    case 150:
+        Current_Timeout_Inactivity_Machine = "3";
+        break;
+
+    case 180:
+        Current_Timeout_Inactivity_Machine = "4";
+        break;
+
+    case 230:
+        Current_Timeout_Inactivity_Machine = "5";
+        break;
+
+    default:
+
+        Current_Timeout_Inactivity_Machine = "0";
+        break;
+    }
+
+    Current_Tipo_Socket = Configuracion.Get_Configuracion(Tipo_Conexion);
+    /*-----------------------------------------------------------------------------------------------*/
+    Current_Id_Maquina = Configuracion.Get_Configuracion(Id_Maquina, "Id_Maquina");
+
+    Current_Controlador_Principal_ = Configuracion.Get_Configuracion_ES(Controlador_P, "Controlador_Principal");
+    Current_Metodo_RTC_ = Configuracion.Get_Configuracion_ES(Metodo_Sincro_RTC, "Metodo_SincroRTC");
+    Current_Metodo_Contadores_ = Configuracion.Get_Configuracion_ES(Metodo_Conta, "Metodo_Contadores");
+    Current_Metodo_Eventos_ = Configuracion.Get_Configuracion_ES(Metodo_Event, "Metodo_Eventos");
+    Current_Metodo_Token_ = Configuracion.Get_Configuracion_ES(Metodo_Access_T, "Metodo_Token");
+
+
+    /* Parametros  Adicionales */
+    Current_Status_Reset_Premio_  = Variables_globales.Get_Variable_Global(Type_Hanpay_Reset);
+    Current_Status_Event_Mecanic_ = Variables_globales.Get_Variable_Global(Enable_Mechanical_Events);
+    Current_Puerto_RS232_SAS_=Variables_globales.Get_Variable_Global_Uint16(Uart_Port_Select);
+    
+    /*------------------------------------> Genera Json <--------------------------------------------*/
+    StaticJsonDocument<1024> jsonDocument;
+    jsonDocument.clear(); /* Limpia documento */
+
+    if(Type_Info==INFO_RED) /* Informacion de red */
+    {
+        jsonDocument["ssid"] = Current_SSID;
+        jsonDocument["local_ip"] = IP_toString(Current_IP);
+        jsonDocument["puerto"] = Current_Server_Port;
+        jsonDocument["subnet_mask"] = IP_toString(Current_Mask);
+        jsonDocument["gateway"] = IP_toString(Current_IP_GW);
+        jsonDocument["p_dns"] = IP_toString(Currnet_Primary_DNS);
+        jsonDocument["s_dns"] = IP_toString(Current_Secundary_DNS);
+        jsonDocument["tipo_transmision"] = Convert_bool_to_String(Current_Type_transmission);
+        jsonDocument["Type_Socket"] = Convert_bool_to_String(Current_Tipo_Socket);
+
+    }if(Type_Info==INFO_API) /* Información API */
+    {
+        jsonDocument["Controlador"] = Current_Controlador_Principal_;
+        jsonDocument["Api_Contadores"] = Current_Metodo_Contadores_;
+        jsonDocument["Api_Eventos"] = Current_Metodo_Eventos_;
+        jsonDocument["Api_RTC"] = Current_Metodo_RTC_;
+        jsonDocument["Api_Token"] = Current_Metodo_Token_;
+
+    }if(Type_Info==INFO_GENERIC) /* Información Generica */
+    {
+        jsonDocument["tipo_maq"] = Current_Type_Machine;
+        jsonDocument["Player_T"] = Current_Timeout_Player_Tracking;
+        jsonDocument["Send_Game"] = Current_Tiempo_Transmission_Game;
+        jsonDocument["Not_Game"] = Current_Tiempo_Transmission_Not_Game;
+        jsonDocument["Inactivity"] = Current_Timeout_Inactivity_Machine;
+        jsonDocument["Id_Maquina"] = Current_Id_Maquina;
+        jsonDocument["Tipo_Reset"] = Current_Status_Reset_Premio_;
+        jsonDocument["Eventos_M"]  = Current_Status_Event_Mecanic_;
+        jsonDocument["COM"]= Current_Puerto_RS232_SAS_;
+    }
+    /*------------------------------------------------------------------------------------------------*/
+    String Json;
+    serializeJson(jsonDocument, Json); /* >Serializa Data< */
+    return Json; /* Serializado*/
+}
+
 /* Metodo para guardar  configuracion de dispositivo */
 void Web_Config::Save_Config(void)
 {
@@ -511,7 +809,6 @@ void Web_Config::Save_Config(void)
         String Current_Timeout_Inactivity_Machine;
         bool Current_Tipo_Socket;
         String Current_Id_Maquina;
-
         String Current_Controlador_Principal_;
         String Current_Metodo_RTC_;
         String Current_Metodo_Contadores_;
@@ -522,6 +819,11 @@ void Web_Config::Save_Config(void)
         memcpy(Current_IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(Current_IP_GW) / sizeof(Current_IP_GW[0]));
         memcpy(Current_Mask, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(Current_Mask) / sizeof(Current_Mask[0]));
         memcpy(Current_IP_SERVER, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(Current_IP_SERVER) / sizeof(Current_IP_SERVER[0]));
+
+        memcpy(Currnet_Primary_DNS, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(Currnet_Primary_DNS) / sizeof(Currnet_Primary_DNS[0]));
+        memcpy(Current_Secundary_DNS, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(Current_Secundary_DNS) / sizeof(Current_Secundary_DNS[0]));
+
+
         Current_Name_Machine = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
         Current_SSID = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
         Current_Type_Machine = Configuracion.Get_Configuracion(Tipo_Maquina, 0);
@@ -731,8 +1033,8 @@ void Web_Config::Save_Config(void)
         jsonDocument["nombre_maquina"] = Current_Name_Machine;
         jsonDocument["subnet_mask"] = IP_toString(Current_Mask);
         jsonDocument["gateway"] = IP_toString(Current_IP_GW);
-        jsonDocument["primary_dns"] = "8.8.8.8";
-        jsonDocument["secondary_dns"] = "8.8.4.4";
+        jsonDocument["primary_dns"] = IP_toString(Currnet_Primary_DNS);
+        jsonDocument["secondary_dns"] = IP_toString(Current_Secundary_DNS);
         jsonDocument["tipo_maquina"] = Current_Type_Machine;
         jsonDocument["tipo_transmision"] = Convert_bool_to_String(Current_Type_transmission);
         jsonDocument["Timeout_Player_Tracking"] = Current_Timeout_Player_Tracking; 
@@ -1115,6 +1417,38 @@ void Web_Config::Save_Config(void)
             primary_dns.fromString(DNS_P);
             secondary_dns.fromString(DNS_S);
 
+
+            char DNS_Primary_Starage[4];
+            memcpy(DNS_Primary_Starage, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primary_Starage) / sizeof(DNS_Primary_Starage[0]));
+            
+            if(primary_dns[0]!=DNS_Primary_Starage[0]||primary_dns[1]!=DNS_Primary_Starage[1]||primary_dns[2]!=DNS_Primary_Starage[2]||primary_dns[3]!=DNS_Primary_Starage[3])
+            {
+                uint8_t ip_dns_update[] = {primary_dns[0], primary_dns[1], primary_dns[2], primary_dns[3]};
+                NVS.putBytes("Dns_Primary", ip_dns_update, sizeof(ip_dns_update));
+                DNS_Primary_Starage[0]=ip_dns_update[0];
+                DNS_Primary_Starage[1]=ip_dns_update[1];
+                DNS_Primary_Starage[2]=ip_dns_update[2];
+                DNS_Primary_Starage[3]=ip_dns_update[3];
+                Configuracion.Set_Configuracion_ESP32(Dns_One_IP, DNS_Primary_Starage);
+            }
+            
+            char DNS_Secondary_Starage[4];
+            memcpy(DNS_Secondary_Starage, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secondary_Starage) / sizeof(DNS_Secondary_Starage[0]));
+            
+
+            if(secondary_dns[0]!=DNS_Secondary_Starage[0]||secondary_dns[1]!=DNS_Secondary_Starage[1]||secondary_dns[2]!=DNS_Secondary_Starage[2]||secondary_dns[3]!=DNS_Secondary_Starage[3])
+            {
+                uint8_t ip_dns_sec_update[] = {secondary_dns[0], secondary_dns[1], secondary_dns[2], secondary_dns[3]};
+                NVS.putBytes("Dns_Secondary", ip_dns_sec_update, sizeof(ip_dns_sec_update));
+                DNS_Secondary_Starage[0]=ip_dns_sec_update[0];
+                DNS_Secondary_Starage[1]=ip_dns_sec_update[1];
+                DNS_Secondary_Starage[2]=ip_dns_sec_update[2];
+                DNS_Secondary_Starage[3]=ip_dns_sec_update[3];
+                Configuracion.Set_Configuracion_ESP32(Dns_Two_IP, DNS_Secondary_Starage);
+            }
+
+
+
             char IP_GW_Storage[4];
             memcpy(IP_GW_Storage, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW_Storage) / sizeof(IP_GW_Storage[0]));
 
@@ -1172,9 +1506,16 @@ void Web_Config::Save_Config(void)
             char IP_Local_P[4];
             char IP_GW_P[4];
             char SN_MASK_P[4];
+            char DNS_ONE_IP[4];
+            char DNS_TWO_IP[4];
+
             memcpy(IP_Local_P, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local_P) / sizeof(IP_Local_P[0]));
             memcpy(IP_GW_P, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW_P) / sizeof(IP_GW_P[0]));
             memcpy(SN_MASK_P, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK_P) / sizeof(SN_MASK_P[0]));
+
+
+            memcpy(DNS_ONE_IP, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_ONE_IP) / sizeof(DNS_ONE_IP[0]));
+            memcpy(DNS_TWO_IP, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_TWO_IP) / sizeof(DNS_TWO_IP[0]));
 
             String SSID_Wifi_Apli = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
             String Password_Wifi_Apli = Configuracion.Get_Configuracion(Password, "Password_red");
@@ -1182,8 +1523,8 @@ void Web_Config::Save_Config(void)
             IPAddress Local_IP(IP_Local_P[0], IP_Local_P[1], IP_Local_P[2], IP_Local_P[3]);
             IPAddress Gateway(IP_GW_P[0], IP_GW_P[1], IP_GW_P[2], IP_GW_P[3]);
             IPAddress SubnetMask(SN_MASK_P[0], SN_MASK_P[1], SN_MASK_P[2], SN_MASK_P[3]);
-            IPAddress primaryDNS(8, 8, 8, 8);   // optional
-            IPAddress secondaryDNS(8, 8, 4, 4); // optional
+            IPAddress primaryDNS(DNS_ONE_IP[0], DNS_ONE_IP[1], DNS_ONE_IP[2], DNS_ONE_IP[3]);   // optional
+            IPAddress secondaryDNS(DNS_TWO_IP[0],DNS_TWO_IP[1], DNS_TWO_IP[2], DNS_TWO_IP[3]); // optional
 
             uint16_t Port_Config = Configuracion.Get_Configuracion(Puerto_Server, 0);
             String Name_Config = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
@@ -1229,8 +1570,8 @@ void Web_Config::Save_Config(void)
             jsonDocument["nombre_maquina"] = Name_Config;
             jsonDocument["subnet_mask"] = SubnetMask.toString();
             jsonDocument["gateway"] = Gateway.toString();
-            jsonDocument["primary_dns"] = "8.8.8.8";
-            jsonDocument["secondary_dns"] = "8.8.4.4";
+            jsonDocument["primary_dns"] = primaryDNS.toString();
+            jsonDocument["secondary_dns"] = secondaryDNS.toString();
             jsonDocument["tipo_maquina"] = Type_Machine_Config;
 
 
@@ -1465,8 +1806,8 @@ void Web_Config::Save_Config(void)
             jsonDocument["nombre_maquina"] = Name_Machine_Update;
             jsonDocument["subnet_mask"] = Subnet_Mask_Update;
             jsonDocument["gateway"] = GW_Update;
-            jsonDocument["primary_dns"] = "8.8.8.8";
-            jsonDocument["secondary_dns"] = "8.8.4.4";
+            jsonDocument["primary_dns"] = DNS_P;
+            jsonDocument["secondary_dns"] = DNS_S;
             jsonDocument["tipo_maquina"] = Type_Machine_Update;
 
  
@@ -1671,5 +2012,6 @@ void Web_Config::Save_Config(void)
     }
   });
 }
+
 
 

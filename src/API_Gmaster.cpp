@@ -229,12 +229,7 @@ void API_Gmaster::Transmite_Eventos_Gmaster_Api(char Buffer[], String Api, bool 
 
                 httpCode = https.POST((uint8_t *)Buffer, 258);
               
-
-                // Serial.print("Respuesta Solicitud : ");
-                // Serial.println(httpCode);
-                // Serial.print("Data : ");
-                // Serial.println(https.getString());
-                if (httpCode == HTTP_CODE_OK)
+                if (httpCode == HTTP_CODE_OK || httpCode == HTTPC_ERROR_READ_TIMEOUT)
                 {
                     #ifdef Debug_HTTPS
                     Serial.println("Evento Enviando");
@@ -254,36 +249,9 @@ void API_Gmaster::Transmite_Eventos_Gmaster_Api(char Buffer[], String Api, bool 
                     else
                     {
                         bool IsSuccess = doc["IsSuccess"];
-                         //Serial.println(IsSuccess);
+                        //Serial.println(IsSuccess);
                         if (IsSuccess)
                             Marca_Eventos_Api();
-                    }
-
-                    doc.clear();
-                }
-                else
-                {
-                    String payload = https.getString();
-                    StaticJsonDocument<500> doc, filter;
-                    DeserializationError error = deserializeJson(doc, payload);
-
-                    if (error)
-                    {
-                        #ifdef Debug_HTTPS
-                        Serial.println("Error Json Eventos 2 ");
-                        #endif
-                    }
-                    else
-                    {
-                        bool IsSuccess = doc["IsSuccess"];
-
-                        if (IsSuccess)
-                        {
-                            if (httpCode == HTTPC_ERROR_READ_TIMEOUT)
-                            {
-                                Marca_Eventos_Api();
-                            }
-                        }
                     }
 
                     doc.clear();

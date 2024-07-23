@@ -5,7 +5,9 @@
 #define Direccion_IP_GW 2
 #define Direccion_SN_MASK 3
 #define Direccion_IP_Server 4
-#define Puerto_Server 5
+#define Direccion_IP_Server2 19
+#define Puerto_Server  5
+#define Puerto_Server2 18
 #define Nombre_Maquina 6
 #define SSID 7
 #define Password 8
@@ -14,6 +16,8 @@
 #define Puerto_AP    11
 #define Id_Maquina   12
 
+#define Dns_One_IP   13
+#define Dns_Two_IP   14
 
 #define Controlador_P     13
 #define Metodo_Sincro_RTC 14 
@@ -32,7 +36,13 @@ private:
     char Direccion_IP_GW_[4];
     char Direccion_SN_MASK_[4];
     char Direccion_IP_Server_[4];
+    char Direccion_IP_Server2_[4];
+
+    char DNS_P[4];
+    char DNS_S[4];
+
     uint16_t Puerto_Server_;
+    uint16_t Puerto_Server_2;
     String Nombre_Maquina_;
     String SSID_;
     String Password_;
