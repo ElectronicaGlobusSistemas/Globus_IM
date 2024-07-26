@@ -742,20 +742,50 @@ bool  Contadores_SAS::Verify_Client_ID(byte Buffer_Tarjeta[])
   {
     if (Buffer_Tarjeta[i] == 48)
     {
+    //  Serial.print("a");
       Verify_Cliente++;
     }
   }
-  
+  //Serial.println(Verify_Cliente);
   /* Cliente 00000000*/
   if(Verify_Cliente>=8)
   {
+    //Serial.println(Verify_Cliente);
     return false; /* Buffer de tarjeta vacio*/
   }
 
   /*00000001*/
   else if(Verify_Cliente<8)
   {
+    //Serial.println("Porque?");
     return true; /* Buffer de tarjeta valido*/
+  }
+}
+
+
+
+bool  Contadores_SAS::Verify_Tarjeta(byte Buffer_Tarjeta[])
+{
+ 
+  unsigned int Verify_Cliente=0;
+
+
+  for (int i = 0; i < 8; i++)
+  {
+    if (Buffer_Tarjeta[i] == 48)
+    {
+     // Serial.print("a");
+      Verify_Cliente++;
+    }
+  }
+ // Serial.println(Verify_Cliente);
+  /* Cliente 00000000*/
+  if(Verify_Cliente>=8)
+  {
+    //Serial.println(Verify_Cliente);
+    return false; /* Buffer de tarjeta vacio*/
+  }else{
+    return true;
   }
 }
 /* Verifica si  en las espacios 1 y 4 de la tarjeta RFID contiene datos Nulos*/
@@ -1089,6 +1119,18 @@ int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
   int Client_Id_Int=atoi(clientIDString);
   return Client_Id_Int;
 }
+
+
+int Contadores_SAS::Get_Operador_ID_Int(byte Operador_ID[])
+{
+  char OperadorIDString[8];
+  memcpy(OperadorIDString, Operador_ID, sizeof(Operador_ID));
+  int Operador_Id_Int=atoi(OperadorIDString);
+  return Operador_Id_Int;
+}
+
+
+
 bool Contadores_SAS::Set_Client_ID_Transaccion(byte Client[])
 {
   for (int i = 0; i < 8; i++)
@@ -1574,3 +1616,31 @@ bool Contadores_SAS::Get_Status_Flag_Bill_In(void)
 {
   return Flag_Bill_In;
 }
+
+
+bool Contadores_SAS::Set_Current_Cliente_Recover(byte Client[],int Type_Sesion)
+{
+
+  ID_Client_Recovery[0]=Client[0];
+  ID_Client_Recovery[1]=Client[1];
+  ID_Client_Recovery[2]=Client[2];
+  ID_Client_Recovery[3]=Client[3];
+  ID_Client_Recovery[4]=Client[4];
+  ID_Client_Recovery[5]=Client[5];
+  ID_Client_Recovery[6]=Client[6];
+  ID_Client_Recovery[7]=Client[7];
+  Type_Sesion_Recovery=Type_Sesion;
+
+  return true;
+}
+
+byte* Contadores_SAS::Get_Client_Recovery(void)
+{
+  return ID_Client_Recovery;
+}
+
+int Contadores_SAS::Get_Type_Sesion(void)
+{
+  return Type_Sesion_Recovery;
+}
+

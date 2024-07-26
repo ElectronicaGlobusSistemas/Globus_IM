@@ -15,7 +15,11 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 #include <HTTPClient.h>
-
+#include "Configuracion.h"
+#include "Contadores.h"
+#include "RFID.h"
+extern Configuracion_ESP32 Configuracion;
+extern Contadores_SAS contadores; // Objeto contiene contadores maquina
 
 extern Preferences NVS;
 
@@ -165,8 +169,21 @@ bool Buffer_RX_AFT::Clear_Buffer(int Filtro_buffer)
     }
     return true;
     break;
+
+  case 6:
+    for (int i = 0; i < 128; i++)
+    {
+      Buffer_RX_Credit_Cashless[i] = 0x00;
+    }
+    return true;
+    break;
+
+  default:
+  return false;
+  break;
   }
 
+  return false;
 }
 
 void macStringToByteArray(String mac, char* bytes) {
@@ -331,6 +348,8 @@ bool Transsaccion_Cashless::Increase_Transaction_Number_ID(void)
   return true;
 }
 
+
+
 bool Transsaccion_Cashless::Sincroniza_Transaction_Number_ID(uint32_t Trans_ID_Maq)
 {
   Num_Trans_ID=Trans_ID_Maq;
@@ -351,6 +370,31 @@ uint32_t Transsaccion_Cashless::Get_Trans_ID_Int(void)
   return Num_Trans_ID;
 }
 
+unsigned char Transsaccion_Cashless::Get_Trans_ID_EFT(void)
+{
+  unsigned char Number;
+  
+  Number = static_cast<unsigned char>(Num_Trans_ID);
+  return Number;
+}
+
+bool Transsaccion_Cashless::Increase_Transaction_Number_ID_EFT(void)
+{
+  Num_Trans_ID++;
+
+  if(Num_Trans_ID>=256)
+  {
+    Num_Trans_ID=0;
+  }
+  sprintf(Counter_Trans_ID,"%07d",Num_Trans_ID);
+
+  /* ---------> Guarda en memoria ID <-------- */
+  NVS.begin("Config_ESP32", false);
+  NVS.putUInt("Trans_ID",Num_Trans_ID);
+  NVS.end();
+  /*-------------------------------------------*/
+  return true;
+}
 
 /* Retorna ID de transaccion */
 char* Transsaccion_Cashless::Get_Trans_ID(void)
@@ -371,21 +415,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   String URL;
   Server_API.on("/Habilitar_Cashless",HTTP_GET, [](AsyncWebServerRequest *request){
     
-  if(Variables_globales.Get_Variable_Global(Enable_Cashless))
-  {
-    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour())+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-
-    StaticJsonDocument<200> jsonDocument;
-    jsonDocument.clear();
-    jsonDocument["IsSuccess"] = true;
-    jsonDocument["Fecha_Hora"] = DataTime;
-    jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-    jsonDocument["Desc"] = "Cashless Habilitado con Exito!";
-    jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-    String Json;
-    serializeJson(jsonDocument, Json); /* Serializa Data */
-    request->send(200, "application/json", Json);
-  }else{
+  
     NVS.begin("Config_ESP32", false);
     NVS.putBool("Enable_Cashless",true);
     bool Test=NVS.getBool("Enable_Cashless",false);
@@ -396,18 +426,47 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
    if(Test && Variables_globales.Get_Variable_Global(Enable_Cashless))
    {
+    int Status;
+    Status = Registra_Machine();
+    delay(300); /* Espera Por respuesta de la maquina */
+
+  
+    
     String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour())+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
-    StaticJsonDocument<200> jsonDocument;
+    StaticJsonDocument<500> jsonDocument;
     jsonDocument.clear();
     jsonDocument["IsSuccess"] = true;
     jsonDocument["Fecha_Hora"] = DataTime;
     jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
     jsonDocument["Desc"] = "Cashless Habilitado con Exito!";
     jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-   
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
+    Serial.println(Json);
     request->send(200, "application/json", Json);
    }
    else
@@ -421,8 +480,31 @@ bool Transsaccion_Cashless::Init_API_Server(void)
      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
      jsonDocument["Desc"] = "No fue posible habilitar Cashless";
      jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+     switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+     {
+     case 0:
+       jsonDocument["Tipo_Maq"] = "AFT";
+       break;
+     case 1:
+       jsonDocument["Tipo_Maq"] = "AFT";
+       break;
+     case 2:
+       jsonDocument["Tipo_Maq"] = "EFT";
+       break;
+     case 3:
+       jsonDocument["Tipo_Maq"] = "AFT";
+       break;
+
+     case 5:
+       jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+       break;
+
+     default:
+       jsonDocument["Tipo_Maq"] = "";
+       break;
+     }
    }
-  }
+  
   });
 
 
@@ -443,6 +525,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
     jsonDocument["Desc"] = "Cashless Inhabilitado con Exito";
     jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     request->send(200, "application/json", Json);
@@ -466,6 +571,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
     jsonDocument["Desc"] = "Cashless Inhabilitado con Exito";
     jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     request->send(200, "application/json", Json);
@@ -478,6 +606,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
     jsonDocument["Desc"] = "No fue posible Inhabilitar Cashless";
     jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
    }
@@ -491,7 +642,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   jsonDocument.clear();
   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour())+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
   int Status;
+  switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
 
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
   Status = Registra_Machine();
   delay(300); /* Espera Por respuesta de la maquina */
 
@@ -555,7 +728,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   jsonDocument.clear();
   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour())+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
   int Status;
+  switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
 
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
   Status = Delete_Registro_Machine();
   delay(100); /* Espera Por respuesta de la maquina */
 
@@ -623,7 +818,29 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   jsonDocument.clear();
   
   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour())+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+  switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
 
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
   Consulta_Info_Cashless();
   delay(350);
   String Output;
@@ -799,6 +1016,68 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     } else {
       request->send(404, "text/plain", "Log file not found");
     }
+  });
+
+  Server_API.on("/Solicitud_Contadores_Cashless",HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    DynamicJsonDocument jsonDocument(800);
+    jsonDocument.clear();
+    char Current_IP[4];
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+    {
+    case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+    case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+    case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 5:
+        jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
+        break;
+    
+    default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
+    }
+    if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+      jsonDocument["IsSuccess"] = false;
+    else
+      jsonDocument["IsSuccess"] = true;
+
+    jsonDocument["Entrada_Canjeable"] = contadores.Get_Contadores_Int(Casheable_In);
+    jsonDocument["Entrada_Restringida"] = contadores.Get_Contadores_Int(Casheable_Restricted_In);
+    jsonDocument["Entrada_No_Restringida"] = contadores.Get_Contadores_Int(Casheable_NONrestricted_In);
+    
+
+    jsonDocument["Salida_Canjeable"] = contadores.Get_Contadores_Int(Casheable_Out);
+    jsonDocument["Salida_Restringida"] = contadores.Get_Contadores_Int(Casheable_Restricted_Out);
+    jsonDocument["Salida_No_Restringida"] = contadores.Get_Contadores_Int(Casheable_NONrestricted_Out);
+
+    jsonDocument["Ip"] = IP_toString_(Current_IP);
+    jsonDocument["MAC"] = WiFi.macAddress();
+    jsonDocument["Id_Maquina"] = 0;
+    jsonDocument["Fecha_Hora"] = DataTime;
+    jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+    if(jsonDocument["IsSuccess"]==true)
+      jsonDocument[ "Message"] = "Contadores actualizados correctamente";
+    else
+      jsonDocument[ "Message"] = "No hay comunicación con la MET";
+
+    String Output;
+    serializeJson(jsonDocument, Output); /* Serializa Data */
+    //Serial.println(Output);
+    request->send(200, "application/json", Output);
   });
 
 
@@ -1253,6 +1532,8 @@ bool Buffer_RX_AFT::Set_Buffer_Transfer_AFT(char Buffer[])
   return true;
 }
 
+
+
 bool Buffer_RX_AFT::Init_Buffer_Transfer_AFT(bool Boolean)
 {
   if (Boolean)
@@ -1398,4 +1679,30 @@ void Transsaccion_Cashless ::Set_Reintento_Registro(bool Set)
 bool Transsaccion_Cashless ::Get_Reintento_Registro(void)
 {
   return Estado_Tranmision_Auto_Registro;
+}
+
+
+/* EFT Data */
+bool Buffer_RX_AFT::Set_Buffer_Transfer_EFT(char Buffer[])
+{
+  memcpy(Buffer_RX_Transfer_EFT, Buffer, sizeof(Buffer_RX_Transfer_EFT) / sizeof(Buffer_RX_Transfer_EFT[0]));
+  return true;
+}
+
+char* Buffer_RX_AFT::Get_Buffer_Transfer_EFT(void)
+{
+  return Buffer_RX_Transfer_EFT;
+}
+
+bool Buffer_RX_AFT::Init_Buffer_Transfer_EFT(bool Boolean)
+{
+  if (Boolean)
+  {
+    for (int i = 0; i < 129; i++)
+    {
+      Buffer_RX_Transfer_EFT[i]=0xAA;
+    }
+  }
+
+  return true;
 }

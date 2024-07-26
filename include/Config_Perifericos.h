@@ -876,6 +876,18 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Enable_Cashless",Enable);
     }
 
+    if(!NVS.isKey("Id_Client"))
+    {
+        byte ID_Client_Sesion[8]={'0', '0', '0', '0','0','0','0','0'};
+        NVS.putBytes("Id_Client",ID_Client_Sesion,sizeof(ID_Client_Sesion));
+    }
+
+    if(!NVS.isKey("Sesion_Type"))
+    {
+        int Type_Sesion = SESION_DEFAULT;
+        NVS.putInt("Sesion_Type", SESION_DEFAULT);
+    }
+
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1457,10 +1469,24 @@ void Init_Configuracion_Inicial(void)
     bool Status_Cashless=NVS.getBool("Enable_Cashless",false);
     Variables_globales.Set_Variable_Global(Enable_Cashless,Status_Cashless);
     if(Variables_globales.Get_Variable_Global(Enable_Cashless))
-        Serial.println("Transacciones Cashless Habilitado");
+        Serial.println("Transacciones Cashless Habilitadas");
     else
-        Serial.println("Transacciones Cashless Inhabilitado");
+        Serial.println("Transacciones Cashless Inhabilitadas");
     Serial.println("\n");
+
+    size_t Leng_id = NVS.getBytesLength("Id_Client");
+    byte Current_Id_Recovery[Leng_id];
+    NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
+    // Serial.println(Current_Id_Recovery[0]);
+    // Serial.println(Current_Id_Recovery[1]);
+    // Serial.println(Current_Id_Recovery[2]);
+    // Serial.println(Current_Id_Recovery[3]);
+    // Serial.println(Current_Id_Recovery[4]);
+    // Serial.println(Current_Id_Recovery[5]);
+    // Serial.println(Current_Id_Recovery[6]);
+    // Serial.println(Current_Id_Recovery[7]);
+    int Type_Sesion=NVS.getInt("Sesion_Type",SESION_DEFAULT);
+    contadores.Set_Current_Cliente_Recover(Current_Id_Recovery,Type_Sesion);
     NVS.end();
 }
 

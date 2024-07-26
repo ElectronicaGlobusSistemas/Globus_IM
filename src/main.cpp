@@ -157,6 +157,9 @@ SPIClass spiRFID(VSPI);
 
 void setup()
 {
+  
+ 
+
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
@@ -183,13 +186,23 @@ void setup()
   else
     Serial.println("No se inicio el sistema de archivos");
   Cashless.Init_API_Server();
+  Buffer_Cashless.Init_Buffer_Transfer_AFT(true); /* Inicializa Buffer de transferencias AFT*/
+  Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
+  Cashless.Set_Amount_To_Load(0,0,0);
 }
 unsigned long INT1=0;
 int Muestreo=500;
-
+bool Verifica=false;
 void loop()
 {
-  Cashless.Registra_Maquina_Auto();
+
+  if(!Verifica)
+  {
+    if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Comunicacion_Maq))==2)
+      Verifica=true;
+  }
+
+ // Cashless.Registra_Maquina_Auto();
   Info_Cashless.Reporting_Pending_Transfers();
   eventos.TimeOut_Capture_Event();
   Time_I=millis();

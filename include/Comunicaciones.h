@@ -3427,21 +3427,24 @@ void Task_Procesa_Comandos(void *parameter)
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de Cierre Sesion");
                 #endif
-                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                
-                if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                //Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
                 {
-                    if(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     {
-                        if (Close_Sesion_Player_Tracking())
+                        if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
                         {
-                            
-                            Transmite_Confirmacion('D', 'D');
+                            if (Close_Sesion_Player_Tracking())
+                            {
+
+                                Transmite_Confirmacion('D', 'D');
+                            }
                         }
                     }
-                   
-                }else{
-                    Transmite_Confirmacion('A', '0');
+                    else
+                    {
+                        Transmite_Confirmacion('A', '0');
+                    }
                 }
                 break;
 
@@ -5350,7 +5353,7 @@ void Task_Verifica_Hopper(void *parameter)
             Serial.println("Hopper HIGH");
             Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, true);
             Condicion_Cumpl=false; /* Reset Timer ID Operador  por tiempo de descarga maquina Poker*/
-             if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+            if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {
                 Conta_Poll_Cancel_Poker=0;
             }

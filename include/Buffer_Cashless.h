@@ -33,6 +33,9 @@ private: // Variables Privadas Buffer
   char Buffer_RX_Transfer_AFT[128];
   char Buffer_RX_Credit_Cashless[128];
 
+
+  char Buffer_RX_Transfer_EFT[128];
+  char Buffer_RX_Credit_Cashless_EFT[128];
   
   
 
@@ -48,11 +51,17 @@ public:
   bool  Delete_Key_Register_AFT(bool Reset=true);
   char* Get_Key_Register_AFT();
   bool  Set_Buffer_Transfer_AFT(char Buffer[]);
+
+  
   char* Get_Bufffer_Transfer_AFT();
+  
   bool Init_Buffer_Transfer_AFT(bool Boolean);
   String Get_Key_Register_AFT_String();
   String Get_AFT_Info_Config();
-  
+
+  char* Get_Buffer_Transfer_EFT();
+  bool  Set_Buffer_Transfer_EFT(char Buffer[]);
+  bool Init_Buffer_Transfer_EFT(bool Boolean);
 
 
 };
@@ -81,12 +90,16 @@ class Transsaccion_Cashless
 
 
     bool Transaccion_Bonus_Cashless(bool);
-
+    /* AFT*/
     bool Save_Transaction_ID_Number(bool);
     bool Delete_Transaction_ID_Number();
     bool Increase_Transaction_Number_ID();
     char* Get_Trans_ID(void);
     uint32_t Get_Trans_ID_Int(void);
+    /*EFT*/
+    unsigned char Get_Trans_ID_EFT(void);
+    bool Increase_Transaction_Number_ID_EFT(void);
+
 
    
 

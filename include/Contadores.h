@@ -104,6 +104,9 @@ private: // Variables Privadas Para contadores
   byte ID_Operador_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Consulta_Info_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
 
+  byte ID_Client_Recovery[8]={'0', '0', '0', '0','0','0','0','0'};
+  int Type_Sesion_Recovery=36;
+
   char Vacio;
 
   int Serie_Trama_Int = 0;
@@ -177,4 +180,15 @@ public:
   char*  Get_Amount_Legacy_Bonus_Awards(void);
   bool Set_Type_Legacy_Bonus(char res[]);
   int Init_Parameter_Update(char res[]);
+
+
+  /*Recupera sesion Player Cashless*/
+
+  bool Set_Current_Cliente_Recover(byte Client[],int Type_Sesion);
+  byte*Get_Client_Recovery();
+  int Get_Type_Sesion();
+  bool Verify_Tarjeta(byte Buffer_Tarjeta[]);
+
+
+  int Get_Operador_ID_Int(byte Operador_ID[]);
 };

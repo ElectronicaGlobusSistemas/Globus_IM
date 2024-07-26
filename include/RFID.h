@@ -1,5 +1,6 @@
 
 #include "ESP32Time.h"
+#include <string>
 /**
  * @brief Globus Sistemas SAS
  *  Archivo contiene funciones Control RFID
@@ -55,7 +56,7 @@
 #define GAME_MACHINE_NOT_REGISTER     (0x33)
 #define NOT_COMMUNICATION_WITH_THE_MACHINE    (0x34) /* No hay comunicacion con la maquina */
 #define NOT_WIFI_CONNECTION           (0x35)
-
+#define TYPE_MACHINE_NOT_MACTH        (0x36)
 
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
@@ -76,6 +77,8 @@ int  Convert_Char_To_Int4(char buffer[]);
 bool  Close_Sesion_Player_Tracking(void);
 void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactividad);
 
+
+std::string IP_toString_(char IP_Char[]);
 
 
 class Cashless_API
@@ -109,6 +112,18 @@ public:
     void guardarTransacciones();
     void intentarEnviarTransacciones();
     void nuevaTransferencia(const String& json);
+
+
+    int Recovery_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion,bool Handle_Cashless);
+    void Saves_Current_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion);
+    void Remove_Currrent_Player_Sesion(void);
+
+
+    bool Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion);
+    String Get_Current_Pending_Ack_Load(void);
+    String Get_Current_Pending_Ack_Download(void);
+
+    bool Valida_Operador_Cashless(byte ID_Tarjeta_Operador[]);
 };
 
 
