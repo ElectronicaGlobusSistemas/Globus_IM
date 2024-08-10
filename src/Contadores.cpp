@@ -1121,12 +1121,9 @@ int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
 }
 
 
-int Contadores_SAS::Get_Operador_ID_Int(byte Operador_ID[])
+int Contadores_SAS::Get_Operador_ID_Int(char Operador_ID[8])
 {
-  char OperadorIDString[8];
-  memcpy(OperadorIDString, Operador_ID, sizeof(Operador_ID));
-  int Operador_Id_Int=atoi(OperadorIDString);
-  return Operador_Id_Int;
+  return atoi(Operador_ID);
 }
 
 

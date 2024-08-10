@@ -102,6 +102,10 @@ private:
     char buffer_Registro_MQ_encriptado[258];
     char buffer_Registro_MQ_final[258];
 
+    char Buffer_Key_API[258];
+    char Buffer_Key_Encriptado[258];
+    char Buffer_Key_Final[258];
+
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC;
 
@@ -130,6 +134,11 @@ public:
     bool Set_buffer_ACK_CRC_Cashless(void);
     char *Get_buffer_ACK_Cashless(void);
 
+
+    bool Set_Key_API(String);
+    bool Set_buffer_Encriptado_Key(void);
+    bool Set_buffer_CRC_Key(void);
+    char *Get_Buffer_Key(void);
 
     /*Buffer de ACK +INFO*/
 

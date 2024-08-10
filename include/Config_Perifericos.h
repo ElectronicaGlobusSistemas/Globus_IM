@@ -84,7 +84,13 @@ int extern Tiempo_Transmision_No_Juego;
 int extern Tiempo_Inactividad_Maquina;
 //------------------------------------------------------------------
 //---------------------------> Version de programa <----------------
-uint8_t Version_Firmware_[]={2,0,4,5}; // 1000--> en  server 1.0 {1,0,1,1};
+
+/* Mayor (Major): Se incrementa cuando hay cambios significativos que podrían no ser compatibles con versiones anteriores.
+Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma compatible con versiones anteriores.
+Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
+Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
+*/
+uint8_t Version_Firmware_[]={2,1,0,5};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
@@ -412,6 +418,14 @@ static void ManagerTasks(void *parameter)
         //--------------------------------------------------------------------------------------------------------
         //delay(100);
         //vTaskDelay(1000);
+
+        // UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(Encuestas);
+        // Serial.print("Minimo espacio libre en stack: ");
+        // Serial.println(uxHighWaterMark);
+        // UBaseType_t uxHighWaterMark2 = uxTaskGetStackHighWaterMark(RecepcionRS232);
+        // Serial.print("Minimo espacio libre en stack RS232: ");
+        // Serial.println(uxHighWaterMark2);
+        
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
     vTaskDelay(10);
@@ -887,7 +901,12 @@ void Init_Configuracion_Inicial(void)
         int Type_Sesion = SESION_DEFAULT;
         NVS.putInt("Sesion_Type", SESION_DEFAULT);
     }
-
+    
+    if(!NVS.isKey("Only_Cashless"))
+    {
+        bool Only_Cashless=false;
+        NVS.putBool("Only_Cashless",Only_Cashless);
+    }
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1441,52 +1460,61 @@ void Init_Configuracion_Inicial(void)
 
 
     /********************************************************** Cashless ****************************************************** */
-    size_t Key_AFT_Size = NVS.getBytesLength("Reg_AFT");
-    char AFT_Key[Key_AFT_Size];
-    NVS.getBytes("Reg_AFT", AFT_Key, Key_AFT_Size);
-    Buffer_Cashless.Set_Key_Register_AFT(AFT_Key);
 
-    Serial.print("Estado de maquina AFT: ");
-    if(AFT_Key[0]==0x00 &&AFT_Key[19]==0x00)
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
     {
-        Variables_globales.Set_Variable_Global(Status_AFT_Machine,false);
-        Serial.println("No registrada");
-    }
-        
-    else
-    {
-        Variables_globales.Set_Variable_Global(Status_AFT_Machine,true);
-        Serial.println("Registrada");
-    }
+        size_t Key_AFT_Size = NVS.getBytesLength("Reg_AFT");
+        char AFT_Key[Key_AFT_Size];
+        NVS.getBytes("Reg_AFT", AFT_Key, Key_AFT_Size);
+        Buffer_Cashless.Set_Key_Register_AFT(AFT_Key);
 
-    Serial.print("ID Transaccion Maquina : ");
-    /* ---------------> Trans ID <-------------*/
-    uint32_t Trans_ID=NVS.getUInt("Trans_ID",0);
-    Cashless.Set_Inicial_Trans_ID(Trans_ID);
-    /*-----------------------------------------*/
-    Serial.println(Cashless.Get_Trans_ID_Int());
+        Serial.print("Estado de maquina AFT: ");
+        if (AFT_Key[0] == 0x00 && AFT_Key[19] == 0x00)
+        {
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, false);
+            Serial.println("No registrada");
+        }
 
-    bool Status_Cashless=NVS.getBool("Enable_Cashless",false);
-    Variables_globales.Set_Variable_Global(Enable_Cashless,Status_Cashless);
-    if(Variables_globales.Get_Variable_Global(Enable_Cashless))
-        Serial.println("Transacciones Cashless Habilitadas");
-    else
+        else
+        {
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+            Serial.println("Registrada");
+        }
+
+        Serial.print("ID Transaccion Maquina : ");
+        /* ---------------> Trans ID <-------------*/
+        uint32_t Trans_ID = NVS.getUInt("Trans_ID", 0);
+        Cashless.Set_Inicial_Trans_ID(Trans_ID);
+        /*-----------------------------------------*/
+        Serial.println(Cashless.Get_Trans_ID_Int());
+
+        bool Status_Cashless = NVS.getBool("Enable_Cashless", false);
+
+
+        Variables_globales.Set_Variable_Global(Enable_Cashless, Status_Cashless);
+        if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+            Serial.println("Transacciones Cashless Habilitadas");
+        else
+            Serial.println("Transacciones Cashless Inhabilitadas");
+       
+
+        size_t Leng_id = NVS.getBytesLength("Id_Client");
+        byte Current_Id_Recovery[Leng_id];
+        NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
+        int Type_Sesion = NVS.getInt("Sesion_Type", SESION_DEFAULT);
+        contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, Type_Sesion);
+    }else{
+        Cashless.Set_Inicial_Trans_ID(0);
+        Variables_globales.Set_Variable_Global(Enable_Cashless, false);
         Serial.println("Transacciones Cashless Inhabilitadas");
-    Serial.println("\n");
+        byte Current_Id_Recovery[8]={'0','0','0','0','0','0','0','0'};
+        contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, SESION_DEFAULT);
+    }
 
-    size_t Leng_id = NVS.getBytesLength("Id_Client");
-    byte Current_Id_Recovery[Leng_id];
-    NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
-    // Serial.println(Current_Id_Recovery[0]);
-    // Serial.println(Current_Id_Recovery[1]);
-    // Serial.println(Current_Id_Recovery[2]);
-    // Serial.println(Current_Id_Recovery[3]);
-    // Serial.println(Current_Id_Recovery[4]);
-    // Serial.println(Current_Id_Recovery[5]);
-    // Serial.println(Current_Id_Recovery[6]);
-    // Serial.println(Current_Id_Recovery[7]);
-    int Type_Sesion=NVS.getInt("Sesion_Type",SESION_DEFAULT);
-    contadores.Set_Current_Cliente_Recover(Current_Id_Recovery,Type_Sesion);
+
+    bool Only_Cashless=NVS.getBool("Only_Cashless",false);
+    Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,Only_Cashless);
+    Serial.println("\n");
     NVS.end();
 }
 

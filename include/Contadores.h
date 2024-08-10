@@ -190,5 +190,5 @@ public:
   bool Verify_Tarjeta(byte Buffer_Tarjeta[]);
 
 
-  int Get_Operador_ID_Int(byte Operador_ID[]);
+  int Get_Operador_ID_Int(char Operador_ID[]);
 };

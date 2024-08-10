@@ -258,6 +258,35 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Sesion_Cashless:
         return Flag_Sesion_Cashless_;
         break;
+
+
+    case Amount_Download_Ready:
+        return Amount_Download_Ready_;
+        break;
+
+    case Machine_Receives_Load_Transfer:
+        return Machine_Receives_Load_Transfer_;
+        break;
+
+    case Machine_Receives_Download_Transfer:
+        return Machine_Receives_Download_Transfer_;
+        break;
+
+
+    case Handle_Controller_Transfer_Load:
+        return Handle_Controller_Transfer_Load_;
+        break;
+    case Handle_Controller_Transfer_Download:
+        return Handle_Controller_Transfer_Download_;
+        break;
+
+    case Descarga_Solo_Cashelss:
+        return Descarga_Solo_Cashelss_;
+        break;
+
+    case Token_Cashless_Solicitud:
+        return Token_Cashless_Solicitud_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -516,6 +545,35 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Sesion_Cashless:
         Flag_Sesion_Cashless_=Change_estado;
         break;
+
+    case Amount_Download_Ready:
+        Amount_Download_Ready_=Change_estado;
+        break;
+
+    case Machine_Receives_Load_Transfer:
+        Machine_Receives_Load_Transfer_=Change_estado;
+        break;
+
+    case Machine_Receives_Download_Transfer:
+        Machine_Receives_Download_Transfer_=Change_estado;
+        break;
+
+    case Handle_Controller_Transfer_Load:
+        Handle_Controller_Transfer_Load_=Change_estado;
+        break;
+
+    case Handle_Controller_Transfer_Download:
+        Handle_Controller_Transfer_Download_=Change_estado;
+        break;
+
+    case Descarga_Solo_Cashelss:
+        Descarga_Solo_Cashelss_=Change_estado;
+        break;
+
+    case Token_Cashless_Solicitud:
+        Token_Cashless_Solicitud_=Change_estado;
+    break;
+
     }
 }
 
@@ -614,6 +672,14 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Status_AFT_Machine_=false;
     Enable_Cashless_=false;
     Flag_Sesion_Cashless_=false;
+    Amount_Download_Ready_=false;
+    Machine_Receives_Load_Transfer_=false;
+    Machine_Receives_Download_Transfer_=false;
+    Handle_Controller_Transfer_Load_=false;
+    Handle_Controller_Transfer_Download_=false;
+    Descarga_Solo_Cashelss_=false;
+    Token_Cashless_Solicitud_=false;
+
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

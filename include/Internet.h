@@ -247,15 +247,19 @@ void CONNECT_WIFI(void)
 /* Verifica el limite de Fallos de intentos de conexion y reinicia el dispositivo */
 void WIFI_VERIFY(int Intentos_Conexion)
 {
-  if (Intentos_Conexion > MAX_INTENT_CONEXION_WIFI && !Variables_globales.Get_Variable_Global(Excepcion_WIFI))
+
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
   {
-    NVS.begin("Config_ESP32", false);
-    int Reinicios = NVS.getUInt("Connect_W", 0);
-    Reinicios = Reinicios + 1;
-    NVS.putUInt("Connect_W", Reinicios);
-    NVS.end();
-    delay(10);
-    ESP.restart();
+    if (Intentos_Conexion > MAX_INTENT_CONEXION_WIFI && !Variables_globales.Get_Variable_Global(Excepcion_WIFI))
+    {
+      NVS.begin("Config_ESP32", false);
+      int Reinicios = NVS.getUInt("Connect_W", 0);
+      Reinicios = Reinicios + 1;
+      NVS.putUInt("Connect_W", Reinicios);
+      NVS.end();
+      delay(10);
+      ESP.restart();
+    }
   }
 }
 
@@ -410,16 +414,20 @@ void RECONECT_WIFI_ESP()
     
     WIFI_VERIFY(Intentos_Conexion_WIFI);
 
-    if (Variables_globales.Get_Variable_Global(Access_Point_Mode) == true)
+    if (Variables_globales.Get_Variable_Global(Access_Point_Mode) == true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
     {
       Intentos_Conexion_WIFI = 0;
     }
     /*-----------------------------------------------------------------------------------------------------------*/
     if (WiFi.status() != WL_CONNECTED)
     {
+      if(Variables_globales.Get_Variable_Global(Access_Point_Mode) == true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+      {
 
-      Intentos_Conexion_WIFI++;
-
+      }else{
+        Intentos_Conexion_WIFI++;
+      }
+      
       Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
       Selector_Modo_SD();
       log_e("Fallo en el intento de conexion a la red WIFI", 103);
@@ -535,15 +543,20 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       WIFI_VERIFY(Intentos_Conexion_WIFI);
       /*-----------------------------------------------------------------------------------------------------------*/
 
-      if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true)
+      if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
       {
         Intentos_Conexion_WIFI=0;
       }
       
       if (WiFi.status() != WL_CONNECTED)
       {
+        if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+        {
 
-        Intentos_Conexion_WIFI++;
+        }else{
+          Intentos_Conexion_WIFI++;
+        }
+        
         
         Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
         Selector_Modo_SD();
@@ -600,8 +613,8 @@ void CONNECT_SERVER_TCP(void)
     {
       clientUDP.begin(serverPort);
       Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
-      clientUDP2.begin(serverPort2);
-      Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
+      // clientUDP2.begin(serverPort2);
+      // Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
     }
   }
 }

@@ -75,6 +75,7 @@ unsigned long FinalTime = 0;
 int Conteo = 0;
 bool SD_State = LOW;
 bool Set_WATCHDOG=false;
+
 //------------------------------------------------------------------------------------------------------
 
 //------------------------------------------> Objetos Extern <------------------------------------------
@@ -111,6 +112,7 @@ void Init_SD(void)
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
     digitalWrite(SD_Status,HIGH);
+
 
     // File root = SD.open("/");
     // while (File file = root.openNextFile())
@@ -606,6 +608,58 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
     
   }
 }
+
+void Erro_Log(String Datos, String archivo)
+{
+  if(Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+  {
+                       
+    myFile = SD.open(archivo, FILE_APPEND);
+    if (!myFile)
+    {
+      #ifdef Debug_Escritura
+      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+      #endif
+    }
+    else //  else por else if
+    {
+      myFile.println(Datos);
+      myFile.close();
+      #ifdef Debug_Escritura
+      Serial.println("Log Capturado");
+      #endif
+    }
+  }
+}
+
+bool VerificaArchivo(const char* archivo, String DataTime)
+{
+  if(SD.exists(archivo))
+  {
+    //Serial.print("Archivo ya existe: ");
+    //Serial.println(archivo);
+    return true;
+  }else{
+
+    myFile=SD.open(archivo,FILE_WRITE);
+
+    if(myFile)
+    {
+      myFile.println(DataTime);
+      //Serial.println("Archivo Creado...");
+      myFile.close();
+
+      return true;
+    }else
+    {
+      return false;
+    }
+  }
+  return false;
+}
+
+
+
 //--------------------------------------------------------------------------------------------------------
 //---------------------------> Funcion para  guardar operador  reset handpay <----------------------------
 void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer)

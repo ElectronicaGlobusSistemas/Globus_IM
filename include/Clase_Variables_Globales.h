@@ -98,6 +98,16 @@ using namespace std;
 #define Enable_Cashless                 87
 #define Flag_Sesion_Cashless            88
 
+#define Amount_Download_Ready           89
+#define Machine_Receives_Load_Transfer  90
+#define Machine_Receives_Download_Transfer  91
+
+#define Handle_Controller_Transfer_Load     92
+#define Handle_Controller_Transfer_Download 93
+
+#define Descarga_Solo_Cashelss              94
+#define Token_Cashless_Solicitud            95
+
 class Variables_Globales
 {
 private:
@@ -184,6 +194,13 @@ private:
     bool Status_AFT_Machine_;
     bool Enable_Cashless_;
     bool Flag_Sesion_Cashless_;
+    bool Amount_Download_Ready_;
+    bool Machine_Receives_Load_Transfer_;
+    bool Machine_Receives_Download_Transfer_;
+    bool Handle_Controller_Transfer_Load_;
+    bool Handle_Controller_Transfer_Download_;
+    bool Descarga_Solo_Cashelss_;
+    bool Token_Cashless_Solicitud_;
 
     
     

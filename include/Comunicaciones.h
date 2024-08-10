@@ -110,6 +110,9 @@ int Valida_Creditos_Actuales=0;
 
 extern int Tiempo_Inactividad_Maquina;
 
+
+
+
 #define Hopper_Enable 14
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
@@ -1243,6 +1246,10 @@ bool Sincroniza_Reloj_RTC(char res[])
         strncpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str(),sizeof(Archivo_CSV_Eventos));
         strncpy(Archivo_CSV_Sesiones, string_Fecha_Sesiones.c_str(),sizeof(Archivo_CSV_Sesiones));
         strncpy(Archivo_CSV_Premios, string_Fecha_Premios.c_str(),sizeof(Archivo_CSV_Premios));
+
+
+        // String LogFilePath = String("/")+String(day) + String(month) + String(year) + ".txt";
+        // LogFile=LogFilePath;
 
         /* Crea copia de  fecha */
         day_copy = day;
@@ -4202,7 +4209,7 @@ void Task_Procesa_Comandos(void *parameter)
             /* Reset timer*/
             Finally_Timer = Start_Timer;
         }
-        Procesa_Comandos_Socket2();
+        //Procesa_Comandos_Socket2();
        // Mensajes_RFID();
         vTaskDelay(100 / portTICK_PERIOD_MS);
       //  continue;

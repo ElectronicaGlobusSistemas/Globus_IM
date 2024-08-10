@@ -3161,3 +3161,62 @@ bool Buffers::Set_buffer_info_cliente(int Com,Contadores_SAS contadores)
      }
      return false;
 }
+
+
+bool Buffers::Set_buffer_Encriptado_Key(void)
+{
+    memcpy(Buffer_Key_Encriptado, Metodo_AES.Encripta_Mensaje_Servidor(Buffer_Key_API), 258);
+    return true;
+}
+
+bool Buffers::Set_buffer_CRC_Key(void)
+{
+   
+    memcpy(Buffer_Key_Final, Metodo_CRC.Calcula_CRC_Wifi(Buffer_Key_Encriptado), 258);
+    return true;
+}
+
+char *Buffers::Get_Buffer_Key(void)
+{
+    return Buffer_Key_Final;
+}
+
+
+bool Buffers::Set_Key_API(String Key)
+{
+    char req[258] = {};
+   
+    int pos=0;
+    for(int i=0; i<Key.length();i++)
+    {   pos++;
+        req[i]=Key[i];
+    }
+    req[pos]='|';
+
+    for(int i=pos+1; i<258; i++)
+    {
+        req[i]='0';
+    }
+    
+    memcpy(Buffer_Key_API, req, 258);
+    // for(int i=0; i<40;i++)
+    // {
+    //     Serial.print(Buffer_Key_API[i]);
+    // }
+    // Serial.println();
+
+    if (Set_buffer_Encriptado_Key())
+    {
+        if (Set_buffer_CRC_Key())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+
+
+
+

@@ -154,6 +154,13 @@ int buttonPressCount = 0;  // Contador de pulsaciones
 unsigned long lastButtonClickTime = 0;
 
 SPIClass spiRFID(VSPI);
+const char* archivo = "/LogESP.txt";
+
+
+
+
+
+
 
 void setup()
 {
@@ -169,7 +176,7 @@ void setup()
     xTaskCreatePinnedToCore(
         Check_Comunicacion_Maq,
         "verificaComunica",
-        5000,/*8000*/
+        6000,/*8000*/
         NULL,
         configMAX_PRIORITIES - 15,
         NULL,
@@ -185,10 +192,11 @@ void setup()
 
   else
     Serial.println("No se inicio el sistema de archivos");
-  Cashless.Init_API_Server();
+  Cashless.Init_API_Server(); /* Inicializa Server Globus IM ESP32 */
   Buffer_Cashless.Init_Buffer_Transfer_AFT(true); /* Inicializa Buffer de transferencias AFT*/
   Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
-  Cashless.Set_Amount_To_Load(0,0,0);
+  Cashless.Set_Amount_To_Load(0,0,0); /* Setea Valores de carga en 0 */
+  Info_Cashless.Init_Timer_Lector();
 }
 unsigned long INT1=0;
 int Muestreo=500;
@@ -198,12 +206,14 @@ void loop()
 
   if(!Verifica)
   {
-    if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Comunicacion_Maq))==2)
+    if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Enable_Cashless))==2)
       Verifica=true;
   }
 
+  Info_Cashless.Genera_Token_Cashless();
+
  // Cashless.Registra_Maquina_Auto();
-  Info_Cashless.Reporting_Pending_Transfers();
+  Info_Cashless.Reporting_Pending_Transfers(25000);
   eventos.TimeOut_Capture_Event();
   Time_I=millis();
   TimeOut_Conect_RFID=millis();
@@ -545,40 +555,69 @@ static void Check_Comunicacion_Maq(void *parameter)
 void TimeOut_Player_Tracking_Sesion(void)
 {
 
-  if (!Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless)) /* En Cashless Ignora TimeOut Player Tracking */
+  currentTime = millis();
+
+  if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) == false && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) == true)
   {
-    currentTime = millis();
-
-    if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) == false && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) == true)
+    int Creditos_Actuales_Maquina = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+    // Serial.println(Creditos_Actuales_Maquina);
+    if (!condicionCumplida)
     {
-      int Creditos_Actuales_Maquina = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
-      // Serial.println(Creditos_Actuales_Maquina);
-      if (!condicionCumplida)
-      {
-        startTime = currentTime;
-        condicionCumplida = true;
-      }
-      if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
-      {
-        startTime = currentTime;
-        condicionCumplida = false;
-      }
-      if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
-      {
-
-        Transmite_Contadores_Accounting();
-        Close_Sesion_Player_Tracking();
-        Contador_Transmision_Contadores = 0;
-        New_Timer_Final = New_Timmer_Inicial;
-        startTime = currentTime;
-        condicionCumplida = false;
-      }
+      startTime = currentTime;
+      condicionCumplida = true;
     }
-    else
+    if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
     {
-
+      startTime = currentTime;
       condicionCumplida = false;
     }
+    if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
+    {
+
+      if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
+      {
+        Info_Cashless.Lock_Reader();
+        Transmite_Contadores_Accounting();
+        Close_Sesion_Player_Tracking();
+        Info_Cashless.Unlock_Reader();
+      }
+      else
+      {
+
+        if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+        {
+          Info_Cashless.Lock_Reader();
+          bool Handle = true;
+          if (Info_Cashless.Get_Status_Reader())
+            Status_Barra(301);
+
+          switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+          {
+          case REQUEST_SUCCESSFULLY_RECEIVED:
+            Solicitud_Descarga_Cashless();
+            Handle = false;
+            break;
+
+          default:
+            Status_Barra(ERROR_LECTURA);
+            Info_Cashless.Unlock_Reader();
+            Handle = false;
+            break;
+          }
+          if (Handle)
+            Info_Cashless.Unlock_Reader();
+        }
+      }
+      Contador_Transmision_Contadores = 0;
+      New_Timer_Final = New_Timmer_Inicial;
+      startTime = currentTime;
+      condicionCumplida = false;
+    }
+  }
+  else
+  {
+
+    condicionCumplida = false;
   }
 }
 
@@ -658,6 +697,9 @@ void check_SD(void)
       if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT) )
       {
         /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
+        String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
+        VerificaArchivo(archivo,DataTime);
         delay(10);
         Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
         delay(10);
@@ -677,6 +719,7 @@ void check_SD(void)
         Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
         Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
         Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
+
         /*--------------------------------------------------------------------------------------------*/
       }
       if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))

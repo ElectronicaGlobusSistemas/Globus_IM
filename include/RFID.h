@@ -58,6 +58,8 @@
 #define NOT_WIFI_CONNECTION           (0x35)
 #define TYPE_MACHINE_NOT_MACTH        (0x36)
 
+#define NOT_RED                       (0x37)
+
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -86,13 +88,36 @@ class Cashless_API
 
 private:
 
+    bool Enable_Event_Pending_Transfer_Download=false;
+    bool Enable_Event_Pendeing_Transfer_Load=false;
+
+
+    bool Enable_Transfer_Load=false;
+    bool Enable_Transfer_Download=false;
+
+    bool Handle_Lector_RFID=false;
+
+    unsigned long TimeOut_RT=0;
+    unsigned long TimeOut_RTF=0;
+
+    String Token_Cashless="";
+    String Hash_Cashless="";
+
+
+    unsigned long TimeOut_Token_Inicial;
+    unsigned long TimeOut_Token_Final;
+    int TimeOut_Ejecuta=15000;
+    bool Reset_Time=false;
+    
+
+
 public:
 
     int Info_Client(byte Id_Client[], ESP32Time ,String Type_Transaction=LOAD_TRANSACTION, uint32_t Transaction_ID=0);
     int Info_Client_Download(byte Id_Client[], ESP32Time RTC, String Type_Transaction, uint32_t Transaction_ID);
     bool Status_Transfer(int Code,char Buffer_Transfer[],ESP32Time);
     bool Status_Transfer_Download(int Code,char Buffer_Transfer[],ESP32Time RTC);
-    void Reporting_Pending_Transfers(void);
+    void Reporting_Pending_Transfers(unsigned long TimeOut);
     String Get_Current_Status_Transfer(void);
     String Get_Current_Status_Transfer_Download(void);
     void Load_Pending_Transactions(void);
@@ -102,7 +127,7 @@ public:
     bool Reader_Lock(bool Status);
     int Type_Sesion(int Flag=SESION_DEFAULT,bool Status=false);
 
-   
+    void Agragar_Transaccion(String Json);
     
     bool Updated_Cashless_Counters(String Type_Transaccion);
 
@@ -112,6 +137,7 @@ public:
     void guardarTransacciones();
     void intentarEnviarTransacciones();
     void nuevaTransferencia(const String& json);
+    bool Valida_Transmision(void);
 
 
     int Recovery_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion,bool Handle_Cashless);
@@ -123,7 +149,42 @@ public:
     String Get_Current_Pending_Ack_Load(void);
     String Get_Current_Pending_Ack_Download(void);
 
-    bool Valida_Operador_Cashless(byte ID_Tarjeta_Operador[]);
+    bool Valida_Operador_Cashless(char ID_Tarjeta_Operador[]);
+    
+
+    /* Actualiza Objeto  Transfer Load and Download */
+    bool Update_Ack_Evento_69(String Type_Transaccion,int Code=0x00);
+    /* Habilita procesamiento de evento 68 (Transferencia completa) */
+    bool Set_Transfer_Pending(bool Status,String Type_Transaccion,char Buffer_Transfer_Amount[]);
+
+    bool Get_Status_Event_Pending_Transfer(String Type_Transaccion);
+
+
+    bool Set_Controller_Transfer_Load(bool Enable);
+    bool Get_Controller_Transfer_Load(void);
+    bool Set_Controller_Transfer_Download(bool Enable);
+    bool Get_Controller_Transfer_Download(void);
+
+
+    bool Requerimiento_AFT_6A(int Evento, bool Enable);
+
+    bool Init_Timer_Lector(void);
+    bool Transaccion_Finalizada(void);
+
+    bool  Get_Status_Reader(void);
+    
+    bool  Lock_Reader(void);
+    bool  Unlock_Reader(void);
+
+
+    void Solicitud_Token_Cashless(void);
+    char*  Key_Generator(void);
+
+    String Get_Token_Valido(void);
+    String Get_Hash_Valido(void);
+    bool  Set_Token_Valido(String Token_Valido,String Hash_Valido);
+
+    void Genera_Token_Cashless(void);
 };
 
 
