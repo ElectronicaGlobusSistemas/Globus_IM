@@ -872,7 +872,7 @@ void Init_Configuracion_Inicial(void)
         {
             Temp_Register_AFT[i]=0x00;
         }
-        NVS.getBytes("Reg_AFT", Temp_Register_AFT, sizeof(Temp_Register_AFT));
+        NVS.putBytes("Reg_AFT", Temp_Register_AFT, sizeof(Temp_Register_AFT));
     }
 
 
@@ -906,6 +906,12 @@ void Init_Configuracion_Inicial(void)
     {
         bool Only_Cashless=false;
         NVS.putBool("Only_Cashless",Only_Cashless);
+    }
+
+    if(!NVS.isKey("Spiffs"))
+    {
+        bool Default_Formatt_true=true;
+        NVS.putBool("Spiffs",Default_Formatt_true);
     }
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1514,6 +1520,9 @@ void Init_Configuracion_Inicial(void)
 
     bool Only_Cashless=NVS.getBool("Only_Cashless",false);
     Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,Only_Cashless);
+
+    bool Test_Formatt_Spiffs=NVS.getBool("Spiffs",true);
+    Variables_globales.Set_Variable_Global(Default_Formatt,Test_Formatt_Spiffs);
     Serial.println("\n");
     NVS.end();
 }

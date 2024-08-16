@@ -185,7 +185,10 @@ public:
     bool  Set_Token_Valido(String Token_Valido,String Hash_Valido);
 
     void Genera_Token_Cashless(void);
-};
 
+    bool Set_Flag_Token(bool Status_Flag);
+    void Token_Expiration(uint64_t Expiracion_Time);
+};
+void New_Token(void*arg);
 
 #endif // RFID_H

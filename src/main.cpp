@@ -192,6 +192,8 @@ void setup()
 
   else
     Serial.println("No se inicio el sistema de archivos");
+
+ 
   Cashless.Init_API_Server(); /* Inicializa Server Globus IM ESP32 */
   Buffer_Cashless.Init_Buffer_Transfer_AFT(true); /* Inicializa Buffer de transferencias AFT*/
   Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
@@ -210,7 +212,8 @@ void loop()
       Verifica=true;
   }
 
-  Info_Cashless.Genera_Token_Cashless();
+  if(Variables_globales.Get_Variable_Global(Enable_Cashless))
+    Info_Cashless.Genera_Token_Cashless();
 
  // Cashless.Registra_Maquina_Auto();
   Info_Cashless.Reporting_Pending_Transfers(25000);

@@ -287,6 +287,18 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Token_Cashless_Solicitud:
         return Token_Cashless_Solicitud_;
         break;
+
+    case Excepcion_51:
+        return Excepcion_51_;
+        break;
+
+    case Requerimiento_Operador:
+        return Requerimiento_Operador_;
+        break;
+
+    case Default_Formatt:
+        return Default_Formatt_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -574,6 +586,19 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
         Token_Cashless_Solicitud_=Change_estado;
     break;
 
+    case Excepcion_51:
+        Excepcion_51_=Change_estado;
+    break;
+
+
+    case Requerimiento_Operador:
+        Requerimiento_Operador_=Change_estado;
+        break;
+
+    case Default_Formatt:
+        Default_Formatt_=Change_estado;
+        break;
+
     }
 }
 
@@ -679,6 +704,9 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Handle_Controller_Transfer_Download_=false;
     Descarga_Solo_Cashelss_=false;
     Token_Cashless_Solicitud_=false;
+    Excepcion_51_=false;
+    Requerimiento_Operador_=false;
+    Default_Formatt_=false;
 
 }
 

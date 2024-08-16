@@ -103,6 +103,8 @@ private: // Variables Privadas Para contadores
   byte ID_Client_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Operador_Temp[8]={'0', '0', '0', '0','0','0','0','0'};
   byte ID_Consulta_Info_Operador[8]={'0', '0', '0', '0','0','0','0','0'};
+  byte ID_Consulta_Info_Client[8]={'0', '0', '0', '0','0','0','0','0'};
+  byte Type_Tarjeta[1]={'N'};
 
   byte ID_Client_Recovery[8]={'0', '0', '0', '0','0','0','0','0'};
   int Type_Sesion_Recovery=36;
@@ -188,6 +190,16 @@ public:
   byte*Get_Client_Recovery();
   int Get_Type_Sesion();
   bool Verify_Tarjeta(byte Buffer_Tarjeta[]);
+
+
+  bool ID_Consulta_INFO_Client(char Client[]);
+
+
+  byte* Get_Type_Tarjeta(void);
+  byte* Get_Operador_INFO_Client(void);
+  bool  Dele_Operador_INFO_Client(void);
+
+  bool Delete_Type_Tarjeta(void);
 
 
   int Get_Operador_ID_Int(char Operador_ID[]);

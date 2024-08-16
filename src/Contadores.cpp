@@ -877,6 +877,8 @@ bool Contadores_SAS:: Set_Operador_ID_Temp(char Operador_[])
 bool Contadores_SAS::ID_Consulta_INFO_Operador(char Operador[])
 {
   int Val=0;
+
+  Type_Tarjeta[0]='O';
   for(int i=0; i<8;i++)
   {
     ID_Consulta_Info_Operador[i]=Operador[i];
@@ -900,8 +902,39 @@ bool Contadores_SAS::ID_Consulta_INFO_Operador(char Operador[])
   return false;
 }
 
+bool Contadores_SAS::ID_Consulta_INFO_Client(char Client[])
+{
+  int Val=0;
+  
+
+  Type_Tarjeta[0]='C';
+  for(int i=0; i<8;i++)
+  {
+    ID_Consulta_Info_Client[i]=Client[i];
+  }
+
+  for(int i=0; i<8;i++)
+  {
+    if(ID_Consulta_Info_Client[i]==Client[i])
+    {
+      Val++;
+    }
+  }
+
+  if(Val>=8)
+  {
+    return true;
+  }else{
+    return false;
+  }
+
+  return false;
+}
+
 bool Contadores_SAS::Dele_Operador_INFO_Operador(void)
 {
+  Type_Tarjeta[0]='F';
+
   for(int i=0; i<8; i++)
   {
     ID_Consulta_Info_Operador[i]='0';
@@ -914,14 +947,58 @@ bool Contadores_SAS::Dele_Operador_INFO_Operador(void)
       return false;
     }
   }
-
+  
   return true;
 }
+
+
+bool Contadores_SAS::Dele_Operador_INFO_Client(void)
+{
+  Type_Tarjeta[0]='F';
+  
+  for(int i=0; i<8; i++)
+  {
+    ID_Consulta_Info_Client[i]='0';
+  }
+
+  for(int i=0; i<8; i++)
+  {
+    if(ID_Consulta_Info_Client[i]!='0')
+    {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+
 
 byte* Contadores_SAS::Get_Operador_INFO_Operador(void)
 {
   return ID_Consulta_Info_Operador;
 }
+
+byte* Contadores_SAS::Get_Operador_INFO_Client(void)
+{
+  return ID_Consulta_Info_Client;
+}
+
+byte* Contadores_SAS::Get_Type_Tarjeta(void)
+{
+  return Type_Tarjeta;
+}
+
+bool Contadores_SAS::Delete_Type_Tarjeta(void)
+{
+  Type_Tarjeta[0]='F';
+
+  if(Type_Tarjeta[0]=='F')
+    return true;
+  else
+    return false;
+}
+
 
 /* Agrega ID de operador en trama 
 return (false) Si no se agrego el ID  a la trama de contadores

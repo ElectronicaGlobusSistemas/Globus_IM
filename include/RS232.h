@@ -1622,16 +1622,10 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           //Serial.println(Evento);
 
           Info_Cashless.Requerimiento_AFT_6A(Evento,Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss));
-          if(Evento==0x69)
+          
+          if(Evento==0x51 && Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4 && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss))
           {
-            // if (Info_Cashless.Get_Status_Event_Pending_Transfer("D"))
-            // {
-            //   Info_Cashless.Update_Ack_Evento_69("D", 0x01);
-            // }
-            // else if (Info_Cashless.Get_Status_Event_Pending_Transfer("C"))
-            // {
-            //   Info_Cashless.Update_Ack_Evento_69("C", 0x00);
-            // }
+            Variables_globales.Set_Variable_Global(Excepcion_51,true);
           }
           
           if(eventos.Ignore_Event(Evento))

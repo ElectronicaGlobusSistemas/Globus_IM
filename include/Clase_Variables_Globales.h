@@ -107,6 +107,12 @@ using namespace std;
 
 #define Descarga_Solo_Cashelss              94
 #define Token_Cashless_Solicitud            95
+  
+
+#define Excepcion_51                        96
+#define Requerimiento_Operador              97
+#define Default_Formatt                     98
+
 
 class Variables_Globales
 {
@@ -201,7 +207,9 @@ private:
     bool Handle_Controller_Transfer_Download_;
     bool Descarga_Solo_Cashelss_;
     bool Token_Cashless_Solicitud_;
-
+    bool Excepcion_51_;
+    bool Requerimiento_Operador_;
+    bool Default_Formatt_;
     
     
 

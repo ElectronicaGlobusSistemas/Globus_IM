@@ -150,6 +150,7 @@ DynamicJsonDocument Objeto_Transfer_Download(800);
 
 /* -----------------------------> Inicializa Barra de estatus <-----------------------------------*/
 Adafruit_NeoPixel Barra_Status_Sesion_Client=Adafruit_NeoPixel(4,13,NEO_RGB + NEO_KHZ800);
+esp_timer_handle_t token_timer;
 /*------------------------------------------------------------------------------------------------*/
 I2CScanner scanner;
 
@@ -1012,6 +1013,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
     if (MEMORIA[0] == 'O')
     {
+
         /* Bloquea lector */
         Info_Cashless.Lock_Reader();
 
@@ -1025,41 +1027,200 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         ID_Temp_[6] = INFO[6];
         ID_Temp_[7] = INFO[7];
 
-        if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Enable_Cashless) &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
+        /* Maquina Cashless */
+        if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
         {
-            char ID_Temp_[8];
-            ID_Temp_[0] = INFO[0];
-            ID_Temp_[1] = INFO[1];
-            ID_Temp_[2] = INFO[2];
-            ID_Temp_[3] = INFO[3];
-            ID_Temp_[4] = INFO[4];
-            ID_Temp_[5] = INFO[5];
-            ID_Temp_[6] = INFO[6];
-            ID_Temp_[7] = INFO[7];
-
-            Status_Barra(TARJETA_OPERADOR_INSERT);
-
-            if (Info_Cashless.Valida_Operador_Cashless(ID_Temp_))
+            if (Variables_globales.Get_Variable_Global(Excepcion_51) && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss)) /* Maquina en estado de reset handpay */
             {
-                switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
-                {
-                case REQUEST_SUCCESSFULLY_RECEIVED:
-                    Solicitud_Descarga_Cashless();
-                    break;
 
-                default:
-                    Status_Barra(ERROR_LECTURA);
-                    Info_Cashless.Unlock_Reader();
-                    break;
+                Variables_globales.Set_Variable_Global(Requerimiento_Operador,true);
+                contadores.Close_ID_Operador();           /* Borra ID operador anterior */
+                contadores.Dele_Operador_INFO_Operador(); /* ID*/
+                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
+                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia timmer */
+                New_Timer_Final = New_Timmer_Inicial;
+                startTime = currentTime; /* Reset TimeOut_Player Tracking */
+
+                char ID_Temp_[8];
+                ID_Temp_[0] = INFO[0];
+                ID_Temp_[1] = INFO[1];
+                ID_Temp_[2] = INFO[2];
+                ID_Temp_[3] = INFO[3];
+                ID_Temp_[4] = INFO[4];
+                ID_Temp_[5] = INFO[5];
+                ID_Temp_[6] = INFO[6];
+                ID_Temp_[7] = INFO[7];
+
+                contadores.ID_Consulta_INFO_Operador(ID_Temp_);
+                Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+
+                if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                {
+                    Status_Barra(TARJETA_OPERADOR_INSERT);
                 }
-            }else{
-                Status_Barra(ERROR_LECTURA);
-                Info_Cashless.Unlock_Reader();
+                unsigned long Respuesta_Server = millis();
+                int TIMEOUT_CONECT_SERVER = 6500;
+                while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+                {
+#ifdef DEBUG_RFID
+                    Serial.println("Verificando Conexion to Host...");
+#endif
+                    vTaskDelay(300);
+                }
+
+                if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+                {
+
+                    if (contadores.Set_Operador_ID_Temp(ID_Temp_))
+                    {
+                        Condicion_Cumpl = false; /* Reset Timeout*/
+
+                        contadores.Copy_Operator_In_();
+                        Variables_globales.Set_Variable_Global(Operador_Detected, true);
+                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                        Update_Status_SD();
+                        Storage_Premios_OP(Archivo_CSV_Premios, Variables_globales.Get_Variable_Global(Enable_Storage), contadores.Get_Operador_ID());
+                        Info_Cashless.Unlock_Reader();
+                    }
+                    else
+                    {
+                        Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                        contadores.Close_ID_Operador(); /*Temporal y en Trama*/
+                        Status_Barra(ERROR_LECTURA);
+                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                        Info_Cashless.Unlock_Reader();
+                    }
+                }
+                else
+                {
+                    Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    contadores.Close_ID_Operador(); /*Temporal y en Trama*/
+#ifdef DEBUG_RFID
+                    Serial.println("Host Gmaster disconected");
+#endif
+                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                    delay(100);
+                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
+                    Info_Cashless.Unlock_Reader();
+                }
+            }
+            else
+            {
+                if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION) /* Pregunta si tiene sesión Cashless */
+                {
+
+                    char ID_Temp_[8];
+                    ID_Temp_[0] = INFO[0];
+                    ID_Temp_[1] = INFO[1];
+                    ID_Temp_[2] = INFO[2];
+                    ID_Temp_[3] = INFO[3];
+                    ID_Temp_[4] = INFO[4];
+                    ID_Temp_[5] = INFO[5];
+                    ID_Temp_[6] = INFO[6];
+                    ID_Temp_[7] = INFO[7];
+
+                    Status_Barra(TARJETA_OPERADOR_INSERT);
+
+                    if (Info_Cashless.Valida_Operador_Cashless(ID_Temp_))
+                    {
+                        switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+                        {
+                        case REQUEST_SUCCESSFULLY_RECEIVED:
+                            Solicitud_Descarga_Cashless();
+                            break;
+
+                        default:
+                            Status_Barra(ERROR_LECTURA);
+                            Info_Cashless.Unlock_Reader();
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Status_Barra(ERROR_LECTURA);
+                        Info_Cashless.Unlock_Reader();
+                    }
+                }
+                else
+                {
+
+                    Variables_globales.Set_Variable_Global(Excepcion_51,false);
+                    contadores.Close_ID_Operador();           /* Borra ID operador anterior */
+                    contadores.Dele_Operador_INFO_Operador(); /* ID*/
+                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
+                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia timmer */
+                    New_Timer_Final = New_Timmer_Inicial;
+                    startTime = currentTime; /* Reset TimeOut_Player Tracking */
+
+                    char ID_Temp_[8];
+                    ID_Temp_[0] = INFO[0];
+                    ID_Temp_[1] = INFO[1];
+                    ID_Temp_[2] = INFO[2];
+                    ID_Temp_[3] = INFO[3];
+                    ID_Temp_[4] = INFO[4];
+                    ID_Temp_[5] = INFO[5];
+                    ID_Temp_[6] = INFO[6];
+                    ID_Temp_[7] = INFO[7];
+
+                    contadores.ID_Consulta_INFO_Operador(ID_Temp_);
+                    Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+
+                    if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                    {
+                        Status_Barra(TARJETA_OPERADOR_INSERT);
+                    }
+                    unsigned long Respuesta_Server = millis();
+                    int TIMEOUT_CONECT_SERVER = 6500;
+                    while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+                    {
+#ifdef DEBUG_RFID
+                        Serial.println("Verificando Conexion to Host...");
+#endif
+                        vTaskDelay(300);
+                    }
+
+                    if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+                    {
+
+                        if (contadores.Set_Operador_ID_Temp(ID_Temp_))
+                        {
+                            Condicion_Cumpl = false; /* Reset Timeout*/
+
+                            contadores.Copy_Operator_In_();
+                            Variables_globales.Set_Variable_Global(Operador_Detected, true);
+                            Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                            Update_Status_SD();
+                            Storage_Premios_OP(Archivo_CSV_Premios, Variables_globales.Get_Variable_Global(Enable_Storage), contadores.Get_Operador_ID());
+                            Info_Cashless.Unlock_Reader();
+                        }
+                        else
+                        {
+                            Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                            contadores.Close_ID_Operador(); /*Temporal y en Trama*/
+                            Status_Barra(ERROR_LECTURA);
+                            Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                            Info_Cashless.Unlock_Reader();
+                        }
+                    }
+                    else
+                    {
+                        Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                        contadores.Close_ID_Operador(); /*Temporal y en Trama*/
+#ifdef DEBUG_RFID
+                        Serial.println("Host Gmaster disconected");
+#endif
+                        Status_Barra(CONEXION_TO_HOTS_FAILED);
+                        delay(100);
+                        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
+                        Info_Cashless.Unlock_Reader();
+                    }
+                }
             }
         }
         else
         {
-
             contadores.Close_ID_Operador();           /* Borra ID operador anterior */
             contadores.Dele_Operador_INFO_Operador(); /* ID*/
             Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
@@ -1130,10 +1291,8 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
                 Info_Cashless.Unlock_Reader();
             }
-
-            
         }
-       // Info_Cashless.Lock_Reader();
+        // Info_Cashless.Lock_Reader();
     }
 
     else if (MEMORIA[0] == 'C')
@@ -1145,7 +1304,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         startTime = currentTime;
         contadores.Dele_Operador_INFO_Operador(); /* ID*/
         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-        Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+        
         Status_Barra(LECTURA_OK);
        
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
@@ -1374,6 +1533,19 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 else
                 {
 
+                    char ID_Temp_Tarjeta[8];
+                    ID_Temp_Tarjeta[0] = INFO[0];
+                    ID_Temp_Tarjeta[1] = INFO[1];
+                    ID_Temp_Tarjeta[2] = INFO[2];
+                    ID_Temp_Tarjeta[3] = INFO[3];
+                    ID_Temp_Tarjeta[4] = INFO[4];
+                    ID_Temp_Tarjeta[5] = INFO[5];
+                    ID_Temp_Tarjeta[6] = INFO[6];
+                    ID_Temp_Tarjeta[7] = INFO[7];
+
+                    contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
+                    Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+                    
                     bool Handl=true;
                     unsigned long Respuesta_Server = millis();
                     int TIMEOUT_CONECT_SERVER = 6500; // 3500
@@ -1407,6 +1579,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 
             }
         }else{
+            
             byte ID_Temp[8];
             ID_Temp[0] = INFO[0];
             ID_Temp[1] = INFO[1];
@@ -1435,6 +1608,18 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             else
             {
 
+                char ID_Temp_Tarjeta[8];
+                ID_Temp_Tarjeta[0] = INFO[0];
+                ID_Temp_Tarjeta[1] = INFO[1];
+                ID_Temp_Tarjeta[2] = INFO[2];
+                ID_Temp_Tarjeta[3] = INFO[3];
+                ID_Temp_Tarjeta[4] = INFO[4];
+                ID_Temp_Tarjeta[5] = INFO[5];
+                ID_Temp_Tarjeta[6] = INFO[6];
+                ID_Temp_Tarjeta[7] = INFO[7];
+                contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
+                Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+                
                 unsigned long Respuesta_Server = millis();
                 int TIMEOUT_CONECT_SERVER = 6500; // 3500
                 while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
@@ -3866,12 +4051,17 @@ void Cashless_API::Load_Pending_Transactions()
 /* Inicializa Sistema de archivos en el procesador para guardar las transacciones pendientes.*/
 bool Cashless_API::Inicialize_File_System(void)
 {
-
-    if(SPIFFS.begin())
+    if(Variables_globales.Get_Variable_Global(Default_Formatt))
+    {
+        Serial.println("Hola");
+        NVS.begin("Config_ESP32", false);
+        NVS.putBool("Spiffs",false);
+        NVS.end();
+    }
+    if(SPIFFS.begin(Variables_globales.Get_Variable_Global(Default_Formatt)))
         return true;
     else
         return false;
-
 }
 
 
@@ -4180,20 +4370,18 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
             {
             case PLAYER_CASHLESS_SESION:
                 Info_Cashless.Lock_Reader();
-                //Status_Barra(301);
-                //Serial.println("Se identifico Sesion Cashless");
-                //Serial.println("Recuperando sesion......");
-                
-                    if (contadores.Set_Client_ID(Id_Client_Recovery) && contadores.Set_Client_ID_Transaccion(Id_Client_Recovery))
-                    {
-                        Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, true);
-                        Status_Barra(CARGA_CASHLESS_EXITOSA);
-                        Variables_globales.Set_Variable_Global(Flag_Sesion_RFID, true);
-                        //Serial.println("Cashless Iniciado....");
-                        Transaccion_Finalizada();
-                    }else{
-                        Transaccion_Finalizada();
-                    }
+                // Status_Barra(301);
+                // Serial.println("Se identifico Sesion Cashless");
+                // Serial.println("Recuperando sesion......");
+
+                if (contadores.Set_Client_ID(Id_Client_Recovery) && contadores.Set_Client_ID_Transaccion(Id_Client_Recovery))
+                {
+                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, true);
+                    Status_Barra(CARGA_CASHLESS_EXITOSA);
+                    Variables_globales.Set_Variable_Global(Flag_Sesion_RFID, true);
+                    // Serial.println("Cashless Iniciado....");
+                }
+                Info_Cashless.Unlock_Reader();
                 break;
 
             case PLAYER_TRACKING_SESION:
@@ -4450,15 +4638,14 @@ bool Cashless_API::Init_Timer_Lector(void)
 
 
 
-//    esp_timer_create_args_t timer_args_Token = {
-//       .callback = &TimeOut_Token_Cash,
-//       .arg = NULL,
-//       .dispatch_method = ESP_TIMER_TASK,
-//       .name = "Token_Cashless"
-//   };
-//     esp_timer_create(&timer_args_Token, &Token_Cash);
+   esp_timer_create_args_t timer_args_r = {
+        .callback = &New_Token,
+        .name = "Token Timer"
+    };
 
-//     esp_timer_start_periodic(Token_Cash,10000000); /* 10Seg*/
+    // Crear el temporizador una sola vez
+    esp_timer_create(&timer_args_r, &token_timer);
+
     return true;
 }
 
@@ -4526,19 +4713,22 @@ char* Cashless_API::Key_Generator(void)
 
 void Cashless_API::Genera_Token_Cashless(void)
 {
-
-    if (Variables_globales.Get_Variable_Global(Token_Cashless_Solicitud))
-        TimeOut_Token_Final = TimeOut_Token_Inicial;
-
-    // if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
-    // {
-    TimeOut_Token_Inicial = millis();
-    if ((TimeOut_Token_Inicial - TimeOut_Token_Final) >= TimeOut_Ejecuta && !Variables_globales.Get_Variable_Global(Token_Cashless_Solicitud) || !Reset_Time)
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
-        Solicitud_Token_Cashless();
-        TimeOut_Token_Final = TimeOut_Token_Inicial;
-        Reset_Time = true;
+        if (!Reset_Time)
+            TimeOut_Token_Final = TimeOut_Token_Inicial;
+
+        // if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+        // {
+        TimeOut_Token_Inicial = millis();
+        if ((TimeOut_Token_Inicial - TimeOut_Token_Final) >= TimeOut_Ejecuta && !Variables_globales.Get_Variable_Global(Token_Cashless_Solicitud) || !Reset_Time)
+        {
+            Solicitud_Token_Cashless();
+            TimeOut_Token_Final = TimeOut_Token_Inicial;
+            Reset_Time = true;
+        }
     }
+
     // }
 }
 
@@ -4567,8 +4757,8 @@ void Cashless_API::Solicitud_Token_Cashless(void)
         WiFiClient client;
         int httpCode;
         HTTPClient https;
-        https.setTimeout(15000); /* 10 seg */
-
+        https.setTimeout(10000); /* 10 seg */
+       // Serial.println("Solicitud Token...");
         /* Genera Key de registro */
         Key_Generator();
 
@@ -4577,7 +4767,7 @@ void Cashless_API::Solicitud_Token_Cashless(void)
             https.addHeader("Content-Type", "application/json");
             https.addHeader("ip", Ip_local);
             https.addHeader("mac", Mac_ESP);
-            httpCode = https.POST( (uint8_t*)Buffer.Get_Buffer_Key(),258);
+            httpCode = https.POST((uint8_t*)Buffer.Get_Buffer_Key(),258);
             
            // Serial.println(httpCode);
 
@@ -4598,7 +4788,7 @@ void Cashless_API::Solicitud_Token_Cashless(void)
                 }
                 else
                 {
-                  //  Serial.println(Response);
+                   // Serial.println(Response);
                     bool IsSuccess = doc["IsSuccess"];
                 
                     if (IsSuccess)
@@ -4606,16 +4796,20 @@ void Cashless_API::Solicitud_Token_Cashless(void)
 
                         String Token = doc["Data"]["access_token"];
                         String Hash = doc["Data"]["hash"];
-                        int hour = doc["Data"]["Hour"];
+                        int hour = doc["Data"]["Time_Expires"];
                         int minutes = doc["Data"]["Minutes"];
                         int seconds = doc["Data"]["Seconds"];
                         int Token_Expires_Day = doc["Data"]["Day"];
                         int Token_Expires_Month = doc["Data"]["Month"];
                         int Token_Expires_Year = doc["Data"]["Year"];
-
+                        uint64_t tiempoExpiracion_ms= doc["Data"]["Expiration_time"];
                         
                         if (Set_Token_Valido(Token,Hash))
+                        {
                             Variables_globales.Set_Variable_Global(Token_Cashless_Solicitud, true);
+                            Token_Expiration(tiempoExpiracion_ms);
+                        }
+                            
                         else
                             Variables_globales.Set_Variable_Global(Token_Cashless_Solicitud, false);
                     }
@@ -4643,7 +4837,6 @@ String Cashless_API::Get_Token_Valido(void)
     return Token_Cashless;
 }
 
-
 /* Retorna Hash */
 String Cashless_API::Get_Hash_Valido(void)
 {
@@ -4661,4 +4854,27 @@ bool Cashless_API::Set_Token_Valido(String Token_Valido,String Hash_Valido)
     }
     else
         return false;
+}
+
+bool Cashless_API::Set_Flag_Token(bool Status_Flag)
+{
+    Reset_Time=Status_Flag;
+
+    if(Reset_Time==Status_Flag)
+        return true;
+    else
+        return false;
+}
+
+void New_Token(void*arg)
+{
+    Variables_globales.Set_Variable_Global(Token_Cashless_Solicitud,false);
+    Info_Cashless.Set_Flag_Token(false);
+}
+
+void Cashless_API::Token_Expiration(uint64_t tiempoExpiracion_ms)
+{
+    // Detiene el temporizador 
+    esp_timer_stop(token_timer);
+    esp_timer_start_once(token_timer, tiempoExpiracion_ms* 1000);
 }

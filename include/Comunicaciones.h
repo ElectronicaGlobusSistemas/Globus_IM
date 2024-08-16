@@ -2394,24 +2394,68 @@ bool Consulta_Conexion_To_Server(void)
     bzero(res, 258); // Pone el buffer en 0
     int i=0;
 
+    bool Tip=false; /* False operador True CLient */
+
     res[0] = 'L';
     res[1] = '|';
     res[2] = 'C';
     res[3] = 'V';
     res[4] = '|';
-    
-    res[5]=contadores.Get_Operador_INFO_Operador()[0];
-    res[6]=contadores.Get_Operador_INFO_Operador()[1];
-    res[7]=contadores.Get_Operador_INFO_Operador()[2];
-    res[8]=contadores.Get_Operador_INFO_Operador()[3];
-    res[9]=contadores.Get_Operador_INFO_Operador()[4];
-    res[10]=contadores.Get_Operador_INFO_Operador()[5];
-    res[11]=contadores.Get_Operador_INFO_Operador()[6];
-    res[12]=contadores.Get_Operador_INFO_Operador()[7];
-    
-    res[13]='|';
 
-    for (int i = 14; i < 256; i++)
+    if (contadores.Verify_Client_ID(contadores.Get_Operador_INFO_Operador()))
+    {
+        res[5] = contadores.Get_Operador_INFO_Operador()[0];
+        res[6] = contadores.Get_Operador_INFO_Operador()[1];
+        res[7] = contadores.Get_Operador_INFO_Operador()[2];
+        res[8] = contadores.Get_Operador_INFO_Operador()[3];
+        res[9] = contadores.Get_Operador_INFO_Operador()[4];
+        res[10] = contadores.Get_Operador_INFO_Operador()[5];
+        res[11] = contadores.Get_Operador_INFO_Operador()[6];
+        res[12] = contadores.Get_Operador_INFO_Operador()[7];
+        Tip=false;
+    }
+
+    else if (contadores.Verify_Client_ID(contadores.Get_Operador_INFO_Client()))
+    {
+        res[5] = contadores.Get_Operador_INFO_Client()[0];
+        res[6] = contadores.Get_Operador_INFO_Client()[1];
+        res[7] = contadores.Get_Operador_INFO_Client()[2];
+        res[8] = contadores.Get_Operador_INFO_Client()[3];
+        res[9] = contadores.Get_Operador_INFO_Client()[4];
+        res[10] = contadores.Get_Operador_INFO_Client()[5];
+        res[11] = contadores.Get_Operador_INFO_Client()[6];
+        res[12] = contadores.Get_Operador_INFO_Client()[7];
+        Tip=true;
+       
+    }
+    else
+    {
+        res[5] = contadores.Get_Operador_INFO_Operador()[0];
+        res[6] = contadores.Get_Operador_INFO_Operador()[1];
+        res[7] = contadores.Get_Operador_INFO_Operador()[2];
+        res[8] = contadores.Get_Operador_INFO_Operador()[3];
+        res[9] = contadores.Get_Operador_INFO_Operador()[4];
+        res[10] = contadores.Get_Operador_INFO_Operador()[5];
+        res[11] = contadores.Get_Operador_INFO_Operador()[6];
+        res[12] = contadores.Get_Operador_INFO_Operador()[7];
+        Tip=false;
+
+    }
+    res[13] = '|';
+    res[14] = contadores.Get_Type_Tarjeta()[0];
+    res[15] = '|';
+    
+    contadores.Dele_Operador_INFO_Client(); /*00000000*/
+    contadores.Dele_Operador_INFO_Operador(); /*00000000*/
+    contadores.Delete_Type_Tarjeta(); /*F*/
+
+
+    // for (int i = 5; i < 16; i++)
+    // {
+    //     Serial.println(res[i]);
+    // }
+
+    for (int i = 16; i < 256; i++)
     {
         res[i] = '0';
     }
@@ -2426,7 +2470,6 @@ bool Consulta_Conexion_To_Server(void)
         Transmite_A_Servidor(res, len);
         delay(200);
     }
-    contadores.Dele_Operador_INFO_Operador();
     return true;
 }
 
@@ -2785,7 +2828,8 @@ void Mensajes_RFID(void)
                             Status_Barra(Reset_Exitoso);
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                        
+                        Variables_globales.Set_Variable_Global(Excepcion_51,false); /* Excepcion 51 Atendida */
+                        Variables_globales.Set_Variable_Global(Requerimiento_Operador,false);
                         break;
                     case 0x01: /*No existe condición de reset*/
                         /* Guarda ID Operador */
@@ -2799,6 +2843,7 @@ void Mensajes_RFID(void)
                             Status_Barra(ERROR_RESET_HANDPAY);
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                        
                         break;
                     case 0x02: /*Imposible realizar reset*/
                         contadores.Close_ID_Operador();
@@ -4718,7 +4763,14 @@ void Transmision_Controlada_Contadores(void)
                 /* --------------------------->  Add <-----------------*/
                 //Contador_Transmision_Contadores = 0;
                 New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
-                /*-----------------------------------------------------*/    
+                /*-----------------------------------------------------*/
+                
+            }
+
+            if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Variables_globales.Get_Variable_Global(Requerimiento_Operador) && Variables_globales.Get_Variable_Global(Excepcion_51))
+            {
+                Variables_globales.Set_Variable_Global(Requerimiento_Operador,false);
+                Variables_globales.Set_Variable_Global(Excepcion_51, false);
             }
             flag_premio_pagado_cashout = false;
         }
