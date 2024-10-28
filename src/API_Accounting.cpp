@@ -49,7 +49,6 @@ unsigned long API_Accounting::Convert_Counter(char buffer_Data_Met[])
     return resultado;
 }
 
-
 unsigned long API_Accounting::Convert_Counter_4digit(char buffer_Data_Met[])
 {
 
@@ -59,7 +58,6 @@ unsigned long API_Accounting::Convert_Counter_4digit(char buffer_Data_Met[])
                               ((buffer_Data_Met[3] - 48) * 1);
     return Resultado;
 }
-
 
 /* Agrega premio SAS a lista de premios pendientes por transmitir */
 void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contador[])
@@ -119,7 +117,6 @@ void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contad
         Serial.println("No es un premio");
     }
 }
-
 
 /* Metodo Web para reporte de premios SAS */
 bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
@@ -186,7 +183,6 @@ bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
     return Status;
 }
 
-
 /* Reporta y actualiza Lista de premios pendientes */
 void API_Accounting::Report_Informations_SAS(void)
 {
@@ -228,7 +224,6 @@ void API_Accounting::Report_Informations_SAS(void)
         }
     }
 }
-
 
 /* Carga Premios SAS pendientes en memoria RAM para transmitirlos*/
 void API_Accounting::Load_Premios_SAS(void)
