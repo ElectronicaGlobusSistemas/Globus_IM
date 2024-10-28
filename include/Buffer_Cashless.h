@@ -19,6 +19,14 @@ using namespace std;
 #define RESTRICTED           2
 #define NON_RESTRICTED       3
 
+
+
+#define Location_Tick 0
+#define Adress_1_Tick 1
+#define Adress_2_Tick 2
+#define Restricted_Ticket_Title_Tick 3
+#define Debit_Ticket_Title_Tick 4
+
 class Buffer_RX_AFT
 {
 
@@ -36,7 +44,19 @@ private: // Variables Privadas Buffer
 
   char Buffer_RX_Transfer_EFT[128];
   char Buffer_RX_Credit_Cashless_EFT[128];
-  
+
+  char Buffer_Rx_TITO[128];
+  char Buffer_Rx_TITO_58[128];
+  char Buffer_Rx_TITO_70[128];
+
+  char Buffer_Rx_TITO_4D[128];
+  char Buffer_Rx_TITO_3D;
+
+  char Buffer_Rx_TITO_7C[128];
+
+  char Cashout_Type=0xAA;
+  char Amount_Ticket[6]={0xAA,0xAA,0xAA,0xAA,0xAA,0xAA};
+
   
 
 public:
@@ -64,6 +84,44 @@ public:
   bool Init_Buffer_Transfer_EFT(bool Boolean);
 
 
+
+  bool Set_Buffer_TITO(char Buffer[]);
+  char* Get_Buffer_TITO(void);
+  bool Init_Buffer_TITO(void);
+
+  bool Set_Buffer_TITO_58(char Buffer[]);
+  char *Get_Buffer_TITO_58(void);
+  bool Init_Buffer_TITO_58(void);
+
+  bool Set_Buffer_TITO_70(char Buffer[]);
+  char *Get_Buffer_TITO_70(void);
+  bool Init_Buffer_TITO_70(void);
+
+  bool Set_Buffer_TITO_4D(char Buffer[]);
+  char *Get_Buffer_TITO_4D(void);
+  bool Init_Buffer_TITO_4D(void);
+
+  bool Set_Buffer_TITO_3D_3E(char Buffer);
+  char Get_Buffer_TITO_3D_3E(void);
+  bool Init_Buffer_TITO_3D_3E(void);
+
+  bool Set_Buffer_TITO_7C(char Buffer[]);
+  char *Get_Buffer_TITO_7C(void);
+  bool Init_Buffer_TITO_7C(void);
+
+
+  bool Set_Cashout_Type_Ticket(char Cashout_Type);
+  //bool Amount_Ticket(char Buffer[]);
+
+  char Get_Cashout_Type_Informacion(void);
+  char* Get_Amount_Ticket(void);
+
+  bool Attend_Tito_Request(int Evento,bool Status_Machine,bool Transaction_Status=false,bool Enable_Tito=false);
+
+
+  
+
+
 };
 
 
@@ -77,12 +135,20 @@ class Transsaccion_Cashless
   char Counter_Trans_ID[7];
   char Credit_To_Load[20];
   char ACK_Bonus[128]; 
+
+
+  String Location="";
+  String Adress_1=""; 
+  String Adress_2=""; 
+  String Restricted_Ticket_Title=""; 
+  String Debit_Ticket_Title="";
   
 
   public:
 
+    bool Set_Parameter_Print_Ticket(String Location_S, String Adr1_S,String Adr2_S,String Restricted_Ticket_S, String Debit_Title_S);
     
-
+    String Get_Parameter_Print_Ticket(int Filtro);
     bool Cashless_Loading_Transaction_AFT(char res[]);
     bool Cashless_Download_Transaction_AFT(char res[]);
     bool Enable_Cashless_Loads(bool Enable);
@@ -129,4 +195,5 @@ class Transsaccion_Cashless
     bool Transmite_Info_Registro(String Json);
     void Set_Reintento_Registro(bool Set);
     bool Get_Reintento_Registro();
+    
 };  

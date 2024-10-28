@@ -112,8 +112,13 @@ using namespace std;
 #define Excepcion_51                        96
 #define Requerimiento_Operador              97
 #define Default_Formatt                     98
+#define Attend_Pending_Tito_Request         99
+#define Descarga_Solo_Tito                  100
+#define Attend_Pending_Tito_Request_In      101
 
-
+#define Enable_Tito_Ticket                  102
+#define Event_Load_Cashless_Pending         103
+#define Trasnsmite_Transacion_to_Machine    104
 class Variables_Globales
 {
 private:
@@ -210,7 +215,12 @@ private:
     bool Excepcion_51_;
     bool Requerimiento_Operador_;
     bool Default_Formatt_;
-    
+    bool Attend_Pending_Tito_Request_;
+    bool Attend_Pending_Tito_Request_In_;
+    bool Descarga_Solo_Tito_;
+    bool Enable_Tito_Ticket_;
+    bool Event_Load_Cashless_Pending_;
+    bool Trasnsmite_Transacion_to_Machine_;
     
 
 public:

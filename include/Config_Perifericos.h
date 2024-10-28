@@ -876,8 +876,6 @@ void Init_Configuracion_Inicial(void)
     }
 
 
-    
-
     if(!NVS.isKey("Trans_ID"))
     {
         uint32_t Trans_ID=0;
@@ -912,6 +910,34 @@ void Init_Configuracion_Inicial(void)
     {
         bool Default_Formatt_true=true;
         NVS.putBool("Spiffs",Default_Formatt_true);
+    }
+
+
+    if(!NVS.isKey("ID_Tito"))
+    {
+        int Default_Validations_System_ID=0;
+        NVS.putInt("ID_Tito",Default_Validations_System_ID);
+    }
+
+    if(!NVS.isKey("Only_Tito"))
+    {
+        bool Only_Tito=false;
+        NVS.putBool("Only_Tito",Only_Tito);
+    }
+
+    if(!NVS.isKey("Enable_Tito"))
+    {
+        bool testTito=false;
+        NVS.putBool("Enable_Tito",testTito);
+    }
+
+
+    /* Recupera estado transacción pendiente */
+
+    if(!NVS.isKey("Cash_Pending"))
+    {
+        bool Pending=false;
+        NVS.putBool("Cash_Pending",Pending);
     }
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1509,20 +1535,48 @@ void Init_Configuracion_Inicial(void)
         NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
         int Type_Sesion = NVS.getInt("Sesion_Type", SESION_DEFAULT);
         contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, Type_Sesion);
+
+        bool Only_Cashless=NVS.getBool("Only_Cashless",false);
+        Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,Only_Cashless);
     }else{
         Cashless.Set_Inicial_Trans_ID(0);
         Variables_globales.Set_Variable_Global(Enable_Cashless, false);
         Serial.println("Transacciones Cashless Inhabilitadas");
         byte Current_Id_Recovery[8]={'0','0','0','0','0','0','0','0'};
         contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, SESION_DEFAULT);
+        Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,false);
     }
 
 
-    bool Only_Cashless=NVS.getBool("Only_Cashless",false);
-    Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,Only_Cashless);
+    
 
     bool Test_Formatt_Spiffs=NVS.getBool("Spiffs",true);
     Variables_globales.Set_Variable_Global(Default_Formatt,Test_Formatt_Spiffs);
+
+
+    int Validations_System_ID_Rec=NVS.getInt("ID_Tito",0);
+    Tito.Set_Inicial_Trans_ID_Tito(Validations_System_ID_Rec);
+    Serial.print("Trasaccion ID Tito: ");
+    Serial.println(Validations_System_ID_Rec);
+    
+    bool Tito_Test=NVS.getBool("Only_Tito",false);
+
+    Variables_globales.Set_Variable_Global(Descarga_Solo_Tito,Tito_Test);
+
+    bool Test_Enable_Tito=NVS.getBool("Enable_Tito");
+
+    Variables_globales.Set_Variable_Global(Enable_Tito_Ticket,Test_Enable_Tito);
+
+    if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+        Serial.println("Tito: Habilitado");
+    else
+        Serial.println("Tito: Deshabilitado");
+
+    
+   
+        
+    
+
     Serial.println("\n");
     NVS.end();
 }

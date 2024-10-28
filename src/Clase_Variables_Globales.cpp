@@ -299,6 +299,30 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Default_Formatt:
         return Default_Formatt_;
         break;
+
+    case Attend_Pending_Tito_Request:
+        return Attend_Pending_Tito_Request_;
+        break;
+
+    case Descarga_Solo_Tito:
+        return Descarga_Solo_Tito_;
+        break;
+
+    case Attend_Pending_Tito_Request_In:
+        return Attend_Pending_Tito_Request_In_;
+        break;
+
+    case Enable_Tito_Ticket:
+        return Enable_Tito_Ticket_;
+        break;
+
+    case Event_Load_Cashless_Pending:
+        return Event_Load_Cashless_Pending_;
+        break;
+
+    case Trasnsmite_Transacion_to_Machine:
+        return  Trasnsmite_Transacion_to_Machine_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -599,6 +623,29 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
         Default_Formatt_=Change_estado;
         break;
 
+    case Attend_Pending_Tito_Request:
+        Attend_Pending_Tito_Request_=Change_estado;
+        break;
+
+    case Descarga_Solo_Tito:
+        Descarga_Solo_Tito_=Change_estado;
+        break;
+
+    case Attend_Pending_Tito_Request_In:
+        Attend_Pending_Tito_Request_In_=Change_estado;
+        break;
+
+    case Enable_Tito_Ticket:
+        Enable_Tito_Ticket_=Change_estado;
+        break;
+
+    case Event_Load_Cashless_Pending:
+        Event_Load_Cashless_Pending_=Change_estado;
+        break;
+
+    case Trasnsmite_Transacion_to_Machine:
+        Trasnsmite_Transacion_to_Machine_=Change_estado;
+        break;
     }
 }
 
@@ -707,6 +754,12 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Excepcion_51_=false;
     Requerimiento_Operador_=false;
     Default_Formatt_=false;
+    Attend_Pending_Tito_Request_=false;
+    Descarga_Solo_Tito_=false;
+    Attend_Pending_Tito_Request_In_=false;
+    Enable_Tito_Ticket_=false;
+    Event_Load_Cashless_Pending_=false;
+    Trasnsmite_Transacion_to_Machine_=false;
 
 }
 

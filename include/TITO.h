@@ -55,6 +55,21 @@ NOTAS:
 
 
 #include "Arduino.h"
+#include <string>
+
+#include "ESP32Time.h"
+#include "time.h"
+extern ESP32Time RTC; // Objeto contiene hora y fecha
+
+
+#define Excepcion_57 57
+
+#define  Cashable_Ticket                   (0x00)
+#define  Restricted_Promotional_Ticket     (0x01)
+#define  Not_Waiting_for_System_validation (0x80)
+#define  Ticket_Type_Not_Identified        (0xAA)
+
+
 
 
 class TITO
@@ -62,14 +77,81 @@ class TITO
 
 private:
 
-public:
+    int Validations_System_ID;
+    char Validation_Number[8];
 
+    bool Solicitud_Token_Ticket=false;
+    bool Solicitud_Redeemed_Ticket=false;
+    bool Attend_Tito_OK=false;
+    bool Attend_Tito_In_OK=false;
+
+    bool Ticket_OK=false;
+    bool Ticket_In_Process=false;
+
+public:
+   
+   int Convert_2BNR_Int(char HighByte,char LowByte);
    bool Printed_Ticket_Amount(); /* Imprime Ticket */
    bool Validations_Ticket_Expires(); /* Valida Expiración de ticket */
    bool Ticket_Transfer_To_Machine (); /* Transferencia de ticket to machine */
    bool Init_TITO(void); /* Inicializa TITO */
    bool Set_Custom_Format_Ticket(String Format); /* Formato de ticket */
    bool Varify_Support_Custom_Ticket(void); /* Verificacion de ticket */
+
+   bool Pending_Cashout_Information_Response(char Info[]);
+   void Ticket_Out(int Evento);
+
+   int  Check_Ticket_In(void);
+   bool Generate_Key_Ticket_Out(void);
+   bool Reedeme_Ticket_In(void);
+
+   bool Set_Parameter_Ticket(String  Validacion_Number_); 
+   char* Get_Validacion_Number(void);
+   int Get_Validacion_System_ID(void);
+
+//    std::string IP_toString_Ticket(char IP_Char[]);
+
+    bool Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC);
+    bool Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC);
+    bool Ticket_Information_Capture(char Buffer_70[],ESP32Time);
+   uint32_t Convert_5BCD_Uint32(char Buffer[],int Inicial_Index);
+   uint32_t Convert_8BCD_Uint32(char Buffer[], int Inicial_Index);
+   uint32_t Convert_4BCD_Uint32(char Buffer[],int Inicial_Index);
+   bool Remove_Validacion_Number(void);
+   bool Remove_System_ID(void);
+
+ 
+   void Request_Handle_Tito(void);
+   bool Handle_Event_Tito(int Evento,bool Enable);
+
+   void Silicitud_Reedemed_Ticket_Http(bool Status); 
+   void Solicitud_Token_Ticket_Http(bool Status);
+   bool Get_Status_Reedened_Ticket_Http(void);
+   bool Get_Status_Token_Ticket_Http(void);
+   
+
+   bool Get_Status(void);
+   void Set_Status(bool Set);
+
+   String Validacion_Number(char Buffer[]);
+
+   bool Get_Status_3D(void);
+   void Set_Status_3D(bool Status);
+
+   bool Update_Ticket(int Code, int Type_Ticket);
+
+   
+   void Status_Process_Ticket(bool Set);
+   bool Get_Status_Process_Ticket(void);
+
+
+   bool Increase_Transaction_Number_ID_Tito(void);
+   bool Set_Inicial_Trans_ID_Tito(int New_Validation_System_ID);
+
+
+   bool Get_Status_Ticket_In(void);
+   
+   void Set_Status_Ticket_In(bool Set);
 };
 
 

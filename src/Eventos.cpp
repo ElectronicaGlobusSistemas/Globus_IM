@@ -33,6 +33,12 @@ bool Eventos_SAS::Set_evento(char evento)
             Evento_SAS = evento;
             return true;
             break;
+
+        case 0x57: // Requerimiento TITO
+            Evento_SAS = evento;
+            return true;
+            break;
+
         case 0x66: // Cashout presionado
             Evento_SAS = evento;
             return true;
@@ -136,7 +142,25 @@ bool Eventos_SAS::Set_evento(char evento)
             return true;
             break;
 
+        case 0x3D:
+            Evento_SAS=evento;
+            return true;
+            break;
+
+        case 0x3E:
+            Evento_SAS=evento;
+            return true;
+            break;
+
+        case 0x67:
+        //Serial.println(evento,HEX);
+        Evento_SAS=evento;
+        return true;
+        break;
+
         default:
+
+           // Serial.println(evento,HEX);
             Evento_SAS = 0x00;
             return false;
             break;

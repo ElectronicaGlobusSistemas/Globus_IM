@@ -188,7 +188,12 @@ public:
 
     bool Set_Flag_Token(bool Status_Flag);
     void Token_Expiration(uint64_t Expiracion_Time);
+
+    void Init_Timer_Transfer_Pending(uint64_t Tiempo_ms);
+    void Break_Timer_Transfer_Pending(void);
 };
 void New_Token(void*arg);
+
+void Break_Cashless_Pending(void*arg);
 
 #endif // RFID_H

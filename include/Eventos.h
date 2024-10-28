@@ -10,7 +10,7 @@ private:
     unsigned long Last_Time_Event_Generate=0;
     int Last_Event_Gerate=0x00;
     unsigned long Current_Time_Generate_Event;
-    unsigned long TimeOut_Exec=30000; /* 1 Minuto 60000 */
+    unsigned long TimeOut_Exec=1; /* 1 Minuto 60000  default 30000*/
 
     int Current_Total_Event=0; /* Cantidad actual de eventos */
     int HistorialEventos[TAMANO_HISTORIAL];  /* Historial de eventos */

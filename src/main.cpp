@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "Errores.h"
 #include "Bootloader.h"
-
+#include "TITO.h"
 /* Definir las clases que haran uso de los metodos */
 #include "Preferences.h"
 Preferences NVS;
@@ -23,7 +23,7 @@ Transsaccion_Cashless Cashless;
 //#include "Clase_Variables_Globales.h"
 Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
-
+TITO Tito;
 #include "API_Gmaster.h"
 
 API_Gmaster Api_G;
@@ -38,6 +38,8 @@ Tabla_Eventos Tabla_Evento;
 #include <stdio.h>
 #include <string.h>
 #include "Config_Perifericos.h"
+#include "API_Accounting.h"
+API_Accounting Accounting;
 
 /*--------------------------------------->Debug Comunicación Maquina <------------------------------*/
 //#define Debug_Comunicacion_MQ
@@ -76,7 +78,7 @@ unsigned long Msg_RS232_=0;
 unsigned long Msg_RS232_F_=0;
 int Timeout_Msg_=8000;
 
-unsigned long Timeout_RS232=20000; //9000 //15000
+unsigned long Timeout_RS232=30000; //9000 //15000
 
 unsigned long Excepcion=0;
 bool Fallo_Comunicacion=false;
@@ -165,8 +167,6 @@ const char* archivo = "/LogESP.txt";
 void setup()
 {
   
- 
-
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
@@ -199,12 +199,22 @@ void setup()
   Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
   Cashless.Set_Amount_To_Load(0,0,0); /* Setea Valores de carga en 0 */
   Info_Cashless.Init_Timer_Lector();
+
+  
+
+  
+  
 }
 unsigned long INT1=0;
 int Muestreo=500;
 bool Verifica=false;
+
 void loop()
 {
+  
+  //Tito.Request_Handle_Tito();
+
+  //Accounting.Report_Informations_SAS();
 
   if(!Verifica)
   {
@@ -243,7 +253,7 @@ void loop()
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/
   check_SD();
   /*--------------------------------------------------------------------------------------*/
-  
+   
   /*---------------------> Reset Handpay Maquinas No SAS <--------------------------------*/
   if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
   {
@@ -576,7 +586,6 @@ void TimeOut_Player_Tracking_Sesion(void)
     }
     if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
     {
-
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
       {
         Info_Cashless.Lock_Reader();
@@ -619,7 +628,6 @@ void TimeOut_Player_Tracking_Sesion(void)
   }
   else
   {
-
     condicionCumplida = false;
   }
 }
