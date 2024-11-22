@@ -13,6 +13,8 @@
 
 #include <iostream>
 #include <Arduino.h>
+#include <string>
+#include <sstream>
 
 
 #define     RES_URL "RES_URL"
@@ -33,7 +35,7 @@
 #define ERROR_ARCHIVO           "07" /* Error en verificación de  archivo de actualización .bin */
 
 
-
+std::string IP_toString_Ip(char IP_Char[]);
 
 
 class AutoUpdate
@@ -54,7 +56,7 @@ class AutoUpdate
 
 public:
   
-  int  FirmwareVersionCheck();
+  bool  FirmwareVersionCheck();
   void firmwareUpdate(void);
   void Init_AutoUpdate(String Version_Firmware_, String URL_Generic_,String Api_ver, String URL_Bin_,String ,String Token_ ,uint8_t Buffer[]);
   void Auto_Update(bool Flag_Maquina_en_Juego__=false, bool Hopper_Poker__=false, bool Billete_Insert__=false, bool Flag_Premio_pagado_=false,bool Flag_Sesion_Player_Tracking=false,int Creditos_Actuales=0,bool Mode_AP=false);
@@ -62,6 +64,10 @@ public:
   String Token_Generator(void);
   bool DateTime_Update(bool Enable);
   bool Update_Api_Mode(bool Token_Generado);
+
+  void Timer_Update(unsigned long);
+
+
 };
 
 

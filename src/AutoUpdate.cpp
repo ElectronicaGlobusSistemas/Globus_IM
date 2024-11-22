@@ -12,18 +12,50 @@
 #include "Preferences.h"
 #include "API_Gmaster.h"
 #include "ArduinoJson.h"
+#include "Configuracion.h"
+
 
 extern Preferences NVS;   
 extern ESP32Time RTC; // Objeto contiene hora y fecha
 //#define  Debug_HTTPS 
-extern API_Gmaster Api_G;
 
+
+extern void Recovery_Task_Hopper(void);
+extern API_Gmaster Api_G;
+extern Configuracion_ESP32 Configuracion;
 extern uint8_t Version_Firmware_[];
+extern TaskHandle_t Task_Poker_Hopper;
+// Declaración del timer
+esp_timer_handle_t UpdateObj;
+
 
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
+
+
+
+std::string IP_toString_Ip(char IP_Char[])
+{
+    std::stringstream ss;
+
+    // Agregar cada octeto al stringstream
+    for (int i = 0; i < 4; ++i) {
+        ss << static_cast<int>(IP_Char[i]); // Convertir char a int para imprimir el valor numérico
+        if (i < 3) {
+            ss << '.'; // Agregar puntos entre los octetos
+        }
+    }
+
+    // Obtener el string resultante
+    std::string ipString = ss.str();
+
+    return ipString;
+}
+
+
 /* Verifica  estado de la maquina  para definir  si puede lanzar actualización */
 void AutoUpdate::Auto_Update(bool Flag_Maquina_en_Juego_, bool Hopper_Poker_, bool Billete_Insert__, bool Flag_Premio_pagado_, bool Flag_Sesion_Player_Tracking, int Creditos_Actuales, bool Mode_AP)
 {
+
   if(!Flag_Maquina_en_Juego_ &&  !Hopper_Poker_&&!Billete_Insert__&&!Flag_Premio_pagado_ &&!Flag_Sesion_Player_Tracking && Creditos_Actuales<10 && !Mode_AP)
   {
      if(FirmwareVersionCheck())
@@ -176,6 +208,49 @@ void AutoUpdate::Init_AutoUpdate(String Version_Firmware_, String URL_Generic_,S
 }
 
 /* Ejecuta actualización de firmware */
+void Stop_Update_Status(void *arg)
+{
+  if (Variables_globales.Get_Variable_Global(Updating_System))
+  {
+    Variables_globales.Set_Variable_Global(Updating_System, false);
+    //Serial.println("Tiempo de actualización Agotado.");
+
+    /* Apaga lectura de Hopper Poker */
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    {
+      ESP.restart();
+    }
+  }
+  else
+  {
+    esp_timer_stop(UpdateObj);
+  }
+}
+
+void AutoUpdate::Timer_Update(unsigned long timeout_ms)
+{
+  // Verificar si el temporizador ya existe
+  if (UpdateObj == NULL)
+  {
+    esp_timer_create_args_t timer_args = {
+        .callback = &Stop_Update_Status,
+        .arg = NULL,                       // Argumentos opcionales (no utilizados)
+        .dispatch_method = ESP_TIMER_TASK, // Ejecutar callback en una tarea
+        .name = "Update"};
+
+    // Crear el temporizador
+    if (esp_timer_create(&timer_args, &UpdateObj) != ESP_OK)
+    {
+      //Serial.println("Error al crear el temporizador.");
+      return;
+    }
+  }
+  esp_timer_stop(UpdateObj);
+  // Iniciar el temporizador con el tiempo de espera especificado
+  esp_timer_start_once(UpdateObj, timeout_ms * 1000); // Convertir ms a us
+ // Serial.println("Temporizador iniciado.");
+}
+
 void AutoUpdate::firmwareUpdate(void)
 {
   
@@ -186,45 +261,72 @@ void AutoUpdate::firmwareUpdate(void)
   esp_task_wdt_init(1000000, true);
   esp_task_wdt_reset();
   HTTPClient http;
+  char Current_IP[4];
+  memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+  IP_toString_Ip(Current_IP);
 
-  String URL_Complet=URL_GENERIC+API_BIN+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL;
+  std::string Ip=IP_toString_Ip(Current_IP);
+  String Ip_Local=String(Ip.c_str());
+
+  String URL_Complet=URL_GENERIC+API_BIN+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL+"&Ip="+Ip_Local;
  // #ifdef Debug_HTTPS
  // Serial.println(URL_Complet);
  // #endif
+
+  //client.setTimeout(30000); // 30 segundos
   http.addHeader("Authorization", "Bearer " + String(TOKEN_VALI));
   t_httpUpdate_return ret = httpUpdate.update(client, URL_Complet,"",TOKEN_VALI);
  
-  esp_task_wdt_reset();
+  
   switch (ret) {
+
   case HTTP_UPDATE_FAILED:
     #ifdef Debug_HTTPS 
     Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
     #endif
+    
+    esp_task_wdt_reset();
     Variables_globales.Set_Variable_Global(Updating_System,false);
     Confirmacion_ACK_HTTPS(ERROR_DES,DES_NO);
+
+
+   /* Recupera Hopper Poker */
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    {
+      ESP.restart();
+    }
     
-    break;
+  break;
 
   case HTTP_UPDATE_NO_UPDATES:
+    esp_task_wdt_reset();
     #ifdef Debug_HTTPS
     Serial.println("HTTP_UPDATE_NO_UPDATES");
     #endif
     Variables_globales.Set_Variable_Global(Updating_System,false);
     Confirmacion_ACK_HTTPS(ERROR_DES,DES_NO);
-    
+    /* Apaga lectura de Hopper Poker */
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    {
+      ESP.restart();
+    }
+
     break;
 
   case HTTP_UPDATE_OK:
+    esp_task_wdt_reset();
     #ifdef Debug_HTTPS
     Serial.println("HTTP_UPDATE_OK");
     #endif
     break;
+
+  default:
+  break;
   }
- 
 }
 
 /* Compara version instalada y version de actualización */
-int AutoUpdate::FirmwareVersionCheck(void)
+bool AutoUpdate::FirmwareVersionCheck(void)
 {
  
 
@@ -238,6 +340,11 @@ int AutoUpdate::FirmwareVersionCheck(void)
     return false;
   }
   else{
+    /* Apaga lectura de Hopper Poker */
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    {
+      vTaskDelete(Task_Poker_Hopper);
+    }
     #ifdef Debug_HTTPS
     Serial.println("Version  Nueva dectada!");
     #endif
@@ -245,72 +352,7 @@ int AutoUpdate::FirmwareVersionCheck(void)
     return true;
   }
 
-
-
-
-// //http://192.168.1.55:9090/api/Tarjeta/Verificar?Mac=acb&Ver=2.5.0.0
-
-//   String payload;
-//   int httpCode;
-//   String fwurl = URL_GENERIC+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL;
-//  // #ifdef Debug_HTTPS
-//   Serial.println(fwurl);
-//  // #endif
-//   WiFiClient *client = new WiFiClient;
-
-//   if (client)
-//   {
-//   //  client->setCACert(rootCACertificate);
-
-//     HTTPClient https;
-
-//     if (https.begin(*client, fwurl))
-//     {
-//       https.addHeader("Authorization", "Bearer " + String(TOKEN_VALI)); // Agrega el token de autorización
-//       #ifdef Debug_HTTPS
-//       Serial.print("[HTTPS] GET...\n");
-//       #endif
-//       delay(100);
-//       httpCode = https.GET();
-//       delay(100);
-//       Serial.println(httpCode);
-//       if (httpCode == HTTP_CODE_OK)
-//       {
-//         payload = https.getString();
-//       }
-//       else
-//       {
-//         #ifdef Debug_HTTPS
-//         Serial.print("error in downloading version file:");
-//         Serial.println(httpCode);
-//         #endif
-//       }
-//       https.end();
-//     }
-//     delete client;
-//     client->stop();
-//   }
-
-//   if (httpCode == HTTP_CODE_OK)
-//   {
-//     payload.trim();
-//     if (payload.equals(VERSION_FIR_LOCAL))
-//     {
-//       #ifdef Debug_HTTPS
-//       Serial.printf("\nDevice already on the latest firmware version:%s\n", VERSION_FIR_LOCAL);
-//       #endif 
-//       return 0;
-//     }
-//     else
-//     {
-//       #ifdef Debug_HTTPS
-//       Serial.println(payload);
-//       Serial.println("New firmware detected");
-//       #endif
-//       return 1;
-//     }
-//   }
-//   return 0;
+  return false;
 }
 
 /* Metodo para envio de mensajes de  confirmacion de procesos por API  */
@@ -319,49 +361,53 @@ bool AutoUpdate::Confirmacion_ACK_HTTPS(String Ack, String Code)
 
   int httpCode;
   String fwurl;
-   
-  
-  if(Code==INS_OK)
-    fwurl = URL_GENERIC+API_RES+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR+"&Tipo="+Code+"&Msj="+Ack;
+  bool Output=false;
+  char Current_IP[4];
+  memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+  IP_toString_Ip(Current_IP);
+
+  std::string Ip = IP_toString_Ip(Current_IP);
+  String Ip_Local = String(Ip.c_str());
+
+  if (Code == INS_OK)
+    fwurl = URL_GENERIC + API_RES + "?" + "Mac=" + WiFi.macAddress() + "&Ver=" + VERSION_FIR + "&Tipo=" + Code + "&Msj=" + Ack + "&Ip=" + Ip_Local;
   else
-    fwurl = URL_GENERIC+API_RES+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL+"&Tipo="+Code+"&Msj="+Ack;
-    
-  /* 
+    fwurl = URL_GENERIC + API_RES + "?" + "Mac=" + WiFi.macAddress() + "&Ver=" + VERSION_FIR_LOCAL + "&Tipo=" + Code + "&Msj=" + Ack + "&Ip=" + Ip_Local;
+
+  /*
   Agregar URL Datos confirmacion */
- // #ifdef Debug_HTTPS
-//  Serial.println(fwurl);
- // #endif
-  WiFiClient *client = new WiFiClient;
-  
-  if (client) {
+  // #ifdef Debug_HTTPS
+  //  Serial.println(fwurl);
+  // #endif
+  WiFiClient client;
 
-    HTTPClient https;
+  HTTPClient https;
 
-    if (https.begin(*client, fwurl)) {
-      https.addHeader("Authorization", "Bearer " + String(TOKEN_VALI)); // Agrega el token de autorización
-      #ifdef Debug_HTTPS
-      Serial.print("[HTTPS] GET...\n");
-      #endif
-      httpCode = https.GET();
-      if (httpCode == HTTP_CODE_OK) {
-        #ifdef Debug_HTTPS
-        Serial.println("Ack enviado");
-        #endif
-        return true;
-      } else {
-        #ifdef Debug_HTTPS
-        Serial.print("Ack no enviado");
-        Serial.println(httpCode);
-        #endif
-         return false;
-      }
-      https.end();
+  if (https.begin(client, fwurl))
+  {
+    https.addHeader("Authorization", "Bearer " + String(TOKEN_VALI)); // Agrega el token de autorización
+#ifdef Debug_HTTPS
+    Serial.print("[HTTPS] GET...\n");
+#endif
+    httpCode = https.GET();
+    if (httpCode == HTTP_CODE_OK)
+    {
+#ifdef Debug_HTTPS
+      Serial.println("Ack enviado");
+#endif
+      Output=true;
     }
-    client->stop();
-    delete client; 
-   
+    else
+    {
+#ifdef Debug_HTTPS
+      Serial.print("Ack no enviado");
+      Serial.println(httpCode);
+#endif
+      Output=false;
+    }
+    https.end();
   }
-  return false;
+  return Output;
 }
 
 /* Guarda fecha  de actualización en  memoria  para consulta por comando info tarjeta */
@@ -430,3 +476,21 @@ bool AutoUpdate::DateTime_Update(bool Enable)
     return false;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

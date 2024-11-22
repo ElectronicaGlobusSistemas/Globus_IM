@@ -203,4 +203,7 @@ public:
 
 
   int Get_Operador_ID_Int(char Operador_ID[]);
+
+  int Convert_Char_In(byte Id[]);
+  
 };

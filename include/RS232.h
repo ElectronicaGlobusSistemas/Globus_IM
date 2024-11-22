@@ -135,6 +135,7 @@ void Encuestas_Maquinas_IGT_Riel(void);
 void Encuestas_Maquinas_IGT_Riel_Bill(void);
 void Encuestas_Mecanicas(void);
 void Encuestas_Maquinas_Simple(void);
+void Encuestas_Maquinas_Ruleta_IRT(void);
 void Encuesta_Billetes(void);
 bool Inactiva_Maquina(void);
 void Transmite_Inactiva_Maquina(void);
@@ -1149,6 +1150,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   Add_Contador(res, Bill_Amount, false);
                   
                 }
+                
                 else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
                 {
                   contadores.Set_Contadores(Copia_Bill_Amount,contador);
@@ -1237,7 +1239,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 break;
               case 0x2B:
                 contadores.Set_Contadores(Physical_Coin_Out, contador);
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
                 {
                   Calcula_Cancel_Credit_IRT();
                 }   
@@ -1287,7 +1289,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               Add_Contador(contador, Door_Open, false);
               Selector_Modo_SD(); // Ftp o Storage
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 7
-                ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+                ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 8||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
                 {
                   Contador_Save_Data++;
                   for (int i = 0; i < Max_Encuestas; i++)
@@ -1586,6 +1588,119 @@ static void UART_ISR_ROUTINE(void *pvParameters)
              // contadores.Change_Counters(contador);
             }
 
+            else if(buffer[1]==0x0F)
+            {
+
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
+              {
+
+                char contador[8] = {};
+                bzero(contador, 8);
+                int j = 2;
+                int dato = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                  dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador[i] = dato + '0';
+                  i++;
+                  dato = buffer_contadores[j] % 10;
+                  contador[i] = dato + '0';
+                  j++;
+                }
+#ifdef Debug_Contadores
+                Serial.println(contador);
+#endif
+                contadores.Set_Contadores(Copia_Cancel_Credit, contador);
+
+
+                /* Coin In */
+                char contador_Coin_In[7] = {};
+                bzero(contador_Coin_In, 7);
+                int dato1 = 0;
+                for (int i = 0; i < 7; i++)
+                {
+                  dato1 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador_Coin_In[i] = dato1 + '0';
+                  i++;
+                  dato1 = buffer_contadores[j] % 10;
+                  contador_Coin_In[i] = dato1 + '0';
+                  j++;
+                }
+                contadores.Set_Contadores(Coin_In, contador_Coin_In);
+
+
+                /* Coin Out */
+                char contador_Coin_Out[7] = {};
+                bzero(contador_Coin_Out, 7);
+                int dato2 = 0;
+                for (int i = 0; i < 7; i++)
+                {
+                  dato2 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador_Coin_Out[i] = dato2 + '0';
+                  i++;
+                  dato2 = buffer_contadores[j] % 10;
+                  contador_Coin_Out[i] = dato2 + '0';
+                  j++;
+                }
+                contadores.Set_Contadores(Coin_Out, contador_Coin_Out);
+
+
+
+                /* Total Drop */
+                char contador_Total_Drop[7] = {};
+                bzero(contador_Total_Drop, 7);
+                int dato3 = 0;
+                for (int i = 0; i < 7; i++)
+                {
+                  dato3 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador_Total_Drop[i] = dato3 + '0';
+                  i++;
+                  dato3 = buffer_contadores[j] % 10;
+                  contador_Total_Drop[i] = dato3 + '0';
+                  j++;
+                }
+                contadores.Set_Contadores(Total_Drop, contador_Total_Drop);
+
+                
+                /* Total Drop */
+                char contador_Jackpot[7] = {};
+                bzero(contador_Jackpot, 7);
+                int dato4 = 0;
+                for (int i = 0; i < 7; i++)
+                {
+                  dato4 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador_Jackpot[i] = dato4 + '0';
+                  i++;
+                  dato4 = buffer_contadores[j] % 10;
+                  contador_Jackpot[i] = dato4 + '0';
+                  j++;
+                }
+                contadores.Set_Contadores(Jackpot, contador_Jackpot);
+
+                /* Games Played */
+                char contador_Games_Played[7] = {};
+                bzero(contador_Games_Played, 7);
+                int dato5 = 0;
+                for (int i = 0; i < 7; i++)
+                {
+                  dato5 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  contador_Games_Played[i] = dato5 + '0';
+                  i++;
+                  dato5 = buffer_contadores[j] % 10;
+                  contador_Games_Played[i] = dato5 + '0';
+                  j++;
+                }
+                contadores.Set_Contadores(Games_Played, contador_Games_Played);
+
+                /* Almacenamiento memoria */
+                Add_Contador(contador_Coin_In, Coin_In, false);
+                Add_Contador(contador_Coin_Out, Coin_Out, false);
+                Add_Contador(contador_Total_Drop, Total_Drop, false);
+                Add_Contador(contador_Jackpot, Jackpot, false);
+                Add_Contador(contador_Games_Played, Games_Played, false);
+              }
+            }
+
             else if(buffer[7]==0x00 |buffer[7]==0x40 |buffer[7]==0xFF)
             {
               if(Buffer_Cashless.Set_RX_AFT(Info_MQ_AFT,buffer))
@@ -1638,7 +1753,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
               contadores.Set_Contadores(Premio_1B, contador);
               /* Se agrego....*/
-             // Accounting.Save_Handpay_Informations(buffer_contadores,contador);
+
+              if(Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+                Accounting.Save_Handpay_Informations(buffer_contadores,contador);
             }
             // bzero(buffer, 128);
             conta_bytes = 0;
@@ -1670,6 +1787,11 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           // Guarda Evento En Memoria SD.
           int Evento = eventos.Get_evento();
 
+          if(Evento==0x52 && Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4 && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss))
+          {
+
+          }
+
          // Event_Transfer_Load_Pending(Evento);
          // Serial.println(Evento);
           //Requerimiento_TITO(Evento);
@@ -1686,12 +1808,12 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           //   Tito.Set_Status_3D(true);
           // }
           /*----------------------------------------------------------*/
-          if(Evento==0x51 && Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4 && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss))
-          {
-            Variables_globales.Set_Variable_Global(Excepcion_51,true);
-          }
+          // if(Evento==0x51 && Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4 && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss))
+          // {
+          //   Variables_globales.Set_Variable_Global(Excepcion_51,true);
+          // }
           
-          if(eventos.Ignore_Event(Evento))
+          if(eventos.Ignore_Event(Evento) || Evento==51)
             Variables_globales.Set_Variable_Global(Dato_Evento_Valido, true);
             // Serial.println("Evento1");
 
@@ -1777,6 +1899,10 @@ void Encuestas_Maquina(void *pvParameters)
 
   case 14:
     xFrequency=pdMS_TO_TICKS(1000);
+    break;
+
+  case 16:
+    xFrequency= pdMS_TO_TICKS(200);
     break;
   
   default:
@@ -1923,10 +2049,15 @@ void Encuestas_Maquina(void *pvParameters)
     // Switch the led
     int Vel_Poll=5;
 
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
     {
         Vel_Poll=15;
+        if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
+        {
+          Vel_Poll=8;
+        }
     }
+
     if (bandera == 0 && Conta_Poll < Vel_Poll)
     {
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
@@ -2207,6 +2338,10 @@ void Encuestas_Maquina(void *pvParameters)
 
         case 15:                       
           Encuestas_Mecanicas();  /* Mecanica 4 contadores */
+          break;
+
+        case 16:
+          Encuestas_Maquinas_Ruleta_IRT();
           break;
 
         default:
@@ -2964,6 +3099,53 @@ void Encuestas_Maquinas_Poker_Ertech_Slot(void)
     break;
   }
 }
+
+void Encuestas_Maquinas_Ruleta_IRT(void)
+{
+  Conta_Encuestas++;
+  switch (Conta_Encuestas)
+  {
+  case 1:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Cancel Credit"); // total cancel credit
+    #endif
+    Transmite_Poll(0x0F);
+    break;
+  case 5:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin In"); // Coin in
+    #endif
+    Transmite_Poll(0x2B);
+    break;
+  case 10:
+    #ifdef Debug_Encuestas
+    Serial.println("Coin Out"); // Coin out
+    #endif
+    Transmite_Poll(0x46);
+    break;
+  case 15:
+    #ifdef Debug_Encuestas
+    Serial.println("Jackpot"); // Jackpot
+    #endif
+    Transmite_Poll(0x1A);
+    break;
+  case 20:
+    #ifdef Debug_Encuestas
+    Serial.println("Total Drop"); // total drop
+    #endif
+    Transmite_Poll(0x1C);
+    break;
+  case 25:
+    #ifdef Debug_Encuestas
+    Serial.println("ID Machine");
+    #endif
+    Transmite_Poll(0x1F);
+    Conta_Encuestas = 0;
+    flag_ultimo_contador_Ok = true;
+    break;
+  }
+}
+
 
 // Encuestas Maquinas IRT
 void Encuestas_Maquinas_IRT(void)
@@ -5160,6 +5342,32 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
       Transmite_Poll(0x13);
       Counter_Final=true;
   }
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
+  {
+    Transmite_Poll(0x0F);
+    delay(100);
+
+    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    Transmite_Poll(0x00);
+    delay(50);
+
+    Transmite_Poll(0x46);
+    delay(100);
+
+    Transmite_Poll(0x2B);
+    delay(100);
+
+    Transmite_Poll(0x1A);
+    delay(100);
+
+    Transmite_Poll(0x1C);
+    delay(100);
+
+    Transmite_Poll(0x1F);
+    delay(100);
+
+    Counter_Final=true;
+  }
   if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
   {
       #ifdef Debug_Encuestas
@@ -5437,20 +5645,19 @@ int Convert_Char_To_Int15(char buffer[]) {
   }
   
 void Calcula_Cancel_Credit_IRT(void)
-  {
+{
     int Total_Cancel_Credit_IRT, Cancel_Credit_IRT, Coin_Out_IRT, Residuo, Total_Cancel_Credit_IRT_2;
     int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
     char Contador_Cancel_Credit_IRT[9];
     bzero(Contador_Cancel_Credit_IRT, 9);
 
-    // Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
+   // Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
     Cancel_Credit_IRT = Convert_Char_To_Int15(contadores.Get_Contadores_Char(Copia_Cancel_Credit));
     // Cancel_Credit_IRT = contadores.Get_Contadores_Int(Copia_Cancel_Credit);
-    Coin_Out_IRT =Convert_Char_To_Int15(contadores.Get_Contadores_Char(Physical_Coin_Out));
-    // Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
-
-
-
+    Coin_Out_IRT = Convert_Char_To_Int15(contadores.Get_Contadores_Char(Physical_Coin_Out));
+    //Coin_Out_IRT = contadores.Get_Contadores_Int(Physical_Coin_Out);
+   // Serial.println(Cancel_Credit_IRT );
+   // Serial.println(Coin_Out_IRT);
     Total_Cancel_Credit_IRT = Cancel_Credit_IRT + Coin_Out_IRT;
 
     
@@ -5458,6 +5665,8 @@ void Calcula_Cancel_Credit_IRT(void)
       Total_Cancel_Credit_IRT_2 = Total_Cancel_Credit_IRT;
      // Serial.print("contador cancel credit int IRT es: ");
      // Serial.println(Total_Cancel_Credit_IRT);
+
+      char NL[9]={'F','F','F','F','F','F','F','F'};
 
       decmill = Total_Cancel_Credit_IRT / 10000000;
       Contador_Cancel_Credit_IRT[0] = decmill + 48;
@@ -5490,11 +5699,14 @@ void Calcula_Cancel_Credit_IRT(void)
       uni = Residuo;
       Contador_Cancel_Credit_IRT[7] = uni + 48;
 
-      Serial.print("contador cancel credit char IRT es: ");
-      Serial.println(Contador_Cancel_Credit_IRT);
+     // Serial.print("contador cancel credit char IRT es: ");
+     // Serial.println(Contador_Cancel_Credit_IRT);
       if (Convert_Char_To_Int15(Contador_Cancel_Credit_IRT) != Total_Cancel_Credit_IRT_2)
       {
-        Serial.println("Error en calculo premio IRT");
+      //  Serial.println("Error en calculo premio IRT");
+
+      contadores.Set_Contadores(Total_Cancel_Credit, NL);
+      contadores.Set_Contadores(Cancel_Credit_Hand_Pay, NL);
       }
       else
       {

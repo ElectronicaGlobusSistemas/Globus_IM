@@ -1197,6 +1197,13 @@ int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
   return Client_Id_Int;
 }
 
+int Contadores_SAS::Convert_Char_In(byte Id[])
+{
+  char clientIDString[8];
+  memcpy(clientIDString, Id, sizeof(Id));
+  int Client_Id_Int = atoi(clientIDString);
+  return Client_Id_Int;
+}
 
 int Contadores_SAS::Get_Operador_ID_Int(char Operador_ID[8])
 {
@@ -1498,6 +1505,9 @@ String Token_Generator(String Url)
 (3)--> Proceso no identificado
 (4)--> Comando no identificado no se detecto json en la solicitud 
 */
+
+
+
 int Contadores_SAS::Init_Parameter_Update(char res[])
 {
 

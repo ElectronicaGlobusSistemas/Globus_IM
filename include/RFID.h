@@ -191,6 +191,9 @@ public:
 
     void Init_Timer_Transfer_Pending(uint64_t Tiempo_ms);
     void Break_Timer_Transfer_Pending(void);
+
+
+    bool Await_Conexion(char ID_Temp[8],char Type_Client,int Timeout=15000);
 };
 void New_Token(void*arg);
 

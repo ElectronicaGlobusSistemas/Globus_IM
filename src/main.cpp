@@ -182,16 +182,40 @@ void setup()
         NULL,
         1); // Core donde se ejecutara la tarea
   }
-  /*----------------------------------------------------------------------------------*/
-  if(Info_Cashless.Inicialize_File_System())
-  {
-    Serial.println("Sistema de archivos iniciado");
-    Info_Cashless.Load_Pending_Transactions();
-  }
-   
 
-  else
-    Serial.println("No se inicio el sistema de archivos");
+  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+  {
+
+    if (Info_Cashless.Inicialize_File_System())
+    {
+      Serial.println("Sistema de archivos iniciado");
+      /* --------------------------> Transacciones Cashless <---------------------------*/
+      if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+        Info_Cashless.Load_Pending_Transactions(); /* Carga en RAM transacciones Cashless pendientes */
+      /*--------------------------------------------------------------------------------*/
+
+      /* ------------------------------> Premios SAS <----------------------------------*/
+      if (Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+        Accounting.Load_Premios_SAS(); /* Carga en RAM Premios SAS pendientes */
+      /*--------------------------------------------------------------------------------*/
+    }
+    else
+      Serial.println("No se inicio el sistema de archivos");
+  }
+
+  // /*----------------------------------------------------------------------------------*/
+  // if(Info_Cashless.Inicialize_File_System())
+  // {
+  //   Serial.println("Sistema de archivos iniciado");
+  //   Info_Cashless.Load_Pending_Transactions();
+
+  //   /* -------------> Premios SAS <---------------------------------------------------*/
+  //   if(Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+  //     Accounting.Load_Premios_SAS();
+  //   /*--------------------------------------------------------------------------------*/
+  // }
+  // else
+  //   Serial.println("No se inicio el sistema de archivos");
 
  
   Cashless.Init_API_Server(); /* Inicializa Server Globus IM ESP32 */
@@ -214,15 +238,13 @@ void loop()
   
   //Tito.Request_Handle_Tito();
 
-  //Accounting.Report_Informations_SAS();
-
   if(!Verifica)
   {
     if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Enable_Cashless))==2)
       Verifica=true;
   }
 
-  if(Variables_globales.Get_Variable_Global(Enable_Cashless))
+  if(Variables_globales.Get_Variable_Global(Enable_Cashless)||Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
     Info_Cashless.Genera_Token_Cashless();
 
  // Cashless.Registra_Maquina_Auto();
@@ -236,7 +258,7 @@ void loop()
   /*------------------------> Verifica Inactividad de Cliente <---------------------------*/
   TimeOut_Player_Tracking_Sesion();
   /*--------------------------------------------------------------------------------------*/
-  
+  /*102*/
   /*---------------------> Lectura Tarjetas  <--------------------------------------------*/
   Lee_Tarjeta();
   /*------------------------> Despierta lector de inactividad <---------------------------*/
@@ -265,6 +287,7 @@ void loop()
   }
 
     /*---------------------------> Conecta módulo RFID <------------------------------------*/
+  
   if (!Variables_globales.Get_Variable_Global(Verify_Modulo_RFID))
   {
       if ((TimeOut_Conect_RFID - TimeOut_Conect_Final) >= Time_Stop_Conect && !Variables_globales.Get_Variable_Global(Conexion_RFID) && Intentos_Conect_RFID < 2)
@@ -279,6 +302,11 @@ void loop()
         TimeOut_Conect_Final = TimeOut_Conect_RFID;
       }
   }
+
+  /* -----------------------------> Premios SAS <---------------------------------------------------- */
+  if(Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+    Accounting.Report_Handpay_Informations_SAS(Variables_globales.Get_Variable_Global(Token_Cashless_Solicitud));
+  /*--------------------------------------------------------------------------------------------------*/
 }
 
 /* Verifica comunicacion maquina */
@@ -586,6 +614,7 @@ void TimeOut_Player_Tracking_Sesion(void)
     }
     if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
     {
+      /* Tipo de maquina no cashless */
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
       {
         Info_Cashless.Lock_Reader();
@@ -595,29 +624,40 @@ void TimeOut_Player_Tracking_Sesion(void)
       }
       else
       {
+        /* Tipo de maquina Cashless */
+        if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+        {
+          /* Cashless  habilitado */
+          if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+          {
+            Info_Cashless.Lock_Reader();
+            bool Handle = true;
+            if (Info_Cashless.Get_Status_Reader())
+              Status_Barra(301);
 
-        if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+            switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+            {
+            case REQUEST_SUCCESSFULLY_RECEIVED:
+              Solicitud_Descarga_Cashless();
+              Handle = false;
+              break;
+
+            default:
+              Status_Barra(ERROR_LECTURA);
+              Info_Cashless.Unlock_Reader();
+              Handle = false;
+              break;
+            }
+            if (Handle)
+              Info_Cashless.Unlock_Reader();
+          }
+        }
+        else
         {
           Info_Cashless.Lock_Reader();
-          bool Handle = true;
-          if (Info_Cashless.Get_Status_Reader())
-            Status_Barra(301);
-
-          switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
-          {
-          case REQUEST_SUCCESSFULLY_RECEIVED:
-            Solicitud_Descarga_Cashless();
-            Handle = false;
-            break;
-
-          default:
-            Status_Barra(ERROR_LECTURA);
-            Info_Cashless.Unlock_Reader();
-            Handle = false;
-            break;
-          }
-          if (Handle)
-            Info_Cashless.Unlock_Reader();
+          Transmite_Contadores_Accounting();
+          Close_Sesion_Player_Tracking();
+          Info_Cashless.Unlock_Reader();
         }
       }
       Contador_Transmision_Contadores = 0;

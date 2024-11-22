@@ -8,14 +8,21 @@ class API_Accounting
 {
 private:
     /* data */
+
+    unsigned long Timer_Start_Premios=0;
+    unsigned long Timer_End_Premios_SAS=0;
+    int TimeOut_Premios_SAS=120000;
+    bool Firts_SAS=false;
+
 public:
 
     unsigned long Convert_Counter(char Buffer[]);
     unsigned long Convert_Counter_4digit(char buffer[]);
     void  Save_Handpay_Informations(char Buffer_MET[128], char Contador[]);
-    bool Sed_Handpay_Informatios(ESP32Time RTC,String Data);
-    void Report_Informations_SAS(void);
+    bool Send_Handpay_Informatios(ESP32Time RTC,String Data);
+    void Report_Handpay_Informations_SAS(bool Token_Cashless);
 
+    void Delete_PremioSAS_On_List(const char *FileName);
     void Load_Premios_SAS(void);
 
 };

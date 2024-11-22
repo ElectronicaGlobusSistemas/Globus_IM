@@ -119,6 +119,8 @@ using namespace std;
 #define Enable_Tito_Ticket                  102
 #define Event_Load_Cashless_Pending         103
 #define Trasnsmite_Transacion_to_Machine    104
+#define Handle_Premios_SAS                  105
+
 class Variables_Globales
 {
 private:
@@ -221,6 +223,7 @@ private:
     bool Enable_Tito_Ticket_;
     bool Event_Load_Cashless_Pending_;
     bool Trasnsmite_Transacion_to_Machine_;
+    bool Handle_Premios_SAS_;
     
 
 public:

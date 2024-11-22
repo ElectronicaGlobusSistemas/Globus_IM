@@ -19,13 +19,19 @@
 #include "Contadores.h"
 #include "RFID.h"
 #include <esp_task_wdt.h>
+#include "AutoUpdate.h"
 
 #include "SD.h"
 extern Configuracion_ESP32 Configuracion;
 extern Contadores_SAS contadores; // Objeto contiene contadores maquina
+extern Cashless_API Info_Cashless;
 
+extern AutoUpdate UpdateOTA;
+extern uint8_t Version_Firmware_[];
 extern Preferences NVS;
 
+
+extern TaskHandle_t Task_Poker_Hopper;
 using namespace std;
 extern ESP32Time RTC; // Objeto contiene hora y fecha
 
@@ -45,6 +51,24 @@ extern bool Consulta_Info_Cashless(void);
 const unsigned char Tabla_Ascii_Data[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
 
+
+std::string IP_toString_A(char IP_Char[])
+{
+    std::stringstream ss;
+
+    // Agregar cada octeto al stringstream
+    for (int i = 0; i < 4; ++i) {
+        ss << static_cast<int>(IP_Char[i]); // Convertir char a int para imprimir el valor numérico
+        if (i < 3) {
+            ss << '.'; // Agregar puntos entre los octetos
+        }
+    }
+
+    // Obtener el string resultante
+    std::string ipString = ss.str();
+
+    return ipString;
+}
 
 
 char Conve_Ascii_To_Hex_LL(char *Val_Ascii)
@@ -485,6 +509,59 @@ String New_Token(void)
   return Output;
 }
 
+/* Genera  y retorna token  de acceso desde la API */
+String Token_Generator_Update(String Url)
+{
+  String Output = "";
+  int httpCode;
+  WiFiClient client;
+  HTTPClient https;
+  String fwurl = Url;
+
+  https.setTimeout(10000); /* 10seg */
+  if (https.begin(client, fwurl))
+  {
+    httpCode = https.GET();
+
+    // Serial.println(httpCode);
+    if (httpCode == HTTP_CODE_OK)
+    {
+
+      String Response = https.getString();
+      StaticJsonDocument<1024>
+          doc,
+          filter;
+      DeserializationError error = deserializeJson(doc, Response);
+      // Serial.println( Response);
+      if (error)
+      {
+#ifdef Debug_HTTPS
+        Serial.println("Error Json deserializeJson");
+#endif
+      }
+      else
+      {
+        // Token Generado;
+#ifdef Debug_HTTPS
+        Serial.println("Token Generador! OK");
+#endif
+        String Token = doc["Data"]["access_token"];
+        String Token_Expires = doc["Data"]["expires"];
+        bool IsSuccess = doc["IsSuccess"];
+        String Message = doc["Message"];
+        int Evento = doc["Evento"];
+
+        if (IsSuccess)
+        {
+          Output = Token;
+        }
+      }
+      doc.clear();
+    }
+    https.end();
+  }
+  return Output;
+}
 
 bool Transsaccion_Cashless::Init_API_Server(void)
 {
@@ -1362,7 +1439,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     request->send(response);
   });
 
-   Server_API.on("/Solicitud_Contadores_Cashless",HTTP_GET, [](AsyncWebServerRequest *request)
+  Server_API.on("/Solicitud_Contadores_Cashless",HTTP_GET, [](AsyncWebServerRequest *request)
   {
 
     
@@ -2104,10 +2181,121 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   }  
   });
 
-  Server_API.on("/Reset_Firmware",HTTP_GET, [](AsyncWebServerRequest *request){
+
+
+
+  /*********************************************************************************************************/
+  /**********************************************PREMIOS SAS************************************************/
+  /*********************************************************************************************************/
+
+  Server_API.on("/Habilitar_Premios_SAS", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
     StaticJsonDocument<200> jsonDocument;
     jsonDocument.clear();
 
+    NVS.begin("Config_ESP32", false);
+
+    /* Actualiza valor en memoria Flash */
+    NVS.putBool("P_SAS", true);
+    bool Test = NVS.getBool("P_SAS", false);
+    /* Actualiza valor  en RAM */
+    Variables_globales.Set_Variable_Global(Handle_Premios_SAS, Test);
+    NVS.end();
+
+
+    if(Test && Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+    {
+      jsonDocument["IsSuccess"] = true;
+    }else{
+      jsonDocument["IsSuccess"] = false;
+    }
+
+    jsonDocument["Fecha_Hora"] = DataTime;
+    jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Handle_Premios_SAS);
+    jsonDocument["Desc"] = "Premios SAS Habilitados correctamente";
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+   
+  });
+
+  Server_API.on("/Inhabilitar_Premios_SAS", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+
+    NVS.begin("Config_ESP32", false);
+
+    /* Actualiza valor en memoria Flash */
+    NVS.putBool("P_SAS", false);
+    bool Test = NVS.getBool("P_SAS", false);
+    /* Actualiza valor  en RAM */
+    Variables_globales.Set_Variable_Global(Handle_Premios_SAS, Test);
+    NVS.end();
+
+
+    if(!Test && !Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+    {
+      jsonDocument["IsSuccess"] = true;
+    }else{
+      jsonDocument["IsSuccess"] = false;
+    }
+
+    jsonDocument["Fecha_Hora"] = DataTime;
+    jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Handle_Premios_SAS);
+    jsonDocument["Desc"] = "Premios SAS Inhabilitados correctamente";
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+   
+  });
+
+  Server_API.on("/Formatear_Sistema_Archivos",HTTP_GET,[](AsyncWebServerRequest*request)
+  {
+    String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+      
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+
+    if(SPIFFS.format())
+      jsonDocument["IsSuccess"] = true;
+    else
+      jsonDocument["IsSuccess"] = false;
+
+      
+    
+  });
+
+  Server_API.on("/Premios_SAS_Pendientes", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+    if (Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+    {
+      if (SPIFFS.exists("/Premios_SAS.txt"))
+      {
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/Premios_SAS.txt", "text/plain", true);
+        response->addHeader("Txt", "Premios SAS Pendientes");
+        request->send(response);
+      }else{
+        request->send(404, "text/plain", "Archivo no existe");
+      }
+    }else{
+      request->send(404, "text/plain", "Premios SAS no Habilitados");
+    } 
+  });
+
+    Server_API.on("/Reset_Firmware",HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+
+    
 
     jsonDocument["IsSuccess"] = true;
     jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
@@ -2118,6 +2306,466 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     ESP.restart();
   });
 
+
+  /* En pruebas nuevo desarrollo ---->*/
+  /* Configuración de datos */
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configuracion_Parametros_red", [](AsyncWebServerRequest* request, JsonVariant& json) {
+    
+
+    bool Cambios=false;
+    StaticJsonDocument<800> jsonDocument;
+    jsonDocument.clear();
+
+
+    if (!json.is<JsonObject>()) {
+
+
+      jsonDocument["IsSuccess"] = false;
+
+      jsonDocument["Ssid"] = nullptr;
+      jsonDocument["Passwarod"] = nullptr;
+      jsonDocument["Local_Ip"] = nullptr;
+      jsonDocument["Port"] = nullptr;
+
+      jsonDocument["Subnet_mask"] = nullptr;
+      jsonDocument["Gateway"]=nullptr;
+      jsonDocument["Primary_Dns"]=nullptr;
+      jsonDocument["Secondary_Dns"]=nullptr;
+      jsonDocument["Message"]="El tipo de dato no es un JSON";
+
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      return;
+    }
+
+    NVS.begin("Config_ESP32", false);
+    auto&& data = json.as<JsonObject>();
+
+    String  SSID_UPDATE= data["Ssid"].as<String>();
+    String  PASSWORD_UPDATE= data["Passwarod"].as<String>();
+    String  LOCAL_IP_UPDATE= data["Local_Ip"].as<String>();
+    String  PORT_UPDATE= data["Port"].as<String>();
+    
+    Serial.println(PORT_UPDATE);
+    String  SUBNET_MASK_UPDATE= data["Subnet_mask"].as<String>();
+    String  GATEWAY_UPDATE= data["Gateway"].as<String>();
+    String  PRIMARY_DNS_UPDATE= data["Primary_Dns"].as<String>();
+    String  SECONDARY_DNS_UPDATE= data["Secondary_Dns"].as<String>();
+
+    IPAddress local_ip;
+    IPAddress gateway;
+    IPAddress subnet_mask;
+    IPAddress primary_dns;
+    IPAddress secondary_dns;
+
+    if (data.containsKey("Port") && !data["Port"].isNull())
+    {
+      /* PUERTO UDP */
+      uint16_t CURRENT_PORT = Configuracion.Get_Configuracion(Puerto_Server, 0);
+      if (CURRENT_PORT != PORT_UPDATE.toInt())
+      {
+        uint16_t PORT_Up = PORT_UPDATE.toInt();
+        Serial.println("Puerto diferente...");
+        NVS.putUInt("Socket", PORT_Up);
+        Configuracion.Set_Configuracion_ESP32(Puerto_Server, PORT_Up);
+        Cambios = true;
+      }
+    }
+
+    /* SSID */
+
+    if (data.containsKey("Ssid")&& !data["Ssid"].isNull())
+    {
+      String CURRENT_SSID = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+      if (CURRENT_SSID != SSID_UPDATE)
+      {
+        Serial.println("SSID diferente...");
+        NVS.putString("SSID_DESA", SSID_UPDATE);
+        Configuracion.Set_Configuracion_ESP32(SSID, SSID_UPDATE);
+        Cambios = true;
+      }
+    }
+
+    /*PASSWORD*/
+
+    if (data.containsKey("Passwarod")&& !data["Passwarod"].isNull())
+    {
+      String CURRENT_PASWORD = Configuracion.Get_Configuracion(Password, "Password_red");
+      if (CURRENT_PASWORD != PASSWORD_UPDATE)
+      {
+        Serial.println("PASSWORD diferente...");
+        NVS.putString("PASS_DESA", PASSWORD_UPDATE);
+        Configuracion.Set_Configuracion_ESP32(Password, PASSWORD_UPDATE);
+        Cambios = true;
+      }
+    }
+    
+    /* IP LOCAL */
+
+    char IP_Local_[4];
+    local_ip.fromString(LOCAL_IP_UPDATE);
+    gateway.fromString(GATEWAY_UPDATE);
+    subnet_mask.fromString(SUBNET_MASK_UPDATE);
+    primary_dns.fromString(PRIMARY_DNS_UPDATE);
+    secondary_dns.fromString(SECONDARY_DNS_UPDATE);
+    
+
+    memcpy(IP_Local_, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local_) / sizeof(IP_Local_[0]));
+
+    if (data.containsKey("Local_Ip")&& !data["Local_Ip"].isNull())
+    {
+      if (local_ip[0] != IP_Local_[0] || local_ip[1] != IP_Local_[1] || local_ip[2] != IP_Local_[2] || local_ip[3] != IP_Local_[3])
+      {
+        Serial.println("IP LOCAL  diferente...");
+        uint8_t ip_local_temp[] = {local_ip[0], local_ip[1], local_ip[2], local_ip[3]};
+        NVS.putBytes("Dir_IP", ip_local_temp, sizeof(ip_local_temp));
+
+        /* Actualiza */
+        IP_Local_[0] = ip_local_temp[0];
+        IP_Local_[1] = ip_local_temp[1];
+        IP_Local_[2] = ip_local_temp[2];
+        IP_Local_[3] = ip_local_temp[3];
+        Configuracion.Set_Configuracion_ESP32(Direccion_IP, IP_Local_);
+        Cambios = true;
+      }
+    }
+
+    char DNS_Primary_Starage[4];
+    memcpy(DNS_Primary_Starage, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primary_Starage) / sizeof(DNS_Primary_Starage[0]));
+
+    if (data.containsKey("Primary_Dns")&& !data["Primary_Dns"].isNull())
+    {
+      if (primary_dns[0] != DNS_Primary_Starage[0] || primary_dns[1] != DNS_Primary_Starage[1] || primary_dns[2] != DNS_Primary_Starage[2] || primary_dns[3] != DNS_Primary_Starage[3])
+      {
+        Serial.println("DNS 1 diferente...");
+        uint8_t ip_dns_update[] = {primary_dns[0], primary_dns[1], primary_dns[2], primary_dns[3]};
+        NVS.putBytes("Dns_Primary", ip_dns_update, sizeof(ip_dns_update));
+        DNS_Primary_Starage[0] = ip_dns_update[0];
+        DNS_Primary_Starage[1] = ip_dns_update[1];
+        DNS_Primary_Starage[2] = ip_dns_update[2];
+        DNS_Primary_Starage[3] = ip_dns_update[3];
+        Configuracion.Set_Configuracion_ESP32(Dns_One_IP, DNS_Primary_Starage);
+        Cambios = true;
+      }
+    }
+
+    char DNS_Secondary_Starage[4];
+    memcpy(DNS_Secondary_Starage, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secondary_Starage) / sizeof(DNS_Secondary_Starage[0]));
+
+    if (data.containsKey("Secondary_Dns")&& !data["Secondary_Dns"].isNull())
+    {
+      if (secondary_dns[0] != DNS_Secondary_Starage[0] || secondary_dns[1] != DNS_Secondary_Starage[1] || secondary_dns[2] != DNS_Secondary_Starage[2] || secondary_dns[3] != DNS_Secondary_Starage[3])
+      {
+        Serial.println("DNS 2 diferente...");
+        uint8_t ip_dns_sec_update[] = {secondary_dns[0], secondary_dns[1], secondary_dns[2], secondary_dns[3]};
+        NVS.putBytes("Dns_Secondary", ip_dns_sec_update, sizeof(ip_dns_sec_update));
+        DNS_Secondary_Starage[0] = ip_dns_sec_update[0];
+        DNS_Secondary_Starage[1] = ip_dns_sec_update[1];
+        DNS_Secondary_Starage[2] = ip_dns_sec_update[2];
+        DNS_Secondary_Starage[3] = ip_dns_sec_update[3];
+        Configuracion.Set_Configuracion_ESP32(Dns_Two_IP, DNS_Secondary_Starage);
+        Cambios = true;
+      }
+    }
+
+    char IP_GW_Storage[4];
+    memcpy(IP_GW_Storage, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW_Storage) / sizeof(IP_GW_Storage[0]));
+
+    if (data.containsKey("Gateway") && !data["Gateway"].isNull())
+    {
+      /* Verifica GW*/
+      if (gateway[0] != IP_GW_Storage[0] || gateway[1] != IP_GW_Storage[1] || gateway[2] != IP_GW_Storage[2] || gateway[3] != IP_GW_Storage[3])
+      {
+        Serial.println("PUERTA ENLACE diferente...");
+        uint8_t ip_gw_upd[] = {gateway[0], gateway[1], gateway[2], gateway[3]};
+        NVS.putBytes("Dir_IP_GW", ip_gw_upd, sizeof(ip_gw_upd));
+        IP_GW_Storage[0] = ip_gw_upd[0];
+        IP_GW_Storage[1] = ip_gw_upd[1];
+        IP_GW_Storage[2] = ip_gw_upd[2];
+        IP_GW_Storage[3] = ip_gw_upd[3];
+        Configuracion.Set_Configuracion_ESP32(Direccion_IP_GW, IP_GW_Storage);
+        Cambios = true;
+      }
+    }
+
+    char Submask_[4];
+    memcpy(Submask_, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(Submask_) / sizeof(Submask_[0]));
+
+    if (data.containsKey("Subnet_mask")&& !data["Subnet_mask"].isNull())
+    {
+      if (subnet_mask[0] != Submask_[0] || subnet_mask[1] != Submask_[1] || subnet_mask[2] != Submask_[2] || subnet_mask[3] != Submask_[3])
+      {
+        Serial.println("MASCARA SUBRED diferente...");
+        uint8_t Submask__[] = {subnet_mask[0], subnet_mask[1], subnet_mask[2], subnet_mask[3]};
+        NVS.putBytes("Dir_SN_MASK", Submask__, sizeof(Submask__));
+
+        Submask_[0] = Submask__[0];
+        Submask_[1] = Submask__[1];
+        Submask_[2] = Submask__[2];
+        Submask_[3] = Submask__[3];
+        Configuracion.Set_Configuracion_ESP32(Direccion_SN_MASK, Submask_);
+        Cambios = true;
+      }
+    }
+
+    NVS.end();
+
+    if(Cambios)
+      jsonDocument["IsSuccess"] = true;
+    else
+      jsonDocument["IsSuccess"] = false;
+
+    jsonDocument["Ssid"] = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+    jsonDocument["Passwarod"] = Configuracion.Get_Configuracion(Password, "Password_red");
+    jsonDocument["Local_Ip"] = IP_toString_A(Configuracion.Get_Configuracion(Direccion_IP, 'x'));
+    jsonDocument["Port"] = Configuracion.Get_Configuracion(Puerto_Server, 0);
+
+    jsonDocument["Subnet_mask"] = IP_toString_A(Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'));
+    jsonDocument["Gateway"] = IP_toString_A(Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'));
+    jsonDocument["Primary_Dns"] = IP_toString_A(Configuracion.Get_Configuracion(Dns_One_IP, 'x'));
+    jsonDocument["Secondary_Dns"] = IP_toString_A(Configuracion.Get_Configuracion(Dns_Two_IP, 'x'));
+
+    if(Cambios)
+      jsonDocument["Message"] = "Configuración aplicada con exito";
+    else
+      jsonDocument["Message"] = "No existen cambios en la configuración";
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    delay(500);
+    if(Cambios)
+      ESP.restart();
+  }));
+
+  // Server_API.on("/Termina_Player_Tracking", HTTP_GET, [](AsyncWebServerRequest *request)
+  // {
+
+  //   int Code=0;
+
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+
+  //   if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
+  //   {
+  //     if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+  //     {
+  //       if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+  //       {
+  //         Close_Sesion_Player_Tracking();
+  //         if (contadores.Verify_Close(contadores.Get_Client_ID()))
+  //         {
+  //           Code = 0x00; /* OK */
+  //           jsonDocument["IsSuccess"] = true;
+  //           jsonDocument["Codigo"] = Code;
+  //           jsonDocument["Message"] ="Sesion player tracking cerrada con exito";
+  //         }
+  //         else
+  //         {
+  //           /* ERROR EN INTERFAZ GLOBUS IM ESP32 */
+  //           Code = 0x01; /* OK */
+  //           jsonDocument["IsSuccess"] = false;
+  //           jsonDocument["Codigo"] = Code;
+  //           jsonDocument["Message"] ="Error en validacion de cierre";
+  //         }
+  //       }
+  //       else
+  //       {
+  //         Code = 0x02; /* NO TIENE SESION PLAYER TRACKING ABIERTA */
+  //         jsonDocument["IsSuccess"] = false;
+  //         jsonDocument["Codigo"] = Code;
+  //         jsonDocument["Message"] ="No existe sesion player tracking";
+  //       }
+  //     }else{
+  //       Code=0x03; /* NO HAY COMUNICACIÓN CON LA MET */
+  //       jsonDocument["IsSuccess"] = false;
+  //       jsonDocument["Codigo"] = Code;
+  //       jsonDocument["Message"] ="No hay comunicación con la MET";
+  //     }
+  //   }
+  //   else
+  //   {
+  //     /* EN SESION CASHLESS NO PUEDE ATENDER LA SOLICITUD */
+  //     Code=0x04;
+  //     jsonDocument["IsSuccess"] = false;
+  //     jsonDocument["Codigo"] = Code;
+  //     jsonDocument["Message"] ="Sesión cashless activa";
+  //   }
+
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+  //   request->send(200, "application/json", Json);
+
+  // });
+
+  
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualizacion_Globus_IM_ESP32", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+    
+    int Code=0x100;
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+    
+    
+
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["IsSuccess"] = Code;
+      jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else
+    {
+
+      auto&& data = json.as<JsonObject>();
+      /* Url Generica */
+
+      if (data.containsKey("Url") && data.containsKey("Api_Token") && data.containsKey("Api_Bin") && data.containsKey("Api_Respuesta") && data.containsKey("Version_Act") && data.containsKey("Api_Version"))
+      {
+
+        char Current_IP[4];
+        memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+        IP_toString_Ip(Current_IP);
+
+        std::string Ip = IP_toString_Ip(Current_IP);
+        String Ip_Local = String(Ip.c_str());
+
+        if (!Variables_globales.Get_Variable_Global(Updating_System))
+        {
+
+          String URL_Generic = data["Url"].as<String>();
+          /* Url Api Genera token */
+          String Api_Token = data["Api_Token"].as<String>();
+          /*Url Descarga de archivo*/
+          String Api_Bin = data["Api_Bin"].as<String>();
+          /* URL Api de respuesta */
+          String Api_Res = data["Api_Respuesta"].as<String>();
+          /*Url Parametrizada para generar token */
+          String Url_Completa = URL_Generic + Api_Token + "?" + "Mac=" + WiFi.macAddress()+"&Ip="+Ip_Local;
+          /* Version de actualización */
+          String Version_Programa = data["Version_Act"].as<String>();
+          /* URL Api version */
+          String Api_Version = data["Api_Version"].as<String>();
+          esp_task_wdt_init(15000, true);
+          esp_task_wdt_add(NULL);
+          String Token_Valido = Token_Generator_Update(Url_Completa);
+          esp_task_wdt_reset();
+          //Serial.println(Token_Valido);
+          if (Token_Valido != "")
+          {
+
+            /* Inicializa URL para descarga */
+            UpdateOTA.Init_AutoUpdate(Version_Programa, URL_Generic, Api_Version, Api_Bin, Api_Res, Token_Valido, Version_Firmware_);
+            
+            Code = 0x00;
+            jsonDocument["IsSuccess"] = true;
+            jsonDocument["Code"] = Code;
+            jsonDocument["Message"] = "Comando de actualización recibido con exito";
+            
+            String Json;
+            serializeJson(jsonDocument, Json); /* Serializa Data */
+            request->send(200, "application/json", Json);
+            /* Si la tarjeta tiene conexion con Lector lo bloquea  */
+            if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+            {
+              Variables_globales.Set_Variable_Global(Updating_System, true);
+              UpdateOTA.Timer_Update(480000); /* Timeout para desbloquear lector */
+            }
+            /* Inicia Actualizacion */
+            Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
+            return;
+          }
+          else
+          {
+            Variables_globales.Set_Variable_Global(Updating_System, false);
+            Code = 0x01;
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Code"] = Code;
+            jsonDocument["Message"] = "Error generando token de acceso";
+            String Json;
+            serializeJson(jsonDocument, Json); /* Serializa Data */
+            request->send(200, "application/json", Json);
+            return;
+          }
+        }
+        else
+        {
+          Code = 0x03;
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Code"] = Code;
+          jsonDocument["Message"] = "Actualizacion actualmente en curso";
+          String Json;
+          serializeJson(jsonDocument, Json); /* Serializa Data */
+          request->send(200, "application/json", Json);
+          return;
+        }
+      }
+      else
+      {
+        Code = 0x02;
+        jsonDocument["IsSuccess"] = true;
+        jsonDocument["Code"] = Code;
+        jsonDocument["Message"] = "Falta uno o mas parametros en la URL";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+        return;
+      }
+    }
+    
+  }));
+
+  // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualizacion", [](AsyncWebServerRequest* request, JsonVariant& json) {
+  //   int Code;
+  //   Code = 0x00;
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+
+  //   jsonDocument["IsSuccess"] = true;
+  //   jsonDocument["Code"] = Code;
+  //   jsonDocument["Message"] = "Comando de actualización recibido con exito";
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+
+  //   request->send(200, "application/json", Json);
+
+  // }));
+
+
+  // Server_API.on("/Actualizacion", HTTP_GET, [](AsyncWebServerRequest *request)
+  // {
+  //     int Code;
+  //   Code = 0x00;
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+
+  //   jsonDocument["IsSuccess"] = true;
+  //   jsonDocument["Code"] = Code;
+  //   jsonDocument["Message"] = "Comando de actualización recibido con exito";
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+
+  //   request->send(200, "application/json", Json);
+  // });
+
+  // Server_API.on("/Ping_Globus_IM",HTTP_GET, [](AsyncWebServerRequest *request){
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+//Init_Parameter_Update
+    
+
+  //   jsonDocument["IsSuccess"] = true;
+  //   jsonDocument["message"] = "Conexión_OK";
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+  //   request->send(200, "application/json", Json);
+  // });
 
   // Server_API.on("/Contadores_Accounting",HTTP_GET,[](AsyncWebServerRequest *request)
   // {
@@ -2462,10 +3110,6 @@ uint32_t Transsaccion_Cashless::Get_Credit_Number(int Type)
     break;
   }
 }
-
-
-
-
 
 
 /*

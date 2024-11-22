@@ -90,7 +90,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,0,5};
+uint8_t Version_Firmware_[]={2,1,0,6};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
@@ -168,8 +168,6 @@ void Init_Config(void)
     //--------------------> Task Manager <---------------------------
     TaskManager(); // Inicia Manejador de Tareas de Verificación
     //---------------------------------------------------------------  
-
-   
 }
 
 void TaskManager()
@@ -405,7 +403,8 @@ static void ManagerTasks(void *parameter)
 
         if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
         {
-           
+            UpdateOTA.Confirmacion_ACK_HTTPS(URL_OK, RES_URL); /* URL OK */
+            delay(10);
             UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits)),Variables_globales.Get_Variable_Global(Access_Point_Mode)); /* Agregar parametros para  verificar que la maquina no este en juego */
             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
         }
@@ -932,12 +931,23 @@ void Init_Configuracion_Inicial(void)
     }
 
 
-    /* Recupera estado transacción pendiente */
+    
 
     if(!NVS.isKey("Cash_Pending"))
     {
+        /* Recupera estado transacción pendiente Cashless */
         bool Pending=false;
         NVS.putBool("Cash_Pending",Pending);
+    }
+
+    if(!NVS.isKey("P_SAS"))
+    {
+        /* Procesamiento Premios SAS 
+        True= Habilitados 
+        False= Deshabilitados
+        */
+        bool Premios_SAS=false;
+        NVS.putBool("P_SAS",Premios_SAS);
     }
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1153,6 +1163,11 @@ void Init_Configuracion_Inicial(void)
     
     case 15:
          Serial.println("Mecanicas 4 contadores ");
+        break;
+
+
+    case 16:
+        Serial.println("Ruleta IRT");
         break;
 
     default:
@@ -1572,10 +1587,13 @@ void Init_Configuracion_Inicial(void)
     else
         Serial.println("Tito: Deshabilitado");
 
-    
-   
-        
-    
+
+    bool Test_Premios_SAS=NVS.getBool("P_SAS");
+    Variables_globales.Set_Variable_Global(Handle_Premios_SAS,Test_Premios_SAS);
+    if(Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+        Serial.println("Premios SAS: Habilitados");
+    else
+        Serial.println("Premios SAS: Deshabilitatos");
 
     Serial.println("\n");
     NVS.end();

@@ -118,7 +118,7 @@ public:
 
   bool Attend_Tito_Request(int Evento,bool Status_Machine,bool Transaction_Status=false,bool Enable_Tito=false);
 
-
+  
   
 
 
@@ -196,4 +196,6 @@ class Transsaccion_Cashless
     void Set_Reintento_Registro(bool Set);
     bool Get_Reintento_Registro();
     
+   
 };  
+String Token_Generator_Update(String Url);

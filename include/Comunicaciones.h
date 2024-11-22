@@ -59,6 +59,7 @@ extern TaskHandle_t Ftp_SERVER; //  Manejador de tareas
 
 TaskHandle_t CommandProcess;
 
+TaskHandle_t Task_Poker_Hopper;
 
 
 char Archivo_CSV_Contadores[200];
@@ -257,7 +258,7 @@ void init_Comunicaciones()
             10000,//10000
             NULL,
             configMAX_PRIORITIES - 4,
-            NULL,
+            &Task_Poker_Hopper,
             0); // Core donde se ejecutara la tarea
     }
 }
@@ -1375,6 +1376,9 @@ bool Configura_Tipo_Maquina(char res[])
         }else if(res[4]-48==1 &&res[5]-48==5)
         {
             ID_Maq_Server=15;
+        }else if(res[4]-48==1 && res[5]-48==6)
+        {
+            ID_Maq_Server=16;
         }
     }
     
@@ -2795,6 +2799,7 @@ void Mensajes_RFID(void)
                                 Status_Barra(ERROR_RESET_HANDPAY);
 
                             Variables_globales.Set_Variable_Global(Handle_RFID_Lector,false);
+                            Info_Cashless.Unlock_Reader();
                         }
                 }
             }
@@ -2828,10 +2833,9 @@ void Mensajes_RFID(void)
                             Status_Barra(Reset_Exitoso);
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                        Variables_globales.Set_Variable_Global(Excepcion_51,false); /* Excepcion 51 Atendida */
-                        Variables_globales.Set_Variable_Global(Requerimiento_Operador,false);
+                        Info_Cashless.Unlock_Reader();
                         break;
-                    case 0x01: /*No existe condición de reset*/
+                    case 0x01: /*Imposible realizar el reset*/
                         /* Guarda ID Operador */
                         contadores.Close_ID_Operador();
                         startTime = currentTime;
@@ -2843,19 +2847,39 @@ void Mensajes_RFID(void)
                             Status_Barra(ERROR_RESET_HANDPAY);
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-                        
+                        Info_Cashless.Unlock_Reader();
                         break;
-                    case 0x02: /*Imposible realizar reset*/
+                    case 0x02: /*No existe condicion de pago*/
                         contadores.Close_ID_Operador();
                         startTime = currentTime;
-                        Transmite_Confirmacion('C', '2');
                         // Variables_globales.Set_Variable_Global(Trama_Pendiente,true);
                         Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
-                        //contadores.Delete_Operator_ID_Temp();
-                        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
-                            Status_Barra(ERROR_RESET_HANDPAY);
-                        Reset_Handle_LED();
-                        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
+                        if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4 && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+                        {
+                            switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+                            {
+                            case REQUEST_SUCCESSFULLY_RECEIVED:
+                                Solicitud_Descarga_Cashless();
+                                break;
+
+                            default:
+                                Status_Barra(ERROR_LECTURA);
+                                Info_Cashless.Unlock_Reader();
+                                Reset_Handle_LED();
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            Transmite_Confirmacion('C', '2');
+                            // contadores.Delete_Operator_ID_Temp();
+                            if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                                Status_Barra(ERROR_RESET_HANDPAY);
+                            Reset_Handle_LED();
+                            Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                            Info_Cashless.Unlock_Reader();
+                        }
                         break;
                     case 0x04: /* No  hay respuesta de la maquina*/
                         startTime = currentTime;
@@ -2867,10 +2891,12 @@ void Mensajes_RFID(void)
                         /*Activa Timer  Operador */
                         /*  Maquinas sin rele y sin comando */
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                        Info_Cashless.Unlock_Reader();
                         break;
 
                     default:
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                        Info_Cashless.Unlock_Reader();
                         Reset_Handle_LED();
                         break;
                     }
@@ -3097,10 +3123,10 @@ void Task_Procesa_Comandos(void *parameter)
 
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==14||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==14||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4|| Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
                     {
 
-                        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+                        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
                         {
                             if (!Variables_globales.Get_Variable_Global(Firts_Cancel_IRT))
                             {
@@ -3147,7 +3173,7 @@ void Task_Procesa_Comandos(void *parameter)
                                 Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
                         }
                     }
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4 &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 16)
                     {
                         if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE) /* ¿ Esta en modo Api? */
                         {
@@ -3448,7 +3474,11 @@ void Task_Procesa_Comandos(void *parameter)
                                // Serial.println("Premio registrado con exito");
                // #endif
               //  Serial.println("Premio registrado con exito");
-                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+               Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 4)
+               {
+                   Info_Cashless.Unlock_Reader();
+               }
                 Reset_Handle_LED();
                 //Transmite_Reenvio_Contadores.Forwarding_Abort();
 
@@ -3753,64 +3783,64 @@ void Task_Procesa_Comandos(void *parameter)
                     Variables_globales.Set_Variable_Global(Conexion_To_Host, true);
                     break;
 
-                 case 603:
-#ifdef Debug_Mensajes_Server
-                     Serial.println("Solicitud de actualizacion de firmware!"); /* OK*/
-#endif
+//                  case 603:
+// #ifdef Debug_Mensajes_Server
+//                      Serial.println("Solicitud de actualizacion de firmware!"); /* OK*/
+// #endif
 
-                     if (!Variables_globales.Get_Variable_Global(Updating_System))
-                     {
-                         switch (contadores.Init_Parameter_Update(res))
-                         {
+//                      if (!Variables_globales.Get_Variable_Global(Updating_System))
+//                      {
+//                          switch (contadores.Init_Parameter_Update(res))
+//                          {
 
-                         case 0:
-                             //  #ifdef Debug_Mensajes_Server
-                             //  Serial.println("URL Recibidas con exito!");
-                             //  #endif
-                             Variables_globales.Set_Variable_Global(Updating_System, true);
-                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
-                             delay(1);
-                             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
-                             break;
+//                          case 0:
+//                              //  #ifdef Debug_Mensajes_Server
+//                              //  Serial.println("URL Recibidas con exito!");
+//                              //  #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, true);
+//                              Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
+//                              delay(1);
+//                              Variables_globales.Set_Variable_Global(AutoUPDATE_OK, true);
+//                              break;
 
-                         case 1:
-#ifdef Debug_Mensajes_Server
-                             Serial.println("Falla deserializando Json de solititud ");
-#endif
-                             Variables_globales.Set_Variable_Global(Updating_System, false);
-                             break;
+//                          case 1:
+// #ifdef Debug_Mensajes_Server
+//                              Serial.println("Falla deserializando Json de solititud ");
+// #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, false);
+//                              break;
 
-                         case 2:
-                             //  #ifdef Debug_Mensajes_Server
-                             //  Serial.println("Token de acceso no generado");
-                             //  #endif
-                             Variables_globales.Set_Variable_Global(Updating_System, false);
-                             break;
+//                          case 2:
+//                              //  #ifdef Debug_Mensajes_Server
+//                              //  Serial.println("Token de acceso no generado");
+//                              //  #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, false);
+//                              break;
 
-                         case 3:
-#ifdef Debug_Mensajes_Server
-                             Serial.println("Proceso no identificado ");
-#endif
-                             Variables_globales.Set_Variable_Global(Updating_System, false);
-                             break;
+//                          case 3:
+// #ifdef Debug_Mensajes_Server
+//                              Serial.println("Proceso no identificado ");
+// #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, false);
+//                              break;
 
-                         case 4:
-#ifdef Debug_Mensajes_Server
-                             Serial.println("Proceso no identificado ");
-#endif
-                             Variables_globales.Set_Variable_Global(Updating_System, false);
-                             break;
+//                          case 4:
+// #ifdef Debug_Mensajes_Server
+//                              Serial.println("Proceso no identificado ");
+// #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, false);
+//                              break;
 
-                         default:
-                            #ifdef Debug_Mensajes_Server
-                            Serial.println("Proceso no identificado ");
-                            #endif
-                            Variables_globales.Set_Variable_Global(Updating_System, false);
-                            break;
-                         }
-                     }
-                     break;
-                 case 604:
+//                          default:
+// #ifdef Debug_Mensajes_Server
+//                              Serial.println("Proceso no identificado ");
+// #endif
+//                              Variables_globales.Set_Variable_Global(Updating_System, false);
+//                              break;
+//                          }
+//                      }
+//                      break;
+                case 604:
                     #ifdef Debug_Mensajes_Server
                     Serial.println("Configura Timer Transmision en juego "); /*OK*/
                     #endif
@@ -4767,11 +4797,6 @@ void Transmision_Controlada_Contadores(void)
                 
             }
 
-            if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Variables_globales.Get_Variable_Global(Requerimiento_Operador) && Variables_globales.Get_Variable_Global(Excepcion_51))
-            {
-                Variables_globales.Set_Variable_Global(Requerimiento_Operador,false);
-                Variables_globales.Set_Variable_Global(Excepcion_51, false);
-            }
             flag_premio_pagado_cashout = false;
         }
 
@@ -5388,6 +5413,7 @@ void RESET_HANDPAY_NOT_SAS(void)
 Transmite a servidor (D1) */     
 void Task_Verifica_Hopper(void *parameter)
 {
+    
     int Conta_Poll_Cancel_Poker = 0;
     int contadorActiv=0;
     
@@ -5403,6 +5429,7 @@ void Task_Verifica_Hopper(void *parameter)
 
     for (;;)
     {
+
         Verifica_Cambio_Contadores();
         contadorActiv++;
         //Serial.println("Verificando Hopper");

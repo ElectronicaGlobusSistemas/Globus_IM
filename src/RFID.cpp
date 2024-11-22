@@ -1023,6 +1023,8 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
     if (MEMORIA[0] == 'O')
     {
 
+
+        
         /* Bloquea lector */
         Info_Cashless.Lock_Reader();
 
@@ -1036,200 +1038,12 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         ID_Temp_[6] = INFO[6];
         ID_Temp_[7] = INFO[7];
 
+        
+
         /* Maquina Cashless */
         if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
         {
-            if (Variables_globales.Get_Variable_Global(Excepcion_51) && !Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss)) /* Maquina en estado de reset handpay */
-            {
 
-                Variables_globales.Set_Variable_Global(Requerimiento_Operador,true);
-                contadores.Close_ID_Operador();           /* Borra ID operador anterior */
-                contadores.Dele_Operador_INFO_Operador(); /* ID*/
-                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
-                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia timmer */
-                New_Timer_Final = New_Timmer_Inicial;
-                startTime = currentTime; /* Reset TimeOut_Player Tracking */
-
-                char ID_Temp_[8];
-                ID_Temp_[0] = INFO[0];
-                ID_Temp_[1] = INFO[1];
-                ID_Temp_[2] = INFO[2];
-                ID_Temp_[3] = INFO[3];
-                ID_Temp_[4] = INFO[4];
-                ID_Temp_[5] = INFO[5];
-                ID_Temp_[6] = INFO[6];
-                ID_Temp_[7] = INFO[7];
-
-                contadores.ID_Consulta_INFO_Operador(ID_Temp_);
-                Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
-
-                if (Variables_globales.Get_Variable_Global(Conexion_RFID))
-                {
-                    Status_Barra(TARJETA_OPERADOR_INSERT);
-                }
-                unsigned long Respuesta_Server = millis();
-                int TIMEOUT_CONECT_SERVER = 6500;
-                while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
-                {
-#ifdef DEBUG_RFID
-                    Serial.println("Verificando Conexion to Host...");
-#endif
-                    vTaskDelay(300);
-                }
-
-                if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
-                {
-
-                    if (contadores.Set_Operador_ID_Temp(ID_Temp_))
-                    {
-                        Condicion_Cumpl = false; /* Reset Timeout*/
-
-                        contadores.Copy_Operator_In_();
-                        Variables_globales.Set_Variable_Global(Operador_Detected, true);
-                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                        Update_Status_SD();
-                        Storage_Premios_OP(Archivo_CSV_Premios, Variables_globales.Get_Variable_Global(Enable_Storage), contadores.Get_Operador_ID());
-                        Info_Cashless.Unlock_Reader();
-                    }
-                    else
-                    {
-                        Variables_globales.Set_Variable_Global(Operador_Detected, false);
-                        contadores.Close_ID_Operador(); /*Temporal y en Trama*/
-                        Status_Barra(ERROR_LECTURA);
-                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                        Info_Cashless.Unlock_Reader();
-                    }
-                }
-                else
-                {
-                    Variables_globales.Set_Variable_Global(Operador_Detected, false);
-                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                    contadores.Close_ID_Operador(); /*Temporal y en Trama*/
-#ifdef DEBUG_RFID
-                    Serial.println("Host Gmaster disconected");
-#endif
-                    Status_Barra(CONEXION_TO_HOTS_FAILED);
-                    delay(100);
-                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
-                    Info_Cashless.Unlock_Reader();
-                }
-            }
-            else
-            {
-                if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION) /* Pregunta si tiene sesión Cashless */
-                {
-
-                    char ID_Temp_[8];
-                    ID_Temp_[0] = INFO[0];
-                    ID_Temp_[1] = INFO[1];
-                    ID_Temp_[2] = INFO[2];
-                    ID_Temp_[3] = INFO[3];
-                    ID_Temp_[4] = INFO[4];
-                    ID_Temp_[5] = INFO[5];
-                    ID_Temp_[6] = INFO[6];
-                    ID_Temp_[7] = INFO[7];
-
-                    Status_Barra(TARJETA_OPERADOR_INSERT);
-
-                    if (Info_Cashless.Valida_Operador_Cashless(ID_Temp_))
-                    {
-                        switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
-                        {
-                        case REQUEST_SUCCESSFULLY_RECEIVED:
-                            Solicitud_Descarga_Cashless();
-                            break;
-
-                        default:
-                            Status_Barra(ERROR_LECTURA);
-                            Info_Cashless.Unlock_Reader();
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        Status_Barra(ERROR_LECTURA);
-                        Info_Cashless.Unlock_Reader();
-                    }
-                }
-                else
-                {
-
-                    Variables_globales.Set_Variable_Global(Excepcion_51,false);
-                    contadores.Close_ID_Operador();           /* Borra ID operador anterior */
-                    contadores.Dele_Operador_INFO_Operador(); /* ID*/
-                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
-                    Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia timmer */
-                    New_Timer_Final = New_Timmer_Inicial;
-                    startTime = currentTime; /* Reset TimeOut_Player Tracking */
-
-                    char ID_Temp_[8];
-                    ID_Temp_[0] = INFO[0];
-                    ID_Temp_[1] = INFO[1];
-                    ID_Temp_[2] = INFO[2];
-                    ID_Temp_[3] = INFO[3];
-                    ID_Temp_[4] = INFO[4];
-                    ID_Temp_[5] = INFO[5];
-                    ID_Temp_[6] = INFO[6];
-                    ID_Temp_[7] = INFO[7];
-
-                    contadores.ID_Consulta_INFO_Operador(ID_Temp_);
-                    Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
-
-                    if (Variables_globales.Get_Variable_Global(Conexion_RFID))
-                    {
-                        Status_Barra(TARJETA_OPERADOR_INSERT);
-                    }
-                    unsigned long Respuesta_Server = millis();
-                    int TIMEOUT_CONECT_SERVER = 6500;
-                    while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
-                    {
-#ifdef DEBUG_RFID
-                        Serial.println("Verificando Conexion to Host...");
-#endif
-                        vTaskDelay(300);
-                    }
-
-                    if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
-                    {
-
-                        if (contadores.Set_Operador_ID_Temp(ID_Temp_))
-                        {
-                            Condicion_Cumpl = false; /* Reset Timeout*/
-
-                            contadores.Copy_Operator_In_();
-                            Variables_globales.Set_Variable_Global(Operador_Detected, true);
-                            Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                            Update_Status_SD();
-                            Storage_Premios_OP(Archivo_CSV_Premios, Variables_globales.Get_Variable_Global(Enable_Storage), contadores.Get_Operador_ID());
-                            Info_Cashless.Unlock_Reader();
-                        }
-                        else
-                        {
-                            Variables_globales.Set_Variable_Global(Operador_Detected, false);
-                            contadores.Close_ID_Operador(); /*Temporal y en Trama*/
-                            Status_Barra(ERROR_LECTURA);
-                            Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                            Info_Cashless.Unlock_Reader();
-                        }
-                    }
-                    else
-                    {
-                        Variables_globales.Set_Variable_Global(Operador_Detected, false);
-                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                        contadores.Close_ID_Operador(); /*Temporal y en Trama*/
-#ifdef DEBUG_RFID
-                        Serial.println("Host Gmaster disconected");
-#endif
-                        Status_Barra(CONEXION_TO_HOTS_FAILED);
-                        delay(100);
-                        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
-                        Info_Cashless.Unlock_Reader();
-                    }
-                }
-            }
-        }
-        else
-        {
             contadores.Close_ID_Operador();           /* Borra ID operador anterior */
             contadores.Dele_Operador_INFO_Operador(); /* ID*/
             Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
@@ -1246,27 +1060,76 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             ID_Temp_[5] = INFO[5];
             ID_Temp_[6] = INFO[6];
             ID_Temp_[7] = INFO[7];
+            
+            Status_Barra(TARJETA_OPERADOR_INSERT); /* Notifica tarjeta operador */
 
-            contadores.ID_Consulta_INFO_Operador(ID_Temp_);
-            Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
-
-            if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+            Status_Barra(301); /*Notificacion de espera...*/
+            
+            if (Info_Cashless.Await_Conexion(ID_Temp_, 'O'))
             {
-                Status_Barra(TARJETA_OPERADOR_INSERT);
+                if (contadores.Set_Operador_ID_Temp(ID_Temp_))
+                {
+                    Condicion_Cumpl = false; /* Reset Timeout*/
+
+                    contadores.Copy_Operator_In_();
+                    Variables_globales.Set_Variable_Global(Operador_Detected, true);
+                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    Update_Status_SD();
+                    Storage_Premios_OP(Archivo_CSV_Premios, Variables_globales.Get_Variable_Global(Enable_Storage), contadores.Get_Operador_ID());
+                    if(Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
+                        Info_Cashless.Unlock_Reader();
+                }
+                else
+                {
+                    Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                    contadores.Close_ID_Operador(); /*Temporal y en Trama*/
+                    Status_Barra(ERROR_LECTURA);
+                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    Info_Cashless.Unlock_Reader();
+                }
             }
-            unsigned long Respuesta_Server = millis();
-            int TIMEOUT_CONECT_SERVER = 6500;
-            while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+            else
             {
+                Variables_globales.Set_Variable_Global(Operador_Detected, false);
+                Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                contadores.Close_ID_Operador(); /*Temporal y en Trama*/
 #ifdef DEBUG_RFID
-                Serial.println("Verificando Conexion to Host...");
+                Serial.println("Host Gmaster disconected");
 #endif
-                vTaskDelay(300);
+                Status_Barra(CONEXION_TO_HOTS_FAILED);
+                delay(100);
+                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false); /* Inicia timmer */
+                Info_Cashless.Unlock_Reader();
             }
 
-            if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
-            {
+        }
+        else
+        {
 
+            
+            contadores.Close_ID_Operador();           /* Borra ID operador anterior */
+            contadores.Dele_Operador_INFO_Operador(); /* ID*/
+            Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, false);
+            Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia timmer */
+            New_Timer_Final = New_Timmer_Inicial;
+            startTime = currentTime; /* Reset TimeOut_Player Tracking */
+
+            char ID_Temp_[8];
+            ID_Temp_[0] = INFO[0];
+            ID_Temp_[1] = INFO[1];
+            ID_Temp_[2] = INFO[2];
+            ID_Temp_[3] = INFO[3];
+            ID_Temp_[4] = INFO[4];
+            ID_Temp_[5] = INFO[5];
+            ID_Temp_[6] = INFO[6];
+            ID_Temp_[7] = INFO[7];
+            
+            Status_Barra(TARJETA_OPERADOR_INSERT); /* Notifica tarjeta operador */
+
+            Status_Barra(301); /*Notificacion de espera...*/
+            
+            if (Info_Cashless.Await_Conexion(ID_Temp_, 'O'))
+            {
                 if (contadores.Set_Operador_ID_Temp(ID_Temp_))
                 {
                     Condicion_Cumpl = false; /* Reset Timeout*/
@@ -1285,6 +1148,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     Status_Barra(ERROR_LECTURA);
                     Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
                     Info_Cashless.Unlock_Reader();
+                    Reset_Handle_LED();
                 }
             }
             else
@@ -1314,11 +1178,11 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         contadores.Dele_Operador_INFO_Operador(); /* ID*/
         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
         
-        Status_Barra(LECTURA_OK);
+        Status_Barra(LECTURA_OK); /* Lectura OK */
 
         Status_Barra(301); /*Notificacion de espera...*/
        
-        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4) /* Maquinas Cashless */
         {
 
             int contador = 0;
@@ -1359,6 +1223,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                             Status_Barra(ERROR_LECTURA);
                             Info_Cashless.Unlock_Reader(); /* Habilita lector */
                             Handle=true;
+                            Reset_Handle_LED();
                             break;
                         }
                         break;
@@ -1366,6 +1231,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     default: /*  Solicitud manual de cierre  Sesion Player Tracking  */
                         Status_Barra(ERROR_LECTURA);
                         Handle=true;
+                        Reset_Handle_LED();
                         break;
                     }
                 }else{
@@ -1422,12 +1288,14 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 Error = true;
                                 Status_Barra(ERROR_LECTURA);
                                 Handle=true;
+                                Reset_Handle_LED();
                                 break;
                             }
                         }else
                         {
                             Error=true;
                             Status_Barra(ERROR_LECTURA);
+                            Reset_Handle_LED();
                             Handle=true;
                         }
 
@@ -1451,7 +1319,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 break;
 
                             case INSUFFICIENT_BALANCE:
-                                Solicitud_Carga_Cashless();
+                                Solicitud_Carga_Cashless(); /* Carga en 0 */
                                 break;
 
                             case TRANS_ID_NO_MACTH:
@@ -1460,6 +1328,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case CLIENT_NOT_MACTH:
@@ -1468,6 +1337,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case INVALID_BALANCE:
@@ -1478,6 +1348,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 // Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case TYPE_TRANS_NOT_MACTH:
@@ -1486,16 +1357,19 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Handle = true;
                                 Status_Barra(ERROR_LECTURA);
+                                Reset_Handle_LED();
                                 break;
 
-                            case PROBLEM_WITH_THE_SERVER: /* CLIENTE BLOQUEADO */
+                            case PROBLEM_WITH_THE_SERVER: /* CLIENTE BLOQUEADO  */
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case NOT_CONEXION_WITH_SERVER: /* NO CONEXION CON EL SERVIDOR */
                                 Status_Barra(CONEXION_TO_HOTS_FAILED);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case NOT_COMMUNICATION_WITH_THE_MACHINE:
@@ -1504,6 +1378,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(CONEXION_TO_HOTS_FAILED);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
                             case NOT_WIFI_CONNECTION:
                                 Objeto_Transfer["IsSuccess"] = false;
@@ -1511,6 +1386,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(CONEXION_TO_HOTS_FAILED);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             case TYPE_MACHINE_NOT_MACTH:
@@ -1519,6 +1395,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
 
                             default:
@@ -1527,6 +1404,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 Status_Barra(ERROR_LECTURA);
                                 Handle = true;
+                                Reset_Handle_LED();
                                 break;
                             }
                             /* Si Existe un Ack error D Habilita lector */
@@ -1537,7 +1415,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                             }
                         }
                         else
-                        {
+                        {/*s*/
                             /* Pendiente por Reportar transaccion */
                             Status_Barra(302);
                             Handle = true;
@@ -1552,7 +1430,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 }
                 else
                 {
-
+                    bool Handl = true;
                     char ID_Temp_Tarjeta[8];
                     ID_Temp_Tarjeta[0] = INFO[0];
                     ID_Temp_Tarjeta[1] = INFO[1];
@@ -1563,20 +1441,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     ID_Temp_Tarjeta[6] = INFO[6];
                     ID_Temp_Tarjeta[7] = INFO[7];
 
-                    contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
-                    Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
-                    
-                    bool Handl=true;
-                    unsigned long Respuesta_Server = millis();
-                    int TIMEOUT_CONECT_SERVER = 6500; // 3500
-                    while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
-                    {
-#ifdef DEBUG_RFID
-                        Serial.println("Verificando Conexion to Host...");
-#endif
-                        vTaskDelay(300);
-                    }
-                    if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+                    if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
                     {
                         Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
                         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
@@ -1584,6 +1449,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     }
                     else
                     {
+
                         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
 #ifdef DEBUG_RFID
                         Serial.println("Host Gmaster disconected");
@@ -1593,10 +1459,39 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                         delay(100);
                     }
 
-                    if(Handl)
+                    //                     contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
+                    //                     Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+
+                    //                     bool Handl=true;
+                    //                     unsigned long Respuesta_Server = millis();
+                    //                     int TIMEOUT_CONECT_SERVER = 6500; // 3500
+                    //                     while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+                    //                     {
+                    // #ifdef DEBUG_RFID
+                    //                         Serial.println("Verificando Conexion to Host...");
+                    // #endif
+                    //                         vTaskDelay(300);
+                    //                     }
+                    //                     if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+                    //                     {
+                    //                         Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                    //                         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    //                         Info_Cashless.Unlock_Reader();
+                    //                     }
+                    //                     else
+                    //                     {
+                    //                         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    // #ifdef DEBUG_RFID
+                    //                         Serial.println("Host Gmaster disconected");
+                    // #endif
+                    //                         Info_Cashless.Unlock_Reader();
+                    //                         Status_Barra(CONEXION_TO_HOTS_FAILED);
+                    //                         delay(100);
+                    //                     }
+
+                    if (Handl)
                         Info_Cashless.Unlock_Reader();
                 }
-                
             }
         }else{
             
@@ -1637,34 +1532,53 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 ID_Temp_Tarjeta[5] = INFO[5];
                 ID_Temp_Tarjeta[6] = INFO[6];
                 ID_Temp_Tarjeta[7] = INFO[7];
-                contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
-                Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
+//                 contadores.ID_Consulta_INFO_Client(ID_Temp_Tarjeta); /* Setea Id cliente + tipo C */
+//                 Variables_globales.Set_Variable_Global(Consulta_Conexion_To_Host, true);
                 
-                unsigned long Respuesta_Server = millis();
-                int TIMEOUT_CONECT_SERVER = 6500; // 3500
-                while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
-                {
-#ifdef DEBUG_RFID
-                    Serial.println("Verificando Conexion to Host...");
-#endif
-                    vTaskDelay(300);
-                }
-                if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+//                 unsigned long Respuesta_Server = millis();
+//                 int TIMEOUT_CONECT_SERVER = 6500; // 3500
+//                 while (!Variables_globales.Get_Variable_Global(Conexion_To_Host) && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+//                 {
+// #ifdef DEBUG_RFID
+//                     Serial.println("Verificando Conexion to Host...");
+// #endif
+//                     vTaskDelay(300);
+//                 }
+//                 if (Variables_globales.Get_Variable_Global(Conexion_To_Host))
+//                 {
+//                     Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+//                     Info_Cashless.Unlock_Reader();
+//                     Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+//                 }
+//                 else
+//                 {
+//                     Info_Cashless.Unlock_Reader();
+//                     Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+// #ifdef DEBUG_RFID
+//                     Serial.println("Host Gmaster disconected");
+// #endif
+//                     Status_Barra(CONEXION_TO_HOTS_FAILED);
+//                     delay(100);
+//                 }
+
+                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
                 {
                     Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                    delay(500);
                     Info_Cashless.Unlock_Reader();
-                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                    // Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
                 }
                 else
                 {
                     Info_Cashless.Unlock_Reader();
-                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                   // Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
 #ifdef DEBUG_RFID
                     Serial.println("Host Gmaster disconected");
 #endif
                     Status_Barra(CONEXION_TO_HOTS_FAILED);
                     delay(100);
                 }
+
             }
 
             Info_Cashless.Unlock_Reader();
@@ -2284,153 +2198,174 @@ void Consulta_Info_Cliente_Sistema(void)
 
 void Sesion_Abierta_Color(int Figura)
 {
-    int R,G,B;
+    int R, G, B;
     int intensidad;
-    int Style; 
+    int Style;
     int NUM;
     switch (Figura)
     {
-    case 1:/*Sesion de juego disponible*/
+    case 1:                                           /*Sesion de juego disponible*/
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0); 
+        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0);
         Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
-    break;
+        break;
 
-    case 2: /*Random de colores*/
+    case 2:                                           /*Random de colores*/
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
         for (int i = 0; i < 5; i++)
         {
-                R = random(256);                                  
-                G = random(256);                                  
-                B = random(256);
-                if(R!=255 && G!=0 && B!=0)
-                {
-                    Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
-                }                                  
+            R = random(100);
+            G = random(256);
+            B = random(256);
+
+            Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
+            Barra_Status_Sesion_Client.show(); // Mostrar el cambio en cada iteración
         }
-        Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
-    break;
-   
-    case 3: /*Desplazamiento Derecha-Izquierda*/
+        break;
+
+    case 3:                                           /*Desplazamiento Derecha-Izquierda*/
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        R = random(256);                                  
-        G = random(256);                                  
+        R = random(100);
+        G = random(256);
         B = random(256);
 
-        for(int i=0; i<5;i++)
+        for (int i = 0; i < 5; i++)
         {
-            Barra_Status_Sesion_Client.setPixelColor(i,R,G,B);
+            Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
             Barra_Status_Sesion_Client.show();
             delay(150);
         }
 
-        for(int i=3; i>=0;i--)
+        for (int i = 3; i >= 0; i--)
         {
-            Barra_Status_Sesion_Client.setPixelColor(i,R,G,B);
+            Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
             Barra_Status_Sesion_Client.show();
-            delay(150); 
+            delay(150);
         }
+        Barra_Status_Sesion_Client.setPixelColor(0, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(1, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(2, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(3, G, R, B);
+        Barra_Status_Sesion_Client.show();
+        break;
 
-    break;
-    
-    case 4:/*Solo un Bit*/
+    case 4:                                           /*Solo un Bit*/
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        R = random(256);
+        R = random(100);
         G = random(256);
         B = random(256);
 
         for (int i = 0; i < 5; i++)
         {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
-                Barra_Status_Sesion_Client.show();
-                delay(150);
-                Barra_Status_Sesion_Client.setPixelColor(i,0,0,0);
-                Barra_Status_Sesion_Client.show();
+            Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
+            Barra_Status_Sesion_Client.show();
+            delay(150);
+            Barra_Status_Sesion_Client.setPixelColor(i, 0, 0, 0);
+            Barra_Status_Sesion_Client.show();
         }
 
         for (int i = 3; i >= 0; i--)
         {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
-                Barra_Status_Sesion_Client.show();
-                delay(150);
-                Barra_Status_Sesion_Client.setPixelColor(i,0,0,0);
-                Barra_Status_Sesion_Client.show();
+            Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
+            Barra_Status_Sesion_Client.show();
+            delay(150);
+            Barra_Status_Sesion_Client.setPixelColor(i, 0, 0, 0);
+            Barra_Status_Sesion_Client.show();
         }
-    break;
 
+        Barra_Status_Sesion_Client.setPixelColor(0, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(1, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(2, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(3, G, R, B);
+        Barra_Status_Sesion_Client.show();
+        break;
 
-    case 5:/* Aleatorio posición*/
+    case 5:                                           /* Aleatorio posición*/
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        R = random(256);
+        R = random(100);
         G = random(256);
         B = random(256);
-        for(int i=0; i<5; i++)
+
+        
+        for (int i = 0; i < 5; i++)
         {
             int pos = random(0, 4);
-            Barra_Status_Sesion_Client.setPixelColor(pos, R, G, B);
+            Barra_Status_Sesion_Client.setPixelColor(pos, G, R, B);
             Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
             delay(150);
             Barra_Status_Sesion_Client.setPixelColor(pos, 0, 0, 0);
             Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
         }
-        
-    break;
+
+        Barra_Status_Sesion_Client.setPixelColor(0, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(1, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(2, G, R, B);
+        Barra_Status_Sesion_Client.setPixelColor(3, G, R, B);
+        Barra_Status_Sesion_Client.show();
+
+        break;
 
     case 6: /*Cambia intensidad*/
-         intensidad =random(10,20);
-         Style =random(2,5);
-         Barra_Status_Sesion_Client.setBrightness(intensidad); /* Configura Brillo*/
-         Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
+        intensidad = random(10, 20);
+        Style = random(2, 5);
+        Barra_Status_Sesion_Client.setBrightness(intensidad); /* Configura Brillo*/
+        Barra_Status_Sesion_Client.show();                    // Actualizamos la tira de LED
 
-         switch (Style)
-         {
-         case 2:
+        switch (Style)
+        {
+        case 2:
             for (int i = 0; i < 5; i++)
             {
-                R = random(256);
+                R = random(100);
                 G = random(256);
                 B = random(256);
-                if (R != 255 && G != 0 && B != 0)
-                {
-                    Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
-                }
+
+                
+                Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
+
+                Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
+                intensidad = random(10, 20);
+                Barra_Status_Sesion_Client.setBrightness(intensidad); /* Configura Brillo*/
             }
-            Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
-
+            Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
             break;
-         case 3:
+        case 3:
 
-            R = random(256);
+            R = random(100);
             G = random(256);
             B = random(256);
 
             for (int i = 0; i < 5; i++)
             {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
+                Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
                 Barra_Status_Sesion_Client.show();
                 delay(150);
+                intensidad = random(10, 20);
+                Barra_Status_Sesion_Client.setBrightness(intensidad); /* Configura Brillo*/
             }
 
             for (int i = 3; i >= 0; i--)
             {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
+                Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
                 Barra_Status_Sesion_Client.show();
                 delay(150);
+                intensidad = random(10, 20);
+                Barra_Status_Sesion_Client.setBrightness(intensidad); /* Configura Brillo*/
             }
-
+            Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
             break;
         case 4:
 
-            R = random(256);
+            R = random(100);
             G = random(256);
             B = random(256);
 
             for (int i = 0; i < 5; i++)
             {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
+                Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
                 Barra_Status_Sesion_Client.show();
                 delay(150);
                 Barra_Status_Sesion_Client.setPixelColor(i, 0, 0, 0);
@@ -2439,13 +2374,13 @@ void Sesion_Abierta_Color(int Figura)
 
             for (int i = 3; i >= 0; i--)
             {
-                Barra_Status_Sesion_Client.setPixelColor(i, R, G, B);
+                Barra_Status_Sesion_Client.setPixelColor(i, G, R, B);
                 Barra_Status_Sesion_Client.show();
                 delay(150);
                 Barra_Status_Sesion_Client.setPixelColor(i, 0, 0, 0);
                 Barra_Status_Sesion_Client.show();
             }
-        break;
+            break;
 
         case 5:
 
@@ -2455,43 +2390,54 @@ void Sesion_Abierta_Color(int Figura)
             for (int i = 0; i < 5; i++)
             {
                 int pos = random(0, 4);
-                Barra_Status_Sesion_Client.setPixelColor(pos, R, G, B);
+                Barra_Status_Sesion_Client.setPixelColor(pos, G, R, B);
                 Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
                 delay(150);
                 Barra_Status_Sesion_Client.setPixelColor(pos, 0, 0, 0);
                 Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
             }
-        break;
-        
+            break;
+
+        default:
+            Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
+            Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0);
+            Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0);
+            Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0);
+            Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0);
+            Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
+            break;
         }
-    break;
-    
+
+        Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
+        intensidad = 20;
+        break;
+
     case 7:
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0); 
+        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0);
         Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
         break;
     case 8:
 
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0); 
+        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0);
         Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
         break;
     default:
         Barra_Status_Sesion_Client.setBrightness(20); /* Configura Brillo*/
-        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0); 
-        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0); 
+        Barra_Status_Sesion_Client.setPixelColor(0, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(1, 255, 0, 0);
+        Barra_Status_Sesion_Client.setPixelColor(2, 255, 0, 0);
         Barra_Status_Sesion_Client.setPixelColor(3, 255, 0, 0);
         Barra_Status_Sesion_Client.show(); // Actualizamos la tira de LED
         break;
-    } 
+    }
 }
 
 void RESET_Handle(void)
@@ -2957,7 +2903,7 @@ void Status_Barra(int Status)
 
         case UPDATING_SYS:
             Handle_LED = true;
-            if (millis() - Encendido >= 1000)
+            if (millis() - Encendido >= 150)
             {
 
                 if (!LED)
@@ -4135,7 +4081,12 @@ bool Cashless_API::Inicialize_File_System(void)
 {
     if(Variables_globales.Get_Variable_Global(Default_Formatt))
     {
-        Serial.println("Hola");
+        for(int i=0; i<5; i++)
+        {
+            if(SPIFFS.format())
+                break;
+        }
+
         NVS.begin("Config_ESP32", false);
         NVS.putBool("Spiffs",false);
         NVS.end();
@@ -4390,7 +4341,6 @@ bool Cashless_API::Updated_Cashless_Counters(String Type_Transaccion)
             Code=false;
         }
         https.end();
-        if(Code==true)
            
         return Code;
     }
@@ -5008,4 +4958,82 @@ void Cashless_API::Init_Timer_Transfer_Pending(uint64_t Tiempo_ms)
 {
     esp_timer_stop(Cashless_Pending);
     esp_timer_start_once(Cashless_Pending, Tiempo_ms);
+}
+
+
+
+/* Verifica conexión con Gmaster antes de realizar transacciones fidelización o Cashless 
+
+Entradas:
+Id Cliente/Operador: 00000001
+Typo de tarjeta: C || O
+Tiempo de espera de confirmación: 10sg
+
+Salida:
+    True = Gmaster Conectado.
+    False=Gmaster Desconectado.
+*/
+bool Cashless_API::Await_Conexion(char ID_Temp[8],char Type_Client,int Timeout)
+{
+    bool Code=false;
+    int httpCode;
+    WiFiClient client;
+    HTTPClient https;
+
+    char IP_Server[4];
+    char Current_IP[4];
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+    std::string Ip=IP_toString_(IP_Server);
+    std::string maquinaIp=IP_toString_(Current_IP);
+    String Ip_Server=String(Ip.c_str());
+
+    String MaquinaIp=String(maquinaIp.c_str());
+    String Puerto="9595";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Fidelizacion/VerificaConexion"+"?"+"tarjetaId=" + String(atoi(ID_Temp),DEC)+"&"+"maquinaIp="
+    +MaquinaIp+"&"+"tarjetaTipo="+String(Type_Client);
+    
+    https.setTimeout(Timeout); /* 10seg */
+    if (https.begin(client, fwurl))
+    {
+        httpCode = https.GET();
+
+        // Serial.println(httpCode);
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+            String Response = https.getString();
+            StaticJsonDocument<500>
+                doc,
+                filter;
+            DeserializationError error = deserializeJson(doc, Response);
+           // Serial.println( Response);
+            if (error)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json deserializeJson");
+#endif
+            }
+            else
+            {
+                bool IsSuccess = doc["IsSuccess"];
+
+                if(IsSuccess)
+                    Code=true;
+                else
+                    Code=false;
+            }
+
+            doc.clear();
+        }
+        else
+        {
+
+            Code=false;
+        }
+        https.end();
+        return Code;
+    }
+    return false;
 }

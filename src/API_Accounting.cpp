@@ -5,6 +5,9 @@
 #include "Configuracion.h"
 #include "Contadores.h"
 #include <sstream> // Asegúrate de incluir esta biblioteca
+#include "RFID.h"
+#include <esp_task_wdt.h>
+
 
 std::vector<String> Premios_SAS_Pendientes;
 const char* PremisoFile = "/Premios_SAS.txt";
@@ -12,6 +15,10 @@ DynamicJsonDocument Objeto_Premios_SAS(500);
 extern ESP32Time RTC;
 extern  Configuracion_ESP32 Configuracion;
 extern Contadores_SAS contadores; // Objeto contiene contadores maquina
+extern Cashless_API Info_Cashless;
+
+
+//#define Debug_Premios_SAS
 
 
 std::string IP_toString_Acc(char IP_Char[])
@@ -62,6 +69,7 @@ unsigned long API_Accounting::Convert_Counter_4digit(char buffer_Data_Met[])
 /* Agrega premio SAS a lista de premios pendientes por transmitir */
 void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contador[])
 {
+
     if(Convert_Counter(Contador)>0)
     {
 
@@ -88,38 +96,54 @@ void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contad
         Objeto_Premios_SAS["Premio_SAS"]=Premio_SAS;
         Objeto_Premios_SAS["Pago_Parcial"]=Parcial_Pay;
         Objeto_Premios_SAS["Reset_ID"]=Reset_ID;
-        Objeto_Premios_SAS["Id_Operador"]=contadores.Get_Operador_ID_Int((char*)contadores.Get_Operador_ID());
+        Objeto_Premios_SAS["Id_Operador"]=contadores.Convert_Char_In(contadores.Get_Operador_ID());
+
+        switch (Info_Cashless.Type_Sesion())
+        {
+        
+        case PLAYER_CASHLESS_SESION:
+            Objeto_Premios_SAS["Id_Cliente"]= contadores.Get_Client_ID_Transaccion_Int();
+        break;
+        
+        default:
+            Objeto_Premios_SAS["Id_Cliente"]= contadores.Convert_Char_In(contadores.Get_Client_ID());
+            break;
+        }
         Objeto_Premios_SAS["Fecha_Hora"]=DataTime;
         Objeto_Premios_SAS["Ip"] = IP_toString_Acc(Current_IP);
         Objeto_Premios_SAS["MAC"] = WiFi.macAddress();
         Objeto_Premios_SAS["Id_Maquina"] = 0;
+        
 
         String Json;
         serializeJson(Objeto_Premios_SAS, Json); /* Serializa Data */
         
+
+        #ifdef Debug_Premios_SAS
         Serial.println(Json);
-        
+        #endif
 
         Premios_SAS_Pendientes.push_back(Json); // Agrega elemento a la lista
 
-        // File file = SPIFFS.open(PremisoFile, "a");
-        // if (file)
-        // {
+        File file = SPIFFS.open(PremisoFile, "a");
+        if (file)
+        {
+            #ifdef Debug_Premios_SAS
+            
+            Serial.println("Premio SAS almacenado con exito!");
 
-        //     for (const auto &transaccion_Premios : Premios_SAS_Pendientes)
-        //     {
-        //         file.println(transaccion_Premios);
-        //     }
-        //     file.close();
-        // }
+            #endif
+            file.println(Premios_SAS_Pendientes.back());
+            file.close();
+        }
         
     }else{
-        Serial.println("No es un premio");
+        //Serial.println("No es un premio");
     }
 }
 
 /* Metodo Web para reporte de premios SAS */
-bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
+bool API_Accounting::Send_Handpay_Informatios(ESP32Time RTC,String Data)
 {
     bool Status=false;
 
@@ -132,20 +156,26 @@ bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
     std::string Ip=IP_toString_Acc(IP_Server);
     String Ip_Server=String(Ip.c_str());
     String Puerto="9595";
-    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/Premios_SAS";
-    https.setTimeout(15000);
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/ProcesaPremioSAS";
+    https.setTimeout(20000); // Establece el tiempo de espera en 20 segundos (20000 ms)
 
     if (https.begin(client, fwurl))
     {
         
         https.addHeader("Content-Type", "application/json");
-        // https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
-        // https.addHeader("gmsec","GMaster");
-        // https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido());
+        https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
+        https.addHeader("gmsec","GMaster");
+        https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido());
         
         httpCode = https.POST(Data);
 
-      //  Serial.println(httpCode);
+
+        #ifdef Debug_Premios_SAS
+            Serial.println();
+            Serial.print("Estado de solicitud HTTP: ");
+            Serial.println(httpCode);
+        #endif
+        
          
         if (httpCode == HTTP_CODE_OK)
         {
@@ -164,9 +194,12 @@ bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
             else
             {
                 bool IsSuccess = doc["IsSuccess"];
-
+                
                 if(IsSuccess)
+                {
                     Status=true;
+                    contadores.Close_ID_Operador();
+                }
                 else
                     Status=false;
             }
@@ -184,43 +217,121 @@ bool API_Accounting::Sed_Handpay_Informatios(ESP32Time RTC,String Data)
 }
 
 /* Reporta y actualiza Lista de premios pendientes */
-void API_Accounting::Report_Informations_SAS(void)
+void API_Accounting::Delete_PremioSAS_On_List(const char* Filename)
 {
+    Premios_SAS_Pendientes.erase(Premios_SAS_Pendientes.begin()); /* Elimina premio*/
+    const char*tempFilename="/tempFile.txt";
 
-    if (WiFi.status() == WL_CONNECTED)
+    /* Abre el archivo original en modo lectura */
+
+    File fileOG = SPIFFS.open(PremisoFile, "r");
+    if(!fileOG)
     {
-        if (!Premios_SAS_Pendientes.empty())
-        {
-            String Data = Premios_SAS_Pendientes.front();     /* Toma primer Premio*/
-            bool Status = Sed_Handpay_Informatios(RTC, Data); /* Envia premio */
-            
-            if(Status)
-            {
-               
-                Premios_SAS_Pendientes.erase(Premios_SAS_Pendientes.begin()); /* Elimina premio*/
+        return;
+    }
 
-                // File file = SPIFFS.open(PremisoFile, "w");
-                // if (file)
-                // {
-                //     for (const auto &transaccion_Premios : Premios_SAS_Pendientes)
-                //     {
-                //         file.println(transaccion_Premios);
-                //     }
-                //     file.close();
-                // }
-                // else
-                // {
-                //     File file = SPIFFS.open(PremisoFile, "w");
-                //     if (file)
-                //     {
-                //         for (const auto &transaccion_Premios : Premios_SAS_Pendientes)
-                //         {
-                //             file.println(transaccion_Premios);
-                //         }
-                //         file.close();
-                //     }
-                // }
-            }   
+    /* Abre el archivo temporal en modo escritura */
+    File TempFile=SPIFFS.open(tempFilename, "w");
+    if(!TempFile)
+    {
+        fileOG.close();
+        return;
+    }
+
+    /* Elimina la primera linea */
+
+    fileOG.readStringUntil('\n');
+
+    /* Guarda el resto del contenido en el archivo temporal */
+    while(fileOG.available())
+    {
+        String Line=fileOG.readStringUntil('\n');
+        TempFile.println(Line);
+    }
+
+    /* Cierra  ambos archivos */
+    fileOG.close();
+    TempFile.close();
+
+
+    if(SPIFFS.exists(tempFilename))
+    {
+        /* Elimina el contenido*/
+        SPIFFS.remove(PremisoFile);
+        SPIFFS.rename(tempFilename, PremisoFile);
+    }else{
+        SPIFFS.remove(tempFilename);
+    }
+    
+}
+
+/* Metodo para enviar premios SAS  metodo HTTP */
+void API_Accounting:: Report_Handpay_Informations_SAS(bool Token_Cashless)
+{
+    if (Token_Cashless)
+    {
+
+        
+        Timer_Start_Premios = millis();
+
+        if ((Timer_Start_Premios - Timer_End_Premios_SAS) >= TimeOut_Premios_SAS||!Firts_SAS)
+        {
+
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                if (!Premios_SAS_Pendientes.empty())
+                {
+                    #ifdef Debug_Premios_SAS
+                        Serial.println();
+                        Serial.print("Cantidad de premios: ");
+                        Serial.println(Premios_SAS_Pendientes.size());
+                    #endif
+                    String Data = Premios_SAS_Pendientes.front();     /* Toma primer Premio*/
+                    bool Status = Send_Handpay_Informatios(RTC, Data); /* Envia premio */
+
+                    if (Status)
+                    {
+                        
+                        #ifdef Debug_Premios_SAS
+                            Serial.println("Premio SAS Enviado...");
+                        #endif
+                        Premios_SAS_Pendientes.erase(Premios_SAS_Pendientes.begin()); /* Elimina premio*/
+
+                        File file = SPIFFS.open(PremisoFile, "w");
+
+                        if (file)
+                        {
+                            #ifdef Debug_Premios_SAS
+                                Serial.println("Premio SAS Eliminado....");
+                            #endif
+                            for (const auto &transaccion_Premios : Premios_SAS_Pendientes)
+                            {
+                                esp_task_wdt_reset();
+                                file.println(transaccion_Premios);
+                            }
+                            file.close();
+                        }
+                        else
+                        {
+                            File file = SPIFFS.open(PremisoFile, "w");
+                            if (file)
+                            {
+                                #ifdef Debug_Premios_SAS
+                                    Serial.println("Premio SAS Eliminado....");
+                                #endif
+                                for (const auto &transaccion_Premios : Premios_SAS_Pendientes)
+                                {
+                                    esp_task_wdt_reset();
+                                    file.println(transaccion_Premios);
+                                }
+                                file.close();
+                            }
+                        }
+                    }
+                }
+                Timer_End_Premios_SAS = Timer_Start_Premios;
+            }
+            Firts_SAS=true;
         }
     }
 }
@@ -237,7 +348,7 @@ void API_Accounting::Load_Premios_SAS(void)
             while (file.available())
             {
                 String line = file.readStringUntil('\n');
-                //Serial.println(line);
+              //  Serial.println(line);
                 Premios_SAS_Pendientes.push_back(line);
             }
             file.close();
