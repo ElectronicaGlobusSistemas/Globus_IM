@@ -152,6 +152,8 @@ public:
    bool Get_Status_Ticket_In(void);
    
    void Set_Status_Ticket_In(bool Set);
+
+   bool Requerimiento_TITO_Ticket_Out(int Evento, bool Habilita_Tito, bool Solo_Cashless, bool Solo_Tito);
 };
 
 

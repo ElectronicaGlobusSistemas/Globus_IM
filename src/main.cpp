@@ -194,9 +194,13 @@ void setup()
         Info_Cashless.Load_Pending_Transactions(); /* Carga en RAM transacciones Cashless pendientes */
       /*--------------------------------------------------------------------------------*/
 
-      /* ------------------------------> Premios SAS <----------------------------------*/
+      /* ------------------------------> Transacciones Premios SAS <---------------------*/
       if (Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
         Accounting.Load_Premios_SAS(); /* Carga en RAM Premios SAS pendientes */
+      /*--------------------------------------------------------------------------------*/
+
+      /* -----------------------------> Transacciones Tito <----------------------------*/
+
       /*--------------------------------------------------------------------------------*/
     }
     else

@@ -782,6 +782,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         serializeJson(jsonDocument, Json); /* Serializa Data */
        // Serial.println(Json);
         request->send(200, "application/json", Json);
+        delay(800);
+        ESP.restart();
       }
       else
       {
@@ -817,6 +819,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         serializeJson(jsonDocument, Json); /* Serializa Data */
        // Serial.println(Json);
         request->send(200, "application/json", Json);
+        delay(800);
+        ESP.restart();
       }
     }
     else
@@ -2220,7 +2224,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     request->send(200, "application/json", Json);
-   
+    if(Test && Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+    {
+      delay(800);
+      ESP.restart();
+    }
   });
 
   Server_API.on("/Inhabilitar_Premios_SAS", HTTP_GET, [](AsyncWebServerRequest *request)

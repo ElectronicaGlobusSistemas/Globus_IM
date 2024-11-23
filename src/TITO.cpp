@@ -606,7 +606,19 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
 }
 
 
+/* Atiende Requerimiento TITO 57  Ticket Out */
+bool TITO::Requerimiento_TITO_Ticket_Out(int Evento, bool Habilita_Tito, bool Solo_Cashless, bool Solo_Tito)
+{
 
+    if (Evento == 0x57 && !Solo_Cashless && Habilita_Tito && Solo_Tito)
+    {
+        if(!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request))
+            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request, true);
+        return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request);
+    }
+    else
+        return false;
+}
 
 uint32_t TITO::Convert_5BCD_Uint32(char Buffer[],int Inicial_Index)
 {
