@@ -90,7 +90,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,0,6};
+uint8_t Version_Firmware_[]={2,1,0,7};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 

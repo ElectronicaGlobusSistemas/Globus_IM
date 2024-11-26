@@ -142,6 +142,7 @@ void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contad
     }
 }
 
+
 /* Metodo Web para reporte de premios SAS */
 bool API_Accounting::Send_Handpay_Informatios(ESP32Time RTC,String Data)
 {
