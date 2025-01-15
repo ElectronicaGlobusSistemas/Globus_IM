@@ -39,6 +39,7 @@ Tabla_Eventos Tabla_Evento;
 #include <string.h>
 #include "Config_Perifericos.h"
 #include "API_Accounting.h"
+#include <MFRC522.h>
 API_Accounting Accounting;
 
 /*--------------------------------------->Debug Comunicación Maquina <------------------------------*/
@@ -99,7 +100,7 @@ extern bool Ultimo_Counter_;
 bool Ejecuta_Instruccions_=false;
 unsigned long Time_I=0;
 unsigned long Time_P=0;
-int LongT=5000; //8000
+int LongT=4000; //8000
 extern bool VERIFY_WIRE_CONNECTION;
 
 extern unsigned long New_Timer_Final;
@@ -161,7 +162,7 @@ const char* archivo = "/LogESP.txt";
 
 
 
-
+extern MFRC522 mfrc522;   // Create MFRC522 instance.
 
 
 void setup()
@@ -183,7 +184,7 @@ void setup()
         1); // Core donde se ejecutara la tarea
   }
 
-  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS)|| Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
   {
 
     if (Info_Cashless.Inicialize_File_System())
@@ -200,7 +201,12 @@ void setup()
       /*--------------------------------------------------------------------------------*/
 
       /* -----------------------------> Transacciones Tito <----------------------------*/
-
+      if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+      {
+        Tito.Load_Pending_Ticket_Transactions();
+        Tito.Set_Confirma_Ticket(false);
+      }
+        
       /*--------------------------------------------------------------------------------*/
     }
     else
@@ -228,10 +234,6 @@ void setup()
   Cashless.Set_Amount_To_Load(0,0,0); /* Setea Valores de carga en 0 */
   Info_Cashless.Init_Timer_Lector();
 
-  
-
-  
-  
 }
 unsigned long INT1=0;
 int Muestreo=500;
@@ -252,7 +254,13 @@ void loop()
     Info_Cashless.Genera_Token_Cashless();
 
  // Cashless.Registra_Maquina_Auto();
-  Info_Cashless.Reporting_Pending_Transfers(25000);
+
+  if(Variables_globales.Get_Variable_Global(Enable_Cashless))
+    Info_Cashless.Reporting_Pending_Transfers(25000);
+
+  if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+    Tito.Available_Ticket_Transfer();
+
   eventos.TimeOut_Capture_Event();
   Time_I=millis();
   TimeOut_Conect_RFID=millis();
@@ -264,16 +272,18 @@ void loop()
   /*--------------------------------------------------------------------------------------*/
   /*102*/
   /*---------------------> Lectura Tarjetas  <--------------------------------------------*/
-  Lee_Tarjeta();
+ 
   /*------------------------> Despierta lector de inactividad <---------------------------*/
   if (Time_I - Time_P >= LongT)
   {
     if (Variables_globales.Get_Variable_Global(Conexion_RFID))
     {
-      RESET_Handle(); /* Reset Handle*/
+      mfrc522.PICC_IsNewCardPresent();
     }
     Time_P = millis();
   }
+
+  Lee_Tarjeta();
   /*--------------------------------------------------------------------------------------*/
   
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/

@@ -8,6 +8,10 @@ using namespace std;
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 
+#include "API_Accounting.h"
+extern API_Accounting Accounting;
+
+
 extern AutoUpdate UpdateOTA;
 extern uint8_t Version_Firmware_[];
 int Convert_Char_To_Int(char buffer[]);
@@ -1638,6 +1642,8 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
         Last_Cancel_Credit = Current_Cancel_Credit;
         Set_Flag_Premio(true);
         // Serial.println("Cambio Premio-----");
+        /* Se agrego---->*/
+        Accounting.Change_Flag_Handler_Cancel_Credit(true);
       }
 
     }

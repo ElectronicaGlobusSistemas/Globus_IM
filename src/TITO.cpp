@@ -12,6 +12,12 @@
 #include "time.h"
 #include "Buffer_Cashless.h"
 #include "Preferences.h"
+#include "SPIFFS.h"
+#include <esp_task_wdt.h>
+
+std::vector<String> Ticket_Pendientes;
+const char* Ticketfile = "/Ticket.txt";
+
 extern Preferences NVS;
 
 extern ESP32Time RTC; // Objeto contiene hora y fecha
@@ -21,11 +27,42 @@ extern Cashless_API Info_Cashless;
 extern Contadores_SAS contadores; // Objeto contiene contadores maquina
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
+extern bool Actualiza_Tito_Entradas(void);
+extern bool Actualiza_Tito_Salidas(void);
 
+
+extern bool Flag_Entradas_Tito_OK;
+extern bool Flag_Salidas_Tito_OK;
 extern TITO Tito;
 DynamicJsonDocument Objeto_Ticket_Out(800);
 DynamicJsonDocument Objeto_Ticket_In(800);
 DynamicJsonDocument Objeto_Ticket_In_Transfer(800);
+DynamicJsonDocument Objeto_Ticket_In_Response(800);
+
+
+
+
+
+void TITO::Set_Flag_New_Ticket_In(bool Flag_Status)
+{
+    Flag_New_Transfer_Ticket_In=Flag_Status;
+}
+
+void TITO::Set_Flag_New_Ticket_Out(bool Flag_Status)
+{
+    Flag_New_Transfer_Ticket_Out=Flag_Status;
+}
+
+
+bool TITO::Get_Flag_New_Ticket_In(void)
+{
+    return Flag_New_Transfer_Ticket_In;
+}
+
+bool TITO::Get_Flag_New_Ticket_Out(void)
+{
+    return Flag_New_Transfer_Ticket_Out;
+}
 
 
 std::string IP_toString_Ticket(char IP_Char[])
@@ -86,7 +123,7 @@ bool TITO::Generate_Key_Ticket_Out(void)
     std::string Ip=IP_toString_Ticket(IP_Server);
     String Ip_Server=String(Ip.c_str());
     String Puerto="9595";
-    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/Ticket_Out";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Tito/Ticket_Out";
 
     WiFiClient client;
     HTTPClient https;
@@ -157,7 +194,13 @@ bool TITO::Generate_Key_Ticket_Out(void)
         {
             Code=false;
         }
-        https.end(); 
+        https.end();
+
+        if(Code)
+            Serial.println("Token Ticket Generado correctamente!");
+        else
+            Serial.println("Token Ticket no generado!");
+
         return Code;
     }
     return false;
@@ -165,7 +208,7 @@ bool TITO::Generate_Key_Ticket_Out(void)
 
 bool TITO::Reedeme_Ticket_In(void)
 {
-
+    
     bool Code=false;
     int httpCode;
 
@@ -204,8 +247,10 @@ bool TITO::Reedeme_Ticket_In(void)
 
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
-   // Serial.println(Json);
-    
+   
+    Serial.println(" ------------------------>SOLICITUD (HTTP POST) Numero de validacion <-----------------------------");
+    Serial.println(Json);
+    Serial.println(" --------------------------------------------------------------------------------------------------");
     https.setTimeout(5000); /* 5seg max */
     if (https.begin(client, fwurl))
     {
@@ -218,8 +263,12 @@ bool TITO::Reedeme_Ticket_In(void)
         // Serial.println(httpCode);
         if (httpCode == HTTP_CODE_OK)
         {
+            
 
+            Serial.println("-------------------------------------->Respuesta Gmaster<------------------------------------------");
             String Response = https.getString();
+            Serial.println(Response);
+            Serial.println(" --------------------------------------------------------------------------------------------------");
             StaticJsonDocument<500>
                 doc,
                 filter;
@@ -256,9 +305,39 @@ bool TITO::Reedeme_Ticket_In(void)
 }
 
 
+char* TITO::Get_Validatioins_Number_Out(void)
+{
+    return Validation_Number_Out;
+}
+bool TITO::Set_Validations_Number_Out(String Validations_Number_Out)
+{
+    char Test[8];
+    // Convertir los dígitos a BCD
+    for (int i = 0; i < 8; i++)
+    {
+        // Convertir cada par de dígitos
+        Test[i] = ((Validations_Number_Out.charAt(2 * i) - '0') << 4) | (Validations_Number_Out.charAt(2 * i + 1) - '0');
+    }
 
+    // Convertir de BCD - String
+    String Validation_Number_Recovery = "";
+    for (int i = 0; i < 8; i++)
+    {
+        // Extraer los dos dígitos de cada byte BCD
+        Validation_Number_Recovery += String((Test[i] >> 4) & 0x0F); // Dígito alto
+        Validation_Number_Recovery += String(Test[i] & 0x0F);        // Dígito bajo
+    }
 
-
+    if (Validations_Number_Out == Validation_Number_Recovery)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            Validation_Number_Out[i] = Test[i];
+        }
+        return true;
+    }
+    return false;
+}
 
 bool TITO::Set_Parameter_Ticket(String  Validation_Number_)
 {
@@ -324,17 +403,26 @@ bool TITO::Remove_Validacion_Number(void)
 //         return false;
 // }
 
-int TITO::Get_Validacion_System_ID(void)
+uint8_t TITO::Get_Validacion_System_ID(void)
 {
     return Validations_System_ID;
 }
 
 
+void TITO::Set_Confirma_Ticket(bool Confirma)
+{
+    Current_4D_3E=Confirma;
+}
+
+bool TITO::Get_Confirma_Ticket(void)
+{
+    return Current_4D_3E;
+}
 
 bool TITO::Update_Ticket(int Code, int Type_Ticket)
 {
     if (Code == 0x00) /* 0x80  not in cashout  0x81 improper validation rejected */
-        Objeto_Ticket_Out["IsSuccess"] = true;
+        Objeto_Ticket_Out["IsSuccess"] = false;
     else
         Objeto_Ticket_Out["IsSuccess"] = false;
 
@@ -359,8 +447,11 @@ bool TITO::Update_Ticket(int Code, int Type_Ticket)
         break;
     }
 
-    return true;
 
+    if(Code==0x00)
+        return true;
+    else
+        return false;
 }
 
 uint32_t TITO::Convert_4BCD_Uint32(char Buffer[],int Inicial_Index)
@@ -387,26 +478,31 @@ int TITO::Convert_2BNR_Int(char HighByte,char LowByte)
 }
 
 
-bool TITO::Ticket_Information_Capture(char Buffer_70[],ESP32Time)
+uint8_t BCD_to_Decimal(uint8_t bcd) {
+    return ((bcd >> 4) * 10) + (bcd & 0x0F);
+}
+
+bool TITO::Ticket_Information_Capture(char Buffer_70[], ESP32Time)
 {
     String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
-    int Ticket_Status=Buffer_70[3];
+    int Ticket_Status = Buffer_70[3];
 
-    char Amount[6];
+    char Amount_Data[5];
     /* Amount */
-    Amount[0] = Buffer_70[4];
-    Amount[1] = Buffer_70[5];
-    Amount[2] = Buffer_70[6];
-    Amount[3] = Buffer_70[7];
-    Amount[4] = Buffer_70[8];
+    Amount_Data[0] = Buffer_Cashless.Get_Buffer_TITO_70()[4];
+    Amount_Data[1] = Buffer_Cashless.Get_Buffer_TITO_70()[5];
+    Amount_Data[2] = Buffer_Cashless.Get_Buffer_TITO_70()[6];
+    Amount_Data[3] = Buffer_Cashless.Get_Buffer_TITO_70()[7];
+    Amount_Data[4] = Buffer_Cashless.Get_Buffer_TITO_70()[8];
 
-    Convert_5BCD_Uint32(Amount,0);
+    int Parsing_Code = Buffer_70[9];
 
-    int Parsing_Code=Buffer_70[9];
+    uint8_t Id_System = ((Buffer_70[10] >> 4) * 10) + (Buffer_70[10] & 0x0F);
+    uint8_t convertedBackToBCD = ((Id_System / 10) << 4) | (Id_System % 10);
 
-    int Id_System = ((Buffer_70[10] >> 4) * 10) + (Buffer_70[10] & 0x0F);
-    char convertedBackToBCD = ((Id_System / 10) << 4) | (Id_System % 10);
+    char Id_System_String[10];
+    sprintf(Id_System_String, "0x%02d", Id_System);
 
 
     char Validacion_Number_Char[8];
@@ -420,68 +516,113 @@ bool TITO::Ticket_Information_Capture(char Buffer_70[],ESP32Time)
     Validacion_Number_Char[6] = Buffer_70[17];
     Validacion_Number_Char[7] = Buffer_70[18];
 
-   
-    Objeto_Ticket_In["Ticket_Status"]=  Ticket_Status;
-    Objeto_Ticket_In["Saldo"]= Convert_5BCD_Uint32(Amount,0);
-    Objeto_Ticket_In["Numero_Validacion"]=  Validacion_Number(Validacion_Number_Char);
-    Objeto_Ticket_In["Validation_System_ID"]=Id_System;
+    // for(int i=11; i< 19; i++)
+    // {
+    //     Serial.println(Buffer_70[i],HEX);
+    // }
 
-    if(Parsing_Code==0xFF||Id_System!=convertedBackToBCD)
+    Buffer_Cashless.Init_Buffer_TITO_70(); /* Borra respuesta 0xAA */
+
+    Objeto_Ticket_In["Ticket_Status"] = Ticket_Status;
+    Objeto_Ticket_In["Saldo"] = Convert_5BCD_Uint32(Amount_Data, 0);
+    Objeto_Ticket_In["Numero_Validacion"] = Validacion_Number(Validacion_Number_Char);
+    Objeto_Ticket_In["Validation_System_ID"] = Id_System_String;
+
+    if (Parsing_Code == 0xFF)
+    {
+        Serial.println(Parsing_Code);
+        Serial.println(Id_System_String);
+        Serial.println(convertedBackToBCD);
+        Serial.println(Convert_5BCD_Uint32(Amount_Data, 0));
         return false;
-    return true;
+    }
+       
+    String Json;
+    serializeJson(Objeto_Ticket_In, Json); /* Serializa Data */
+    Serial.println("--------------->Consulta informacion Ticket (HTTP POST) <----------------------");
+    Serial.println(Json);
+    Serial.println("-------------------------------------------------------------------------------");
+    if (Consult_Ticket(Json))
+    {
+       
+        return true;
+    }
+        
+    else
+        return false;
 }
 
-
+/* Metodo reporta estado de transaccion Final Tito */
 bool TITO::Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC)
 {
+
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+
+
+
     int Code=Buffer_4D[3];
 
 
     if(Code==0x00|| Code==0x01||Code==0x02)
         Objeto_Ticket_In_Transfer["IsSuccess"]=true;
+    else if(Code==0x40)
+        Objeto_Ticket_In_Transfer["IsSuccess"]=false;
     else
         Objeto_Ticket_In_Transfer["IsSuccess"]=false; 
 
-    char Amount[8];
+    char Amount[5];
 
     Amount[0]=Buffer_4D[4];
     Amount[1]=Buffer_4D[5];
     Amount[2]=Buffer_4D[6];
     Amount[3]=Buffer_4D[7];
     Amount[4]=Buffer_4D[8];
-    Amount[5]=Buffer_4D[9];
-    Amount[6]=Buffer_4D[10];
-    Amount[7]=Buffer_4D[11];
+    // Amount[5]=Buffer_4D[9];
+    // Amount[6]=Buffer_4D[10];
+    // Amount[7]=Buffer_4D[11];
 
-    char Parsing_Code=Buffer_4D[12];
 
-    int Id_System = ((Buffer_4D[13] >> 4) * 10) + (Buffer_4D[13] & 0x0F);
+
+    char Parsing_Code=Buffer_4D[9];
+
+    int Id_System = ((Buffer_4D[10] >> 4) * 10) + (Buffer_4D[10] & 0x0F);
     char convertedBackToBCD = ((Id_System / 10) << 4) | (Id_System % 10);
+
+    char Id_System_String[10];
+    sprintf(Id_System_String, "0x%02d", Id_System);
     
     char Validations[8];
 
-    Validations[0]=Buffer_4D[14];
-    Validations[1]=Buffer_4D[15];
-    Validations[2]=Buffer_4D[16];
-    Validations[3]=Buffer_4D[17];
-    Validations[4]=Buffer_4D[18];
-    Validations[5]=Buffer_4D[19];
-    Validations[6]=Buffer_4D[20];
-    Validations[7]=Buffer_4D[21];
+    Validations[0]=Buffer_4D[11];
+    Validations[1]=Buffer_4D[12];
+    Validations[2]=Buffer_4D[13];
+    Validations[3]=Buffer_4D[14];
+    Validations[4]=Buffer_4D[15];
+    Validations[5]=Buffer_4D[16];
+    Validations[6]=Buffer_4D[17];
+    Validations[7]=Buffer_4D[18];
 
-
+   
     Objeto_Ticket_In_Transfer["Codigo"]=Code;
     Objeto_Ticket_In_Transfer["Saldo"]=Convert_5BCD_Uint32(Amount,0);
     Objeto_Ticket_In_Transfer["Parsing_Code"]=Parsing_Code;
     Objeto_Ticket_In_Transfer["Numero_Validacion"]=  Validacion_Number(Validations);
-    Objeto_Ticket_In_Transfer["Validation_System_ID"]=Id_System;
+    Objeto_Ticket_In_Transfer["Validation_System_ID"]=Id_System_String;
     Objeto_Ticket_In_Transfer["Cliente_ID"]=contadores.Get_Client_ID_Transaccion_Int();    
-    
-
+    Objeto_Ticket_In_Transfer["Trans_Tipo"]="0x00";
+    Objeto_Ticket_In_Transfer["Fecha_Hora"]=DataTime;
 
     String Json;
     serializeJson( Objeto_Ticket_In_Transfer, Json); /* Serializa Data */
-    Objeto_Ticket_In_Transfer.clear();
+   // Objeto_Ticket_In_Transfer.clear();
+    Serial.println(" ------------------------>SOLICITUD (HTTP POST) ACK<-----------------------------");
+    Serial.println(Json);
+    Serial.println(" -------------------------------------------------------------------------------");
+    if(Code==0x40)
+        Flag_Parcial_New_Transfer_Ticket_In=true;
+    else
+        Set_Flag_New_Ticket_In(true);
+
 
     if(Code==0x00|| Code==0x01||Code==0x02)
         return true;
@@ -499,7 +640,7 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     char Validation_Number_[8];
     char Amount[5];
     int Ticket_Number;
-    int Validation_System_ID;
+    int Validation_System_ID_New;
     char Expiration[4];
 
     /* Validation Type */
@@ -562,10 +703,15 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
 
     /*TICKET NUMBER*/
     Ticket_Number = Convert_2BNR_Int(Buffer_4D[24],Buffer_4D[25]);
-    Serial.println(Buffer_4D[24]);
-    Serial.println(Buffer_4D[25]);
+    // Serial.println(Buffer_4D[24]);
+    // Serial.println(Buffer_4D[25]);
+
+    uint8_t Id_System = ((Buffer_4D[26] >> 4) * 10) + (Buffer_4D[26] & 0x0F);
     /*VALIDATION SYSTEM ID*/
-    Validation_System_ID = Buffer_4D[26];
+   // Validation_System_ID_New = Buffer_4D[26];
+    char Id_System_String[10];
+    sprintf(Id_System_String, "0x%02d", Id_System);
+    
 
     /*EXPIRATION*/
     Expiration[0] = Buffer_4D[27];
@@ -576,14 +722,27 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     uint32_t Expiration_Ticket = Convert_4BCD_Uint32(Expiration,0);
     Buffer_Cashless.Init_Buffer_TITO_4D();
 
+
+    if(Objeto_Ticket_Out["Code"]==0x00)
+    {
+        Objeto_Ticket_Out["Codigo"]=0x00;
+        Objeto_Ticket_Out["IsSuccess"] = true;
+    }else{
+        Objeto_Ticket_Out["Codigo"]=0xFF;
+        Objeto_Ticket_Out["IsSuccess"] = false;
+    }
+        
+
     Objeto_Ticket_Out["Numero_Indice"]=  Index_Number;
     Objeto_Ticket_Out["Tipo_Validacion"]= Validation_Type;
     Objeto_Ticket_Out["Fecha_Hora_Validacion"]= DataTime_Validation;
-
+    Objeto_Ticket_Out["Trans_Tipo"]="0x01";
     Objeto_Ticket_Out["Numero_Validacion"]=  Validacion_Number(Validation_Number_);
     Objeto_Ticket_Out["Saldo"]= Convert_5BCD_Uint32(Amount,0);
     Objeto_Ticket_Out["Numero_Ticket"]= Ticket_Number;
-    Objeto_Ticket_Out["Validation_System_ID"]=Get_Validacion_System_ID();
+    Objeto_Ticket_Out["Validation_System_ID"]=Id_System_String;
+
+   
 
     if(Expiration_Ticket==9999||Expiration_Ticket==0)
         Objeto_Ticket_Out["Expiracion_Ticket"]=nullptr;
@@ -599,9 +758,10 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     
     Remove_Validacion_Number(); /*0xAA*/
    // Remove_System_ID(); /*0xAA*/
-
+    Serial.println(" ------------------------>SOLICITUD (HTTP POST) ACK TICKET OUT<-----------------------------");
     Serial.println(Json);
-
+    Serial.println(" -------------------------------------------------------------------------------------------");
+    Set_Flag_New_Ticket_Out(true);
     return true;
 }
 
@@ -609,6 +769,13 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
 /* Atiende Requerimiento TITO 57  Ticket Out */
 bool TITO::Requerimiento_TITO_Ticket_Out(int Evento, bool Habilita_Tito, bool Solo_Cashless, bool Solo_Tito)
 {
+   
+
+    if(Evento==0x3D && Tito.Get_Status_Process_Ticket()||Evento==0x3E && Tito.Get_Status_Process_Ticket())
+    {
+        Serial.println("Ticket Impreso OK");
+        Set_Confirma_Ticket(true);
+    }
 
     if (Evento == 0x57 && !Solo_Cashless && Habilita_Tito && Solo_Tito)
     {
@@ -658,35 +825,35 @@ bool TITO:: Get_Status_Token_Ticket_Http(void)
     return Solicitud_Token_Ticket;
 }
 
-void TITO::Request_Handle_Tito(void)
-{
+// void TITO::Request_Handle_Tito(void)
+// {
 
-    if(Get_Status_Token_Ticket_Http())
-    {
-        if(!Get_Status())
-        {
-            if(Generate_Key_Ticket_Out())
-            {   Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request,true);
-                Set_Status(true);
-            }
-        }
-        Solicitud_Token_Ticket_Http(false);
-    }
+//     if(Get_Status_Token_Ticket_Http())
+//     {
+//         if(!Get_Status())
+//         {
+//             if(Generate_Key_Ticket_Out())
+//             {   Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request,true);
+//                 Set_Status(true);
+//             }
+//         }
+//         Solicitud_Token_Ticket_Http(false);
+//     }
 
-    if(Get_Status_Reedened_Ticket_Http())
-    {
+//     if(Get_Status_Reedened_Ticket_Http())
+//     {
 
-        if (!Get_Status_Ticket_In())
-        {
-            if (Reedeme_Ticket_In())
-            {
-                Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
-                Set_Status_Ticket_In(true);
-            }
-        }
-        Silicitud_Reedemed_Ticket_Http(false);
-    }
-}
+//         if (!Get_Status_Ticket_In())
+//         {
+//             if (Reedeme_Ticket_In())
+//             {
+//                 Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
+//                 Set_Status_Ticket_In(true);
+//             }
+//         }
+//         Silicitud_Reedemed_Ticket_Http(false);
+//     }
+// }
 
 bool TITO::Handle_Event_Tito(int Evento,bool Enable)
 {
@@ -797,7 +964,7 @@ bool TITO::Increase_Transaction_Number_ID_Tito(void)
 {
   Validations_System_ID++;
 
-  if(Validations_System_ID>=99)
+  if(Validations_System_ID>99)
   {
     Validations_System_ID=0;
   }
@@ -821,4 +988,577 @@ bool TITO::Set_Inicial_Trans_ID_Tito(int New_Validation_System_ID)
         return true;
     else
         return false;
+}
+
+
+bool TITO::Set_Amount_Ticket_Transfer(uint32_t Amount_Transfer)
+{
+    Amount_Transfer=Amount_Transfer;
+
+    char strOut[11];
+    char str[11];
+
+    uint32_t Test_Credit=0;
+
+    for( int i=0; i<5; i++)
+    {
+        Amount_Ticket_Transfer[i]=0;
+    }
+   
+    
+    sprintf(str, "%010d", Amount_Transfer);
+
+    // Convertir cada par de caracteres a un byte BCD Cashables
+    for (int i = 0; i < 5; i++)
+    {
+        Amount_Ticket_Transfer[i] = ((str[i * 2] - '0') << 4) | (str[i * 2 + 1] - '0');
+    }
+
+
+
+    /* Proceso inverso para saber si la conversion esta OK */
+    for (int i = 0; i < 5; i++)
+    {
+      strOut[i * 2] = (Amount_Ticket_Transfer[i] >> 4) + '0';
+      strOut[i * 2 + 1] = (Amount_Ticket_Transfer[i] & 0x0F) + '0';
+    }
+    strOut[10] = '\0'; // Asegurarse de que la cadena termine con un carácter nulo
+
+    
+    sscanf(strOut, "%u", &Test_Credit);
+
+    if(Test_Credit==Amount_Transfer)
+        return true;
+    else
+        return false;
+}
+
+
+
+char* TITO::Get_Amount_Ticket_Transfer(void)
+{
+    return Amount_Ticket_Transfer;
+}
+
+bool TITO::Consult_Ticket(String Ticket_Informations)
+{
+    bool Code=false;
+    int httpCode;
+
+    char IP_Server[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+    char Current_IP[4];
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    std::string Ip=IP_toString_Ticket(IP_Server);
+    String Ip_Server=String(Ip.c_str());
+    String Puerto="9595";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Tito/Ticket_In";
+
+    WiFiClient client;
+    HTTPClient https;
+
+    
+    https.setTimeout(5000); /* 5seg max */
+    if (https.begin(client, fwurl))
+    {
+        https.addHeader("Content-Type", "application/json");
+        https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
+        https.addHeader("gmsec","GMaster");
+        https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido()); // Agrega el token de autorización
+        httpCode = https.POST(Ticket_Informations);
+
+        // Serial.println(httpCode);
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+            String Response = https.getString();
+            Serial.println("------------------> Respuesta Gmaster <------------------------------------");
+            Serial.println(Response);
+            Serial.println("---------------------------------------------------------------------------");
+            StaticJsonDocument<500>
+                doc,
+                filter;
+            DeserializationError error = deserializeJson(doc, Response);
+           // Serial.println( Response);
+            if (error)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json Contadores ");
+#endif
+            }
+            else
+            {
+
+               // Serial.println(Response);
+               // Objeto_Ticket_In_Response.clear();
+
+                bool IsSuccess = doc["IsSuccess"];
+                Objeto_Ticket_In_Response["IsSuccess"]=IsSuccess;
+                
+                const char *Transfer_Codestr = doc["Transfer_Code"];
+
+                int Transfer_Code = strtol(Transfer_Codestr, nullptr, 16);
+                // Serial.print("Transfer_Code (entero hexadecimal): ");
+                // Serial.println(Transfer_Code, HEX); // Mostrar como hexadecimal
+
+                
+                Objeto_Ticket_In_Response["Transfer_Code"]=Transfer_Code;
+
+                if(IsSuccess)
+                {
+                    Objeto_Ticket_In_Response["Transfer_Amount"]=doc["Saldo"];
+                    Objeto_Ticket_In_Response["Parsing_Code"]=0x00;
+
+                   // String hexValue = doc["Validation_System_ID"]; // Recibir el valor hexadecimal como string, por ejemplo "0x12"
+                    //uint8_t Validation_System_ID =  doc["Validation_System_ID"];
+                    
+                    const char *validationSystemIDStr = doc["Validation_System_ID"];
+
+
+                    // Serial.print("Validation_System_ID (cadena): ");
+                    // Serial.println(validationSystemIDStr);
+                    int validationSystemID = strtol(validationSystemIDStr, nullptr, 16);
+                    // Serial.print("Validation_System_ID (entero hexadecimal): ");
+                    // Serial.println(validationSystemID, HEX); // Mostrar como hexadecimal
+                    Objeto_Ticket_In_Response["Validation_System_ID"]=validationSystemID;
+
+                    Objeto_Ticket_In_Response["Numero_Validacion"]=doc["Numero_Validacion"];
+                    Objeto_Ticket_In_Response["Restricted_Expiration"]=doc["Expiracion_Ticket"];
+                    Code=true;
+                }
+                else
+                    Code=false;
+            }
+
+            doc.clear();
+        }
+        else
+        {
+            Code=false;
+        }
+        https.end(); 
+        return Code;
+    }
+    return false;
+}
+
+
+bool TITO:: Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
+{
+    if (Evento == 0x67  && Habilita_Tito)
+    {
+        Serial.println("Evento Ticket Insertado...");
+        if(!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
+            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In,true);
+        return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In);
+    }
+    else
+        return false;
+}
+
+
+void TITO::Load_Pending_Ticket_Transactions(void)
+{
+
+    if (SPIFFS.exists(Ticketfile))
+    {
+        File file = SPIFFS.open(Ticketfile, "r");
+        if (file)
+        {
+           
+            while (file.available())
+            {
+                String line = file.readStringUntil('\n');
+              //  Serial.println(line);
+                Ticket_Pendientes.push_back(line);
+            }
+            file.close();
+        }
+    }else{
+
+        File file = SPIFFS.open(Ticketfile, "a");
+        if (file)
+        {
+            file.close();
+        }
+    }
+}
+
+
+
+bool TITO::Send_Transfer_Ticket(const String & json)
+{
+
+    int httpCode;
+    int Code=false;
+
+    char IP_Server[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    std::string Ip=IP_toString_(IP_Server);
+    String Ip_Server=String(Ip.c_str());
+    String Puerto="9595";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Tito/Ack";
+    WiFiClient client;
+
+    HTTPClient https;
+   
+    https.setTimeout(15000);
+
+    if (https.begin(client, fwurl))
+    {
+        https.addHeader("Content-Type", "application/json");
+        https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
+        https.addHeader("gmsec","GMaster");
+        https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido()); // Agrega el token de autorización
+        httpCode = https.POST(json);
+
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String Response = https.getString();
+            StaticJsonDocument<1024>
+                doc,
+                filter;
+            DeserializationError error = deserializeJson(doc, Response);
+            if (error)
+            {
+                #ifdef Debug_HTTPS
+                                Serial.println("Error Json Contadores ");
+                #endif
+                Code=false;
+            }
+            else
+            {
+                bool IsSuccess = doc["IsSuccess"];
+                String Msgg=doc["Message"];
+
+                if(IsSuccess)
+                {
+                    Code=true;
+                }
+                    
+                else
+                {
+                    Code=false;
+                }
+                   
+            }
+
+            doc.clear();
+        }
+        else
+        {
+            Code=false;
+        }
+        https.end();
+        return Code;
+    }
+    return Code;
+}
+
+
+void TITO::New_Transfer_Ticket(const String& json)
+{
+    if(!Send_Transfer_Ticket(json))
+    {
+        Serial.println(" Transaccion ticket no recibida ");
+        Ticket_Pendientes.push_back(json); /* Agrega a la lista si no se puede enviar */
+        Save_Ticket_Transaction(); 
+        //Transaccion_Finalizada();
+    }else{
+
+        Serial.println(" Transaccion ticket ");
+        StaticJsonDocument<200> filter;
+        StaticJsonDocument<200> doc;
+        doc.clear();
+        filter.clear();
+        // Crear un filtro para incluir solo la clave "IsSuccess"
+        filter["IsSuccess"] = true;
+
+        DeserializationError error = deserializeJson(doc, json, DeserializationOption::Filter(filter));
+        if (!error)
+        {
+            bool isSuccess = doc["IsSuccess"];
+
+            if (isSuccess)
+            {
+               Updated_Ticket_Counters(json); /* Transaccion OK  envia trama contadores */
+            }
+        }
+        //Transaccion_Finalizada();
+    }
+    
+}
+
+void TITO::Save_Ticket_Transaction(void)
+{
+    File file = SPIFFS.open(Ticketfile, "w");
+    if (file) {
+        for (const auto& transaccion : Ticket_Pendientes) {
+            file.println(transaccion);
+        }
+        file.close();
+    }
+}
+
+
+void TITO::Set_Flag_Ticket_Out_Pending(int Status)
+{
+    Flag_New_Transfer_Ticket__Out_Pending_=Status;
+}
+
+bool TITO::Get_Flag_Ticket_Out_Pending(void)
+{
+    return Flag_New_Transfer_Ticket__Out_Pending_;
+}
+
+
+void TITO::Available_Ticket_Transfer(int Timeout)
+{
+    bool Cambios=false;
+
+    if(Get_Flag_Ticket_Out_Pending())
+    {
+        String Json;
+        Objeto_Ticket_Out["Trans_Tipo"]="0x01";
+        if(Objeto_Ticket_Out["Code"]==0x00)
+            Objeto_Ticket_Out["Codigo"]=0x40;
+        else
+            Objeto_Ticket_Out["Codigo"]=0xFF;
+        serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
+
+       
+        Send_Transfer_Ticket(Json);
+        Serial.println(" ------------------------>SOLICITUD (HTTP POST) ACK TICKET OUT PENDIENTE <------------------");
+        Serial.println(Json);
+        Serial.println(" -------------------------------------------------------------------------------------------");
+        Set_Flag_Ticket_Out_Pending(false);
+    }
+
+
+    if(Get_Flag_New_Ticket_In())
+    {
+        String Json;
+        serializeJson(Objeto_Ticket_In_Transfer, Json); /* Serializa Data */
+        Objeto_Ticket_In_Transfer.clear(); /*  Limpia  Objeto Ack Transferencias carga */
+        New_Transfer_Ticket(Json);
+        Set_Flag_New_Ticket_In(false);
+    }
+
+    if(Get_Flag_New_Ticket_Out())
+    {
+        String Json;
+        serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
+        Objeto_Ticket_Out.clear(); /*  Limpia  Objeto Ack Transferencias carga */
+        New_Transfer_Ticket(Json);
+        Set_Flag_New_Ticket_Out(false);
+    }
+
+    if(Flag_Parcial_New_Transfer_Ticket_In)
+    {
+        //Serial.println("Entrega parcial");
+        String Json;
+        serializeJson(Objeto_Ticket_In_Transfer, Json); /* Serializa Data */
+        Objeto_Ticket_In_Transfer.clear(); /*  Limpia  Objeto Ack Transferencias carga */
+        Send_Transfer_Ticket(Json);
+        Flag_Parcial_New_Transfer_Ticket_In=false;
+    }
+
+    if(Flag_Parcial_New_Transfer_Ticket_Out)
+    {
+        String Json;
+        serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
+        Objeto_Ticket_Out.clear(); /*  Limpia  Objeto Ack Transferencias carga */
+        Send_Transfer_Ticket(Json);
+        Flag_Parcial_New_Transfer_Ticket_Out=false;
+    }
+
+    if (!Ticket_Pendientes.empty())
+    {
+        Timeout_Tito_Transfer_Inicial=millis();
+        if ((Timeout_Tito_Transfer_Inicial - Timeout_Tito_Transfer_Final) >= Timeout)
+        {
+            String transaccion = Ticket_Pendientes.front(); /* Toma la primera transferencia */
+
+            if (Send_Transfer_Ticket(transaccion)) /* Intenta enviarla */
+            {
+                Ticket_Pendientes.erase(Ticket_Pendientes.begin()); /* Si el servidor la recibio la elimina */
+                Cambios = true;
+
+                /* Acualiza contadores Ticket */
+                StaticJsonDocument<200> filter;
+                StaticJsonDocument<200> doc;
+                doc.clear();
+                filter.clear();
+                // Crear un filtro para incluir solo la clave "IsSuccess"
+                filter["IsSuccess"] = true;
+
+                DeserializationError error = deserializeJson(doc, transaccion, DeserializationOption::Filter(filter));
+                if (!error)
+                {
+                    bool isSuccess = doc["IsSuccess"];
+
+                    if (isSuccess)
+                    {
+                        Updated_Ticket_Counters(transaccion); /* Transaccion OK  envia trama contadores tito */
+                    }
+                }
+            }
+            Timeout_Tito_Transfer_Final=Timeout_Tito_Transfer_Inicial;
+        }
+    }
+
+    if(Cambios)
+        Save_Ticket_Transaction();
+}
+
+bool TITO::Updated_Ticket_Counters(String Type_Transaccion)
+{
+
+    #define TICKET_IN   "0x00"
+    #define TICKET_OUT  "0x01"
+
+    WiFiClient client;
+    HTTPClient https;
+
+
+    bool Code=false;
+    int httpCode;
+
+    char IP_Server[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    std::string Ip=IP_toString_(IP_Server);
+    String Ip_Server=String(Ip.c_str());
+    String Puerto="9595";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Tito/Contadores";
+
+
+      /* Crea Objeto*/
+    
+    StaticJsonDocument<200> doc;
+    StaticJsonDocument<200> filter;
+    doc.clear();
+    filter.clear();
+    filter["Trans_Tipo"] = true; // Especificar la clave que deseas deserializar
+    // Deserializar el JSON con el filtro
+    DeserializationError error = deserializeJson(doc, Type_Transaccion, DeserializationOption::Filter(filter));
+
+    String Trans_Tipo = doc["Trans_Tipo"];
+    //Serial.println(Trans_Tipo);
+
+    if(Trans_Tipo==TICKET_IN)
+    {
+        Actualiza_Tito_Entradas();
+
+
+        unsigned long Respuesta_Server = millis();
+        int TIMEOUT_CONECT_SERVER = 1500; // Espera 1.5 seg para Encuestar contadores
+        while (!Flag_Entradas_Tito_OK && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+        {
+#ifdef DEBUG_RFID
+            Serial.println("Encuestando contadores.....");
+#endif
+            vTaskDelay(300);
+            if(Flag_Entradas_Tito_OK)
+                break;
+        }
+
+        Flag_Entradas_Tito_OK=false;
+
+    }
+
+    if(Trans_Tipo==TICKET_OUT)
+    {
+        Actualiza_Tito_Salidas();
+
+        unsigned long Respuesta_Server = millis();
+        int TIMEOUT_CONECT_SERVER = 1500; // Espera 1.5 seg para Encuestar contadores
+        while (!Flag_Salidas_Tito_OK && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+        {
+#ifdef DEBUG_RFID
+            Serial.println("Encuestando contadores.....");
+#endif
+            vTaskDelay(300);
+            if(Flag_Salidas_Tito_OK)
+                break;
+        }
+
+        Flag_Salidas_Tito_OK=false;
+    }
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+    char Current_IP[4];
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        jsonDocument["IsSuccess"] = false;
+    else
+        jsonDocument["IsSuccess"] = true;
+
+    jsonDocument["Ticket_In"] = contadores.Get_Contadores_String(Ticket_In);
+    jsonDocument["Ticket_Out"] = contadores.Get_Contadores_String(Ticket_Out);
+    
+    jsonDocument["Ip"] = IP_toString_(Current_IP);
+    jsonDocument["MAC"] = WiFi.macAddress();
+    jsonDocument["Id_Maquina"] = 0;
+    jsonDocument["Fecha_Hora"] = DataTime;
+    jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    Serial.println(" ------------------------>SOLICITUD (HTTP POST) CONTADORES<-----------------------------");
+    Serial.println(Json);
+    Serial.println(" ---------------------------------------------------------------------------------------");
+    https.setTimeout(10000); /* 10seg */
+
+    if (https.begin(client, fwurl))
+    {
+       https.addHeader("Content-Type", "application/json");
+        https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
+        https.addHeader("gmsec","GMaster");
+        https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido()); // Agrega el token de autorización
+        httpCode = https.POST(Json);
+
+        // Serial.println(httpCode);
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+            String Response = https.getString();
+            StaticJsonDocument<500>
+                doc,
+                filter;
+            DeserializationError error = deserializeJson(doc, Response);
+           // Serial.println( Response);
+            if (error)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json Contadores ");
+#endif
+            }
+            else
+            {
+                bool IsSuccess = doc["IsSuccess"];
+
+                if(IsSuccess)
+                    Code=true;
+                else
+                    Code=false;
+            }
+
+            doc.clear();
+        }
+        else
+        {
+
+            Code=false;
+        }
+        https.end();
+           
+        return Code;
+    }
+    return false;
 }

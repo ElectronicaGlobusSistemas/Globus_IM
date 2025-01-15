@@ -7,7 +7,7 @@
 #include <sstream> // Asegúrate de incluir esta biblioteca
 #include "RFID.h"
 #include <esp_task_wdt.h>
-
+#include "Clase_Variables_Globales.h"
 
 std::vector<String> Premios_SAS_Pendientes;
 const char* PremisoFile = "/Premios_SAS.txt";
@@ -16,7 +16,7 @@ extern ESP32Time RTC;
 extern  Configuracion_ESP32 Configuracion;
 extern Contadores_SAS contadores; // Objeto contiene contadores maquina
 extern Cashless_API Info_Cashless;
-
+extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
 //#define Debug_Premios_SAS
 
@@ -362,4 +362,137 @@ void API_Accounting::Load_Premios_SAS(void)
             file.close();
         }
     }
+}
+
+
+
+void API_Accounting::Change_Flag_Handler_Cancel_Credit(bool Status_Flag)
+{
+    Send_Handler_Cancel_Credit=Status_Flag;
+}
+
+bool API_Accounting::Get_Flag_Handler_Cancel_Credit(void)
+{
+    return Send_Handler_Cancel_Credit;
+}
+
+
+
+/* Envia información de premio */
+bool API_Accounting::Send_Counter_App(void)
+{
+
+
+    /* Actualiza Contadores Premio  Cancel y Handpay */
+    /* Capturar informacion  antes de reset para validar si cambio y esperar unos segundos */
+    bool Status=false;
+
+    char Current_IP[4];
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    StaticJsonDocument<800> jsonDocument;
+    jsonDocument.clear();
+
+    WiFiClient client;
+    HTTPClient https;
+    int httpCode;
+    char IP_Server[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+    std::string Ip=IP_toString_Acc(IP_Server);
+    String Ip_Server=String(Ip.c_str());
+    String Puerto="9595";
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/ProcesaPremio";
+    https.setTimeout(10000); // Establece el tiempo de espera en 20 segundos (20000 ms)
+
+
+    if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+      jsonDocument["IsSuccess"] = false;
+    else
+      jsonDocument["IsSuccess"] = true;
+
+
+    jsonDocument["Cancel_Credit_Hand_Pay"] = contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+    jsonDocument["Total_Cancel_Credit"] = contadores.Get_Contadores_Int(Total_Cancel_Credit);
+
+    char Op[9]; // 8 caracteres + 1 para el carácter nulo
+
+    Op[0] = contadores.Get_Operador_ID()[0];
+    Op[1] = contadores.Get_Operador_ID()[1];
+    Op[2] = contadores.Get_Operador_ID()[2];
+    Op[3] = contadores.Get_Operador_ID()[3];
+    Op[4] = contadores.Get_Operador_ID()[4];
+    Op[5] = contadores.Get_Operador_ID()[5];
+    Op[6] = contadores.Get_Operador_ID()[6];
+    Op[7] = contadores.Get_Operador_ID()[7];
+    Op[8] = '\0'; // Terminar la cadena con '\0'
+
+    int Id_Op = atoi(Op); // Ahora convierte la cadena a entero
+    jsonDocument["Id_Operador"]=Id_Op;
+    jsonDocument["Ip"] = IP_toString_(Current_IP);
+    jsonDocument["MAC"] = WiFi.macAddress();
+    jsonDocument["Id_Maquina"] = 0;
+    jsonDocument["Fecha_Hora"] = DataTime;
+    
+
+    String Output;
+    serializeJson(jsonDocument, Output); /* Serializa Data */
+    Serial.println(Output);
+    Serial.println("-----------------------------------------------------------");
+    if (https.begin(client, fwurl))
+    {
+        
+         https.addHeader("Content-Type", "application/json");
+        // https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
+        // https.addHeader("gmsec","GMaster");
+        // https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido());
+        
+        httpCode = https.POST(Output);
+
+
+        #ifdef Debug_Premios_SAS
+            Serial.println();
+            Serial.print("Estado de solicitud HTTP: ");
+            Serial.println(httpCode);
+        #endif
+        
+         
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+            String Response = https.getString();
+            DynamicJsonDocument doc(200);
+            DeserializationError error = deserializeJson(doc, Response);
+
+            if (error)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json Contadores ");
+#endif
+                Status=false;
+            }
+            else
+            {
+                bool IsSuccess = doc["IsSuccess"];
+                
+                if(IsSuccess)
+                {
+                    Status=true;
+                    contadores.Close_ID_Operador();
+                }
+                else
+                    Status=false;
+            }
+
+            doc.clear();
+        }
+        else
+        {
+           Status=false;
+        }
+        https.end();
+    }
+
+    return Status;
 }

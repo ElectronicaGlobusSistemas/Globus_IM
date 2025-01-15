@@ -69,7 +69,25 @@ extern ESP32Time RTC; // Objeto contiene hora y fecha
 #define  Not_Waiting_for_System_validation (0x80)
 #define  Ticket_Type_Not_Identified        (0xAA)
 
+#define  FAIL_COMUNICATIONS_WITH_MACHINE   (0x50)
+#define  FAIL_CONEXION_WITH_SERVER         (0x51)
+#define  AMOUNT_INVALID                    (0x52)
+#define  PROBLEM_WITH_SERVER               (0x53)
 
+
+#define VALID_CASHABLE_TICKET                  (0x00)
+#define VALID_RESTRICTED_PROMOTIONAL_TICKET    (0x01)
+#define VALID_NONRESTRICTED_PROMOTIONAL_TICKET (0x02)
+#define UNABLE_TO_VALIDATE                     (0x80)
+#define NOT_A_VALID_VALIDATION_NUMBER          (0x81)
+#define VALIDATION_NUMBER_NOT_IN_SYSTEM        (0x82)
+#define TICKET_MARKED_PENDING_IN_SYSTEM        (0x83)
+#define TICKET_ALREADY_REDEEMED                (0x84)
+#define TICKET_EXPIRED                         (0x85)
+#define VALIDATION_INFORMATION_NOT_AVAILABLE   (0x86)
+#define TICKET_AMOUNT_DOES_NOT_MATCH_SYSTEM    (0x87)
+#define TICKET_AMOUNT_EXCEEDS_LIMIT            (0x88)
+#define REQUEST_FOR_CURRENT_TICKETS_STATUS     (0xFF)
 
 
 class TITO
@@ -80,6 +98,9 @@ private:
     int Validations_System_ID;
     char Validation_Number[8];
 
+    char Validation_Number_Out[8];
+    
+
     bool Solicitud_Token_Ticket=false;
     bool Solicitud_Redeemed_Ticket=false;
     bool Attend_Tito_OK=false;
@@ -87,6 +108,21 @@ private:
 
     bool Ticket_OK=false;
     bool Ticket_In_Process=false;
+
+    char Amount_Ticket_Transfer[6];
+    bool Current_4D_3E=false;
+
+
+    bool Flag_New_Transfer_Ticket_In=false;
+    bool Flag_New_Transfer_Ticket_Out=false;
+    bool Flag_Parcial_New_Transfer_Ticket_In=false;
+    bool Flag_Parcial_New_Transfer_Ticket_Out= false;
+    bool Flag_New_Transfer_Ticket__Out_Pending_=false; 
+
+
+    unsigned long Timeout_Tito_Transfer_Inicial=0;
+    unsigned long Timeout_Tito_Transfer_Final=0;
+    
 
 public:
    
@@ -107,7 +143,7 @@ public:
 
    bool Set_Parameter_Ticket(String  Validacion_Number_); 
    char* Get_Validacion_Number(void);
-   int Get_Validacion_System_ID(void);
+   uint8_t Get_Validacion_System_ID(void);
 
 //    std::string IP_toString_Ticket(char IP_Char[]);
 
@@ -154,6 +190,34 @@ public:
    void Set_Status_Ticket_In(bool Set);
 
    bool Requerimiento_TITO_Ticket_Out(int Evento, bool Habilita_Tito, bool Solo_Cashless, bool Solo_Tito);
+
+   bool Consult_Ticket(String Ticket_Informations);
+   bool Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito);
+   char * Get_Amount_Ticket_Transfer(void);
+   bool Set_Amount_Ticket_Transfer(uint32_t Amount_Transfer);
+   bool Set_Validations_Number_Out(String);
+   char* Get_Validatioins_Number_Out(void);
+
+   void Set_Confirma_Ticket(bool Confirma);
+   bool Get_Confirma_Ticket(void);
+   void Load_Pending_Ticket_Transactions(void);
+
+   void New_Transfer_Ticket(const String& json);
+   bool Send_Transfer_Ticket(const String & json);
+   bool Updated_Ticket_Counters(String Type_Transaccion);
+   void Save_Ticket_Transaction(void);
+
+   void Available_Ticket_Transfer(int Timeout=25000);
+   void Process_New_Transfer(void);
+
+   void Set_Flag_New_Ticket_In(bool);
+   void Set_Flag_New_Ticket_Out(bool);
+   bool Get_Flag_New_Ticket_In();
+   bool Get_Flag_New_Ticket_Out();
+
+   void Set_Flag_Ticket_Out_Pending(int);
+   bool Get_Flag_Ticket_Out_Pending(void);
+
 };
 
 

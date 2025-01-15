@@ -327,6 +327,11 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Handle_Premios_SAS:
         return Handle_Premios_SAS_;
         break;
+
+
+    case Event_Dowmload_Cashless_Pending:
+        return Event_Dowmload_Cashless_Pending_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -654,6 +659,10 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Handle_Premios_SAS:
         Handle_Premios_SAS_=Change_estado;
         break;
+
+    case Event_Dowmload_Cashless_Pending:
+        Event_Dowmload_Cashless_Pending_=Change_estado;
+        break;
     }
 }
 
@@ -769,6 +778,7 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Event_Load_Cashless_Pending_=false;
     Trasnsmite_Transacion_to_Machine_=false;
     Handle_Premios_SAS_=false;
+    Event_Dowmload_Cashless_Pending_=false;
 
 }
 

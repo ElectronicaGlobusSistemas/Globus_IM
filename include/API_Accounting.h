@@ -13,6 +13,7 @@ private:
     unsigned long Timer_End_Premios_SAS=0;
     int TimeOut_Premios_SAS=120000;
     bool Firts_SAS=false;
+    bool Send_Handler_Cancel_Credit=false;
 
 public:
 
@@ -24,6 +25,10 @@ public:
 
     void Delete_PremioSAS_On_List(const char *FileName);
     void Load_Premios_SAS(void);
+
+    bool Get_Flag_Handler_Cancel_Credit(void);
+    void Change_Flag_Handler_Cancel_Credit(bool Status_Flag);
+    bool Send_Counter_App(void);
 
 };
 std::string IP_toString_Acc(char IP_Char[]);

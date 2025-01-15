@@ -30,6 +30,7 @@ extern AutoUpdate UpdateOTA;
 extern uint8_t Version_Firmware_[];
 extern Preferences NVS;
 
+extern bool Flag_Set_Ticket_Data;
 
 extern TaskHandle_t Task_Poker_Hopper;
 using namespace std;
@@ -39,6 +40,8 @@ unsigned long TimeOut_Reg=0;
 unsigned long TimeOut_Regf=0;
 unsigned long Timout=30000;
 
+
+extern bool App;
 extern const char* LogError;
 
 extern const char* archivo;
@@ -1598,7 +1601,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   /*********************************************************************************************************/
   /**********************************************CONFIG TITO************************************************/
   /*********************************************************************************************************/
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_Ticket", [](AsyncWebServerRequest* request, JsonVariant& json) {
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_Informacion_Ticket", [](AsyncWebServerRequest* request, JsonVariant& json) {
     
 
 
@@ -1650,6 +1653,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
       if (Cashless.Set_Parameter_Print_Ticket(Location, Adress_1, Adress_2, Restricted_Ticket_Title, Debit_Ticket_Title))
       {
+
+        Buffer_Cashless.Init_Buffer_TITO_7C();
+        Flag_Set_Ticket_Data=true; /* Habilita Lectura */
         esp_task_wdt_init(1000000, true);
         esp_task_wdt_add(NULL);
         unsigned long Timout_Break;
@@ -1659,7 +1665,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         while ((Buffer_Cashless.Get_Buffer_TITO_7C()[1] == 0xAA && millis() - Timout_Break < Stop_Transaccion))
         {
           esp_task_wdt_reset();
-          Serial.println("Esperando respuesta.....");
+          if(Buffer_Cashless.Get_Buffer_TITO_7C()[1]==0x7C||Buffer_Cashless.Get_Buffer_TITO_7C()[2]==0x01)
+            break;
+          //Serial.println("Esperando respuesta.....");
           vTaskDelay(10);
         }
 
@@ -1691,7 +1699,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       else
       {
         jsonDocument["IsSuccess"] = false;
-        jsonDocument[ "Message"]="No fue Posible realizar la configuracion";
+        jsonDocument[ "Message"]="Error en datos ";
         jsonDocument["Location"] = Location;
         jsonDocument["Adress_1"] = Adress_1;
         jsonDocument["Adress_2"] = Adress_2;
@@ -1925,67 +1933,68 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   });
 
   Server_API.on("/Habilitar_Tito",HTTP_GET, [](AsyncWebServerRequest *request){
-    
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+
+
+
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("Enable_Tito",true);
+    bool Test=NVS.getBool("Enable_Tito",false);
+    Variables_globales.Set_Variable_Global(Enable_Tito_Ticket,Test);
+    NVS.end();
+
+
+    if(Test && Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
     {
-      NVS.begin("Config_ESP32", false);
-      NVS.putBool("Enable_Tito",true);
-      bool Test=NVS.getBool("Enable_Tito",false);
-      Variables_globales.Set_Variable_Global(Enable_Tito_Ticket,Test);
-      NVS.end();
+        
+      String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
-      if(Test && Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+      StaticJsonDocument<500> jsonDocument;
+      jsonDocument.clear();
+      jsonDocument["IsSuccess"] = true;
+      jsonDocument["Fecha_Hora"] = DataTime;
+      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+      jsonDocument["Desc"] = "Tito habilitado con exito";
+      jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+        
+      switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
       {
-        
-        String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+      case 0:
+        jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+      case 1:
+        jsonDocument["Tipo_Maq"] = "AFT";
+      break;
+      case 2:
+        jsonDocument["Tipo_Maq"] = "EFT";
+      break;
+      case 3:
+        jsonDocument["Tipo_Maq"] = "AFT";
+      break;
 
-        StaticJsonDocument<500> jsonDocument;
-        jsonDocument.clear();
-        jsonDocument["IsSuccess"] = true;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Desc"] = "Tito habilitado con exito";
-        jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-        
-        switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
-        {
-        case 0:
-            jsonDocument["Tipo_Maq"] = "AFT";
-            break;
-        case 1:
-            jsonDocument["Tipo_Maq"] = "AFT";
-            break;
-        case 2:
-            jsonDocument["Tipo_Maq"] = "EFT";
-            break;
-        case 3:
-            jsonDocument["Tipo_Maq"] = "AFT";
-            break;
-
-        default:
-            jsonDocument["Tipo_Maq"] = "";
-            break;
-        }
-        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-        jsonDocument["Cobro_Tito"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Tito);
-        String Json;
-        serializeJson(jsonDocument, Json); /* Serializa Data */
-       // Serial.println(Json);
-        request->send(200, "application/json", Json);
+      default:
+        jsonDocument["Tipo_Maq"] = "";
+        break;
       }
-      else
-      {
-        String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+      jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+      jsonDocument["Cobro_Tito"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Tito);
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      // Serial.println(Json);
+      request->send(200, "application/json", Json);
+    }
+    else
+    {
+      String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
-        StaticJsonDocument<200> jsonDocument;
-        jsonDocument.clear();
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Desc"] = "No fue posible habilitar Tito";
-        jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-        switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
-        {
+      StaticJsonDocument<200> jsonDocument;
+      jsonDocument.clear();
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Fecha_Hora"] = DataTime;
+      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+      jsonDocument["Desc"] = "No fue posible habilitar Tito";
+      jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+      switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+      {
         case 0:
           jsonDocument["Tipo_Maq"] = "AFT";
           break;
@@ -1998,57 +2007,26 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         case 3:
           jsonDocument["Tipo_Maq"] = "AFT";
           break;
+        case 4:
+          jsonDocument["Tipo_Maq"] = "IRT";
+          break;
+        case 5:
+          jsonDocument["Tipo_Maq"] = "Generica";
+          break;
+        case 6:
+          jsonDocument["Tipo_Maq"] = "Poker";
+          break;
         default:
           jsonDocument["Tipo_Maq"] = "";
           break;
         }
-        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-        jsonDocument["Cobro_Tito"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Tito);
-        String Json;
-        serializeJson(jsonDocument, Json); /* Serializa Data */
-       // Serial.println(Json);
-        request->send(200, "application/json", Json);
-      }
-    }
-    else
-    {
-      String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
-
-      StaticJsonDocument<200> jsonDocument;
-      jsonDocument.clear();
-      jsonDocument["IsSuccess"] = false;
-      jsonDocument["Fecha_Hora"] = DataTime;
-      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-      jsonDocument["Desc"] = "No compatible con el tipo de maquina";
-      jsonDocument["Key"] = nullptr;
-      switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
-      {
-      case 0:
-        jsonDocument["Tipo_Maq"] = "AFT";
-        break;
-      case 1:
-        jsonDocument["Tipo_Maq"] = "AFT";
-        break;
-      case 2:
-        jsonDocument["Tipo_Maq"] = "EFT";
-        break;
-      case 3:
-        jsonDocument["Tipo_Maq"] = "AFT";
-        break;
-
-      default:
-        jsonDocument["Tipo_Maq"] = "";
-        break;
-      }
       jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
       jsonDocument["Cobro_Tito"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Tito);
       String Json;
       serializeJson(jsonDocument, Json); /* Serializa Data */
-     // Serial.println(Json);
+      // Serial.println(Json);
       request->send(200, "application/json", Json);
-    }
-
-
+      }
   });
 
   Server_API.on("/Inhabilitar_Tito",HTTP_GET, [](AsyncWebServerRequest *request){
@@ -2185,8 +2163,27 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   }  
   });
 
+  Server_API.on("/Transferencias_Tito", HTTP_GET, [](AsyncWebServerRequest *request){
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/Ticket.txt", "text/plain", true);
+    response->addHeader("Txt", "Transferencias Pendientes");
+    request->send(response);
+  });
+
+  // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_Expiracion_Ticket",[](AsyncWebServerRequest*request,JsonVariant& json){
+
+  //   StaticJsonDocument<800> jsonDocument;
+  //   jsonDocument.clear();
 
 
+  //   String  Mi_Mi= data["Ssid"].as<String>();
+
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+  //   request->send(200, "application/json", Json);
+  //   return;
+  // }));
+
+ 
 
   /*********************************************************************************************************/
   /**********************************************PREMIOS SAS************************************************/
@@ -2313,6 +2310,30 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     delay(1000);
     ESP.restart();
   });
+
+
+  //   Server_API.on("/Encuesta_Transaccion_Pendiente",HTTP_GET, [](AsyncWebServerRequest *request){
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+
+  //   if(Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
+  //   {
+  //     /* Consulta carga */
+  //   }
+  //   else if(!Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending)&& Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
+  //   {
+  //     /* Carga Pendiente */
+  //   }
+  //   App=true;
+    
+
+  //   jsonDocument["IsSuccess"] = true;
+  //   jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+  //   request->send(200, "application/json", Json);
+  //   delay(1000);
+  // });
 
 
   /* En pruebas nuevo desarrollo ---->*/
@@ -2548,6 +2569,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       ESP.restart();
   }));
 
+
+  
+
   // Server_API.on("/Termina_Player_Tracking", HTTP_GET, [](AsyncWebServerRequest *request)
   // {
 
@@ -2728,6 +2752,68 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     }
     
   }));
+
+
+  // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Bonus_Award", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+    
+  //   int Code=0x100;
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+    
+    
+
+  //   if (!json.is<JsonObject>()) {
+
+  //     jsonDocument["IsSuccess"] = false;
+  //     jsonDocument["IsSuccess"] = Code;
+  //     jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
+  //     String Json;
+  //     serializeJson(jsonDocument, Json); /* Serializa Data */
+  //     request->send(200, "application/json", Json);
+
+  //     return;
+  //   }else
+  //   {
+
+  //     auto &&data = json.as<JsonObject>();
+  //     /* Url Generica */
+
+  //     int Contador = data["Contador"].as<int>();
+  //     char Amount[4];
+  //     char Array_Completo[13];
+  //     int  
+
+  //     sprintf(Amount, "%08d", Contador); // Convierte el número en formato de 8 dígitos
+
+  //     Array_Completo[0]=0x00;
+  //     Array_Completo[1]=0x00;
+  //     Array_Completo[2]=0x00;
+  //     Array_Completo[3]=0x00;
+  //     Array_Completo[4]=Amount[0];
+  //     Array_Completo[5]=Amount[0];
+  //     Array_Completo[6]=Amount[0];
+  //     Array_Completo[7]=Amount[0];
+  //     Array_Completo[8]=Amount[0];
+  //     Array_Completo[9]=Amount[0];
+  //     Array_Completo[10]=Amount[0];
+  //     Array_Completo[11]=Amount[0];
+
+
+  //     Array_Completo[9]=Amount[0];
+
+
+
+      
+
+
+
+  //   }
+    
+  // }));
+
+
+
 
   // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualizacion", [](AsyncWebServerRequest* request, JsonVariant& json) {
   //   int Code;
@@ -3141,6 +3227,13 @@ char* Transsaccion_Cashless::Get_ACK_Bonus(void)
   return ACK_Bonus;
 }
 
+
+char Transsaccion_Cashless::Get_ACK_Bonus_Copia(void)
+{
+  return Flag_Legacy_Pay;
+}
+
+
 bool Transsaccion_Cashless::Delete_ACK_Bonus(void)
 {
   ACK_Bonus[0]=0xFF;
@@ -3149,6 +3242,33 @@ bool Transsaccion_Cashless::Delete_ACK_Bonus(void)
   ACK_Bonus[3]=0xFF;
   ACK_Bonus[4]=0xFF;
   return true;
+}
+
+int Transsaccion_Cashless::Get_Status_AFT_Bonus(int Update_Status)
+{
+  return Status_AFT_B;
+}
+
+void Transsaccion_Cashless::Set_Status_AFT_Bonus(int Status )
+{
+  Status_AFT_B=Status;
+}
+
+bool Transsaccion_Cashless::Requerimiento_Bonusing(int Evento, bool Enable_Bonusing)
+{
+
+  if (Enable_Bonusing)
+  {
+    if (Evento == 0x7C)
+    {
+      Flag_Legacy_Pay = 0x7C;
+      Serial.println(" Bono cargado....!");
+      Variables_globales.Set_Variable_Global(Solicitud_Carga_Bonus,false);
+    }
+    return true;
+  }
+  else
+    return false;
 }
 
 bool Buffer_RX_AFT::Set_RX_AFT_2(int Filtro_buffer)
@@ -3375,7 +3495,6 @@ bool Transsaccion_Cashless ::Get_Reintento_Registro(void)
 {
   return Estado_Tranmision_Auto_Registro;
 }
-
 
 /* EFT Data */
 bool Buffer_RX_AFT::Set_Buffer_Transfer_EFT(char Buffer[])

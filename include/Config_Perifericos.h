@@ -90,7 +90,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,0,7};
+uint8_t Version_Firmware_[]={2,1,0,8};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
@@ -930,14 +930,18 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Enable_Tito",testTito);
     }
 
-
-    
-
     if(!NVS.isKey("Cash_Pending"))
     {
         /* Recupera estado transacción pendiente Cashless */
         bool Pending=false;
         NVS.putBool("Cash_Pending",Pending);
+    }
+
+    if(!NVS.isKey("Cash_Pen_Dow"))
+    {
+        /* Recupera estado transacción pendiente Cashless */
+        bool Pending=false;
+        NVS.putBool("Cash_Pen_Dow",Pending);
     }
 
     if(!NVS.isKey("P_SAS"))

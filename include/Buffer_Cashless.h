@@ -27,6 +27,12 @@ using namespace std;
 #define Restricted_Ticket_Title_Tick 3
 #define Debit_Ticket_Title_Tick 4
 
+
+#define BONUS_PENDING 0x40
+#define NOT_COMUNICATIONS_WITH_MACHINE_FOR_BONUS 0xFF
+#define COMMAND_RECEIVED 0x01
+#define REJECTED 0x81
+
 class Buffer_RX_AFT
 {
 
@@ -134,8 +140,9 @@ class Transsaccion_Cashless
   uint32_t Num_Trans_ID;
   char Counter_Trans_ID[7];
   char Credit_To_Load[20];
-  char ACK_Bonus[128]; 
-
+  char ACK_Bonus[128];
+  char Flag_Legacy_Pay=0xAA; 
+  int Status_AFT_B=0xAA;
 
   String Location="";
   String Adress_1=""; 
@@ -195,7 +202,9 @@ class Transsaccion_Cashless
     bool Transmite_Info_Registro(String Json);
     void Set_Reintento_Registro(bool Set);
     bool Get_Reintento_Registro();
-    
-   
+    bool Requerimiento_Bonusing(int Evento, bool Enable_Bonusing=false);
+    char Get_ACK_Bonus_Copia(void);
+    int  Get_Status_AFT_Bonus(int Update_Status=0);
+    void Set_Status_AFT_Bonus(int );
 };  
 String Token_Generator_Update(String Url);

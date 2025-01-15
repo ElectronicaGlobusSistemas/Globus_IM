@@ -3050,6 +3050,19 @@ void Mensajes_RFID(void)
 
                 contadores.Set_Flag_Bill_In(false);
             }
+
+            // if(Accounting.Get_Flag_Handler_Cancel_Credit())
+            // {
+            //     Serial.println("---------------> Envia informacion premio <------------------");
+
+
+            //     if(Accounting.Send_Counter_App())
+            //         Serial.println("Recibido");
+            //     else
+            //         Serial.println("No Recibido");
+                
+            //     Accounting.Change_Flag_Handler_Cancel_Credit(false);
+            // }
         }
     }
 }
@@ -3482,8 +3495,6 @@ void Task_Procesa_Comandos(void *parameter)
                 Reset_Handle_LED();
                 //Transmite_Reenvio_Contadores.Forwarding_Abort();
 
-                
-
                 if (contadores.Close_ID_Operador())
                 {
                     Condicion_Cumpl = false;
@@ -3635,6 +3646,8 @@ void Task_Procesa_Comandos(void *parameter)
                         switch (Variables_globales.Get_Variable_Global_Char(Reset_Handay_OK))
                         {
                         case 0x00: /*Reset realizado con exito*/
+
+                            Flag_Critial_Questions=true;
                             Transmite_Confirmacion('C', '0');
                             Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
                             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
@@ -4071,9 +4084,9 @@ void Task_Procesa_Comandos(void *parameter)
                     // break;
 
                     // case 310:
-                    //     Serial.println("Tarjeta bloqueada AFT");
-                    //     if(!Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                    //         Player_Tracking_Sesion();
+                    //     contadores.Set_Meter_Legacy_Bonus_Awards(res);
+                        
+                    //     Carga_Bonus_Maquina();
                     // break;
 
                     // case 321:

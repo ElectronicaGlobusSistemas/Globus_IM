@@ -66,6 +66,8 @@ bool Transfer_Pending_Download=false;
 
 bool Update_In_Cashless=false;
 bool Update_Out_Cashless=false;
+bool Update_In_Tito=false;
+bool Update_Out_Tito=false;
 // Archivo para almacenar transacciones pendientes
 const char* transaccionesFile = "/transacciones.txt";
 extern const char* archivo;
@@ -464,7 +466,50 @@ void Check_RFID_Real_Time(void)
 }
 */
 
-
+void Animation_Free_Session(void)
+{
+    if ((Start_Cambio_Color - Previous_Cambio_Color) >= OK_Color && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+    {
+        Contador_Colores_Verde++;
+        // Serial.println(Contador_Colores_Verde);
+        int num = 0;
+        if (random(1, 5) < 3)
+        {
+            num = 1;
+        }
+        else
+        {
+            if (Contador_Colores_Verde > 60)
+            {
+                num = random(2, 8);
+            }
+            else
+            {
+                num = 1;
+            }
+        }
+        if (Handle_RF == false)
+        {
+            num = 1;
+            Handle_RF = true;
+        }
+        if (!Handle_LED)
+        {
+            if (Sesion_Cerrada_Color == true)
+            {
+                Sesion_Cerrada_Color = false;
+                num = 1;
+                Contador_Colores_Verde = 0;
+            }
+            Sesion_Abierta_Color(num);
+        }
+        Previous_Cambio_Color = millis();
+        if (Contador_Colores_Verde >= 120)
+        {
+            Contador_Colores_Verde = 0;
+        }
+    }
+}
 /* Metodo para leer tarjetas RFID usuario - operador  */
 void Lee_Tarjeta()
 {
@@ -549,56 +594,19 @@ void Lee_Tarjeta()
         /*-----------------------------------------------------------------------------------------------------------------*/
         if (Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Info_Cashless.Get_Status_Reader()==false&& !Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
         {
-            if ((Start_Cambio_Color - Previous_Cambio_Color) >= OK_Color && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+            Animation_Free_Session();
+
+            if ((!mfrc522.PICC_IsNewCardPresent())||!mfrc522.PICC_ReadCardSerial())
             {
-                Contador_Colores_Verde++;
-                // Serial.println(Contador_Colores_Verde);
-                int num = 0;
-                if (random(1, 5) < 3)
-                {
-                    num = 1;
-                }
-                else
-                {
-                    if (Contador_Colores_Verde > 60)
-                    {
-                        num = random(2, 8);
-                    }
-                    else
-                    {
-                        num = 1;
-                    }
-                }
-                if (Handle_RF == false)
-                {
-                    num = 1;
-                    Handle_RF = true;
-                }
-                if (!Handle_LED)
-                {
-                    if (Sesion_Cerrada_Color == true)
-                    {
-                        Sesion_Cerrada_Color = false;
-                        num = 1;
-                        Contador_Colores_Verde = 0;
-                    }
-                    Sesion_Abierta_Color(num);
-                }
-                Previous_Cambio_Color = millis();
-                if (Contador_Colores_Verde >= 120)
-                {
-                    Contador_Colores_Verde = 0;
-                }
-            }
-            if ((!mfrc522.PICC_IsNewCardPresent()))
-            {
+                RESET_Handle();
                 return;
             }
 
-            if (!mfrc522.PICC_ReadCardSerial())
-            {
-                return;
-            }
+            // if (!mfrc522.PICC_ReadCardSerial())
+            // {
+            //     RESET_Handle();
+            //     return;
+            // }
 
             MFRC522::MIFARE_Key key;
             for (byte i = 0; i < 6; i++)
@@ -622,8 +630,10 @@ void Lee_Tarjeta()
                 Serial.println(mfrc522.GetStatusCodeName(status));
 #endif
                 //Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-               
+                mfrc522.PICC_HaltA();
+                mfrc522.PCD_StopCrypto1();
                 RESET_Handle();
+                
                 return;
             }
 
@@ -636,6 +646,8 @@ void Lee_Tarjeta()
                 Serial.println(mfrc522.GetStatusCodeName(status));
 #endif
                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                mfrc522.PICC_HaltA();
+                mfrc522.PCD_StopCrypto1();
                 RESET_Handle();
                 return;
             }
@@ -1307,8 +1319,10 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     {
 
                         Error = false;
+                        
+                        /* Si no Existen transacciones pendientes por confirmar y  la maquina no tiene transacciones */
 
-                        if (transaccionesPendientes.empty())
+                        if (transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
                         {
                             /*  Abre nueva Sesion */
                             contadores.Set_Client_ID_Transaccion(ID_Temp); /* Guarda ID de cliente */
@@ -1577,6 +1591,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 #endif
                     Status_Barra(CONEXION_TO_HOTS_FAILED);
                     delay(100);
+                     Info_Cashless.Unlock_Reader();
                 }
 
             }
@@ -4417,17 +4432,28 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
 
                     /*Verifica si existe carga cashless pendiente por consultar */
                     NVS.begin("Config_ESP32", false);
+                    
                     bool Test_Pen_Data = NVS.getBool("Cash_Pending", false);
+                    bool Donmload_Critical = NVS.getBool("Cash_Pen_Dow", false);
+
+
                     NVS.end();
                     if (Test_Pen_Data)
                     {
                         Test=true;
                         Status_Barra(301); /* Lector ocupado por transaccion */
-                        Serial.println("Tarea de trasacción pendiente habilitada");
+                      //  Serial.println("Tarea de trasacción pendiente habilitada");
                         Variables_globales.Set_Variable_Global(Event_Load_Cashless_Pending, true);
                         Info_Cashless.Lock_Reader();
-                    }else{
-                        Serial.println("No tiene transacciones pendientes por consultar");
+                    }
+
+                    if(Donmload_Critical)
+                    {
+                        Test=true;
+                        Status_Barra(301); /* Lector ocupado por transaccion */
+                      //  Serial.println("Tarea de trasacción pendiente habilitada");
+                        Variables_globales.Set_Variable_Global(Event_Dowmload_Cashless_Pending, true);
+                        Info_Cashless.Lock_Reader();
                     }
                 }
                 if(!Test)
@@ -4459,6 +4485,7 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
                
                 break;
             default:
+                Info_Cashless.Remove_Currrent_Player_Sesion();
                 break;
             }
 

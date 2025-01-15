@@ -121,6 +121,9 @@ using namespace std;
 #define Trasnsmite_Transacion_to_Machine    104
 #define Handle_Premios_SAS                  105
 
+#define Event_Dowmload_Cashless_Pending     106
+
+
 class Variables_Globales
 {
 private:
@@ -224,6 +227,7 @@ private:
     bool Event_Load_Cashless_Pending_;
     bool Trasnsmite_Transacion_to_Machine_;
     bool Handle_Premios_SAS_;
+    bool Event_Dowmload_Cashless_Pending_;
     
 
 public:
