@@ -1055,6 +1055,556 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     return false;
 }
 
+
+char *Buffers::Get_buffer_contadores_ACC_NO(void)
+{
+    return buffer_contadores_ACC_NO;
+}
+
+bool Buffers::Set_buffer_contadores_ACC_NO(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
+{
+
+
+    // String    Info_Red= Web_Info_Config.Get_Info_Config(INFO_RED);
+    // String    Info_Api = Web_Info_Config.Get_Info_Config(INFO_API);
+    // String    Info_Generic = Web_Info_Config.Get_Info_Config(INFO_GENERIC);
+
+    // Serial.println(Info_Red);
+
+    // Serial.println();
+    // Serial.println(Info_Api);
+    // Serial.println();
+    // Serial.println(Info_Generic);
+    // Serial.println();
+
+    int pos;
+    char req[258] = {};
+    char res[10] = {};
+    bzero(req, 258);
+    int32_t Aux1;
+
+    char Firma[2] = {};
+
+    Aux1 = Com;
+    Aux1 = (Aux1 & 0x000000FF);
+    req[0] = '3';
+
+
+    //------------------------------------------------------------------------------
+    // Guarda el segundo byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x0000FF00) >> 8);
+    req[1] = '0';
+    //------------------------------------------------------------------------------
+    // Guarda el tercer byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0x00FF0000) >> 16);
+    req[2] = '0';
+    //------------------------------------------------------------------------------
+    // Guarda el cuarto byte
+    Aux1 = Com;
+    Aux1 = ((Aux1 & 0xFF000000) >> 24);
+    req[3] = '0';
+
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL CANCEL CREDIT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+    pos = 4;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 12
+    //--------------------------------------------------------------------------------------------------
+    // COIN IN
+    //--------------------------------------------------------------------------------------------------
+    
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Coin_In), sizeof(res) / sizeof(res[0]));
+    pos = 13;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 21
+
+    //--------------------------------------------------------------------------------------------------
+    // COIN OUT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Coin_Out), sizeof(res) / sizeof(res[0]));
+    pos = 22;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 30
+
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL DROP
+    //--------------------------------------------------------------------------------------------------
+
+    if( Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
+    {
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
+        pos = 31;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 39
+    }else{
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
+        pos = 31;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 39
+    }
+   
+
+    //--------------------------------------------------------------------------------------------------
+    // JACKPOT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Jackpot), sizeof(res) / sizeof(res[0]));
+    pos = 40;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 48
+
+    //--------------------------------------------------------------------------------------------------
+    // PHYSICAL COIN IN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_In), sizeof(res) / sizeof(res[0]));
+    pos = 49;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 57
+
+    //--------------------------------------------------------------------------------------------------
+    // PHYSICAL COIN OUTJ
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Physical_Coin_Out), sizeof(res) / sizeof(res[0]));
+    pos = 58;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 66
+
+    //--------------------------------------------------------------------------------------------------
+    // TOTAL COIN DROP
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Total_Coin_Drop), sizeof(res) / sizeof(res[0]));
+    pos = 67;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 75
+
+    //--------------------------------------------------------------------------------------------------
+    // MACHINE PAID PROGRESIVE
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Machine_Paid_Progresive_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 76;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 84
+
+    //--------------------------------------------------------------------------------------------------
+    // MACHINE PAID EXTERNAL BONUS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Machine_Paid_External_Bonus_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 85;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 93
+
+    //--------------------------------------------------------------------------------------------------
+    // ATTENDANT PAID PROGRESIVE
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Attendant_Paid_Progresive_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 94;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 102
+
+    //--------------------------------------------------------------------------------------------------
+    // ATTENDANT PAID EXTERNAL BONUS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Attendant_Paid_External_Bonus_Payout), sizeof(res) / sizeof(res[0]));
+    pos = 103;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 111
+
+    //--------------------------------------------------------------------------------------------------
+    // TICKET IN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 10);
+    memcpy(res, contadores.Get_Contadores_Char(Ticket_In), sizeof(res) / sizeof(res[0]));
+    pos = 112;
+    for (int i = 0; i < 10; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 122
+
+    //--------------------------------------------------------------------------------------------------
+    // TICKET OUT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 10);
+    memcpy(res, contadores.Get_Contadores_Char(Ticket_Out), sizeof(res) / sizeof(res[0]));
+    pos = 123;
+    for (int i = 0; i < 10; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 133
+
+    //--------------------------------------------------------------------------------------------------
+    // CANCEL CREDIT HAND PAY
+    //--------------------------------------------------------------------------------------------------
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==10)
+    {
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Total_Cancel_Credit), sizeof(res) / sizeof(res[0]));
+        pos = 134;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 142
+    }else{
+        bzero(res, 8);
+        memcpy(res, contadores.Get_Contadores_Char(Cancel_Credit_Hand_Pay), sizeof(res) / sizeof(res[0]));
+        pos = 134;
+        for (int i = 0; i < 8; i++) // Total Cancel Credit
+        {
+            req[pos] = res[i];
+            pos++;
+        }
+        req[pos] = '|'; // 142
+    }
+
+    //--------------------------------------------------------------------------------------------------
+    // BILL AMOUNT
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Bill_Amount), sizeof(res) / sizeof(res[0]));
+    pos = 143;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 151
+
+    //--------------------------------------------------------------------------------------------------
+    // GAMES SINCE LAST POWER UP
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Games_Since_Last_Power_Up), sizeof(res) / sizeof(res[0]));
+    #ifdef Debug_Buffer
+    Serial.println(res);
+    #endif
+    pos = 152;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 160
+
+    //--------------------------------------------------------------------------------------------------
+    // GAMES PLAYED
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Games_Played), sizeof(res) / sizeof(res[0]));
+    pos = 161;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 169
+
+    //--------------------------------------------------------------------------------------------------
+    // DOOR OPEN
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Door_Open), sizeof(res) / sizeof(res[0]));
+    pos = 170;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 178
+
+    //--------------------------------------------------------------------------------------------------
+    // CURRENT CREDITS
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Current_Credits), sizeof(res) / sizeof(res[0]));
+    pos = 179;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 187
+
+    // // IP Tarjeta
+
+    if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode))
+    {
+        String Id_Machine = Configuracion.Get_Configuracion(Id_Maquina, "Id_Maquina");
+        int pos_Mg = 188;
+
+        for (int i = 0; i < Id_Machine.length(); i++)
+        {
+
+            req[pos_Mg] = Id_Machine[i];
+            pos_Mg++;
+            if (pos_Mg >= 202)
+            {
+                req[202] = '&';
+                break;
+            }
+        }
+        int New_Pos = pos_Mg;
+        //  Serial.println(New_Pos);
+
+        for (int i = New_Pos; i < 203; i++)
+        {
+            if (i == New_Pos)
+                req[i] = '&';
+            else
+                req[i] = '0';
+        }
+        req[207] = '|'; // 207
+    }
+    else
+    {
+
+        req[188] = '0';
+        req[189] = '0';
+        req[190] = '0';
+        req[191] = '0';
+        req[192] = '0'; // 192
+
+        // Bytes libres
+        req[193] = '0';
+        req[194] = '0';
+        req[195] = '0';
+        req[196] = '0';
+        req[197] = '0';
+        req[198] = '0';
+        req[199] = '0';
+        req[200] = '0';
+        req[201] = '0';
+        req[202] = '0';
+    }
+
+    // //    Serial.println(res[0], HEX);
+    // req[198] = Id_Machine[0];
+    // req[199] = Id_Machine[1];
+    // req[200] = Id_Machine[2];
+    // req[201] = Id_Machine[3];
+    // req[202] = Id_Machine[4];
+    
+    
+    memcpy(Firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
+
+    //    Serial.println(res[0], HEX);
+
+    String string_dato = String(Firma[0], HEX);
+
+    (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
+    (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
+
+    //    Serial.println(res[1], HEX);
+
+    String string_dato1 = String(Firma[1], HEX);
+
+    (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
+    (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
+
+
+    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    {
+        req[203]='0';
+        req[204]='0';
+        req[205]='0';
+        req[206]='0';
+    }
+    
+    
+    
+    req[207] = '|'; // 207
+    //--------------------------------------------------------------------------------------------------
+    // SERIE TRAMA
+    //--------------------------------------------------------------------------------------------------
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Contadores_Char(Serie_Trama), sizeof(res) / sizeof(res[0]));
+    pos = 208;
+    for (int i = 0; i < 8; i++) // Total Cancel Credit
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[pos] = '|'; // 216
+
+    // ID Jugador
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Client_ID(), sizeof(res) / sizeof(res[0]));
+
+    pos = 217;
+    for (int i = 0; i < 8; i++)
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    req[225] = '|'; // 225
+
+    String Hora = RTC.getTime();
+    String Fecha = RTC.getDate();
+    String Mes;
+    int month = RTC.getMonth();
+    switch (month)
+    {
+    case 0:
+        Mes = "01";
+        break;
+    case 1:
+        Mes = "02";
+        break;
+    case 2:
+        Mes = "03";
+        break;
+    case 3:
+        Mes = "04";
+        break;
+    case 4:
+        Mes = "05";
+        break;
+    case 5:
+        Mes = "06";
+        break;
+    case 6:
+        Mes = "07";
+        break;
+    case 7:
+        Mes = "08";
+        break;
+    case 8:
+        Mes = "09";
+        break;
+    case 9:
+        Mes = "10";
+        break;
+    case 10:
+        Mes = "11";
+        break;
+    case 11:
+        Mes = "12";
+        break;
+    default:
+        break;
+    }
+
+    // Hora y fecha
+    req[226] = Hora[0];
+    req[227] = Hora[1];
+    req[228] = '|'; // 228
+    req[229] = Hora[3];
+    req[230] = Hora[4];
+    req[231] = '|'; // 231
+    req[232] = Hora[6];
+    req[233] = Hora[7];
+    req[234] = '|'; // 234
+    req[235] = Fecha[9];
+    req[236] = Fecha[10];
+    req[237] = '|'; // 237
+    req[238] = Mes[0];
+    req[239] = Mes[1];
+    req[240] = '|'; // 240
+    req[241] = Fecha[14];
+    req[242] = Fecha[15];
+    req[243] = '|'; // 243
+
+    if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego))
+        req[244] = '1';
+    else
+        req[244] = '0';
+
+    req[245] = '|'; // 245
+    req[246] = '0';
+    req[247] = '|'; // 247
+
+
+    // ID Operador
+    bzero(res, 8);
+    memcpy(res, contadores.Get_Operador_ID(), sizeof(res) / sizeof(res[0]));
+
+    pos = 248;
+    for (int i = 0; i < 8; i++)
+    {
+        req[pos] = res[i];
+        pos++;
+    }
+    // CRC
+    req[256] = '9'; // 256
+    req[257] = '9'; // 257
+
+    memcpy(buffer_contadores_ACC_NO, req, 258);
+    return true;
+}
+
+
 bool Buffers::Set_buffer_contadores_ACC_encriptado(void)
 {
     memcpy(buffer_contadores_ACC_encriptado, Metodo_AES.Encripta_Mensaje_Servidor(buffer_contadores_ACC), 258);
@@ -1203,6 +1753,8 @@ bool Buffers::Set_buffer_id_maq(int Com, Contadores_SAS contadores)
     }
     return false;
 }
+
+
 
 bool Buffers::Set_buffer_id_maq_encriptado(void)
 {

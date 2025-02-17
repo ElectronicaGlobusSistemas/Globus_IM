@@ -132,6 +132,11 @@ void Tratamiento_Trama_Cashless(char res[]);
 bool Calcula_First_Cancel_Credit(bool Calcula_Contador);
 void Actualiza_Contadores(void);
 void Procesa_Comandos_Socket2(void);
+
+
+bool Actualiza_Tarjeta_Mecanica(char res[]);
+
+
 extern unsigned char Serial_Cashless_UniMil;
 extern unsigned char Serial_Cashless_Centenas;
 extern unsigned char Serial_Cashless_Decenas;
@@ -180,7 +185,7 @@ int Timer_No_Reset=10000;
 
 bool Enable_Timer_No_reset=false;
 
-
+extern bool Variable_Solicitud_Operador_Id;
 
 
 int  Convert_Char_To_Int2(char buffer[])
@@ -2952,7 +2957,7 @@ void Mensajes_RFID(void)
     {
         if (flag_ultimo_contador_Ok && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
         {
-            if (contadores.Get_Status_Flag_Premio())
+            if (contadores.Get_Status_Flag_Premio()&& !Variable_Solicitud_Operador_Id)
             {
 
                 #ifdef Debug_Transmision
@@ -2988,7 +2993,7 @@ void Mensajes_RFID(void)
                 contadores.Set_Flag_Premio(false);
             }
 
-            if(contadores.Get_Status_Flag_Bill_In())
+            if(contadores.Get_Status_Flag_Bill_In() && !Variable_Solicitud_Operador_Id)
             {
 
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
@@ -3486,7 +3491,7 @@ void Task_Procesa_Comandos(void *parameter)
                // #ifdef Debug_Mensajes_Server
                                // Serial.println("Premio registrado con exito");
                // #endif
-              //  Serial.println("Premio registrado con exito");
+               // Serial.println("Premio registrado con exito");
                Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 4)
                {
@@ -4653,7 +4658,7 @@ void Transmision_Controlada_Contadores(void)
     {
         
         // Si la maquina NO esta en juego, transmite cada 2 minutos, si el valor es 120
-        if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !Variables_globales.Get_Variable_Global(Operador_Detected) && !contadores.Get_Status_Flag_Premio())
+        if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !Variables_globales.Get_Variable_Global(Operador_Detected) && !contadores.Get_Status_Flag_Premio() && !Variable_Solicitud_Operador_Id)
         {
             New_Timmer_Inicial=millis();
             /*----------------------> Trama de contadores  2 minutos <-----------------------------------------------------------*/
@@ -4713,7 +4718,7 @@ void Transmision_Controlada_Contadores(void)
             }
         }
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
-        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !contadores.Get_Status_Flag_Premio())
+        else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !contadores.Get_Status_Flag_Premio() && !Variable_Solicitud_Operador_Id)
         {
             if (Contador_Transmision_Contadores >= Tiempo_Transmision_En_Juego)
             {
@@ -4776,7 +4781,7 @@ void Transmision_Controlada_Contadores(void)
         }
 
         // Si cambio el cancel credit, porque se pago un premio
-        else if (flag_premio_pagado_cashout)
+        else if (flag_premio_pagado_cashout && !Variable_Solicitud_Operador_Id)
         {
 
             #ifdef Debug_Transmision
@@ -4814,7 +4819,7 @@ void Transmision_Controlada_Contadores(void)
         }
 
         // Si cambio el billetero, porque se ingreso un nuevo billete
-        else if (flag_billete_insertado)
+        else if (flag_billete_insertado && !Variable_Solicitud_Operador_Id)
         {
             if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {

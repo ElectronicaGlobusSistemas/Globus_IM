@@ -1,3 +1,5 @@
+#ifndef Buffer_H
+#define Buffer_H
 #include "Stream.h"
 #include "MetodoAES.h"
 #include "MetodoCRC.h"
@@ -35,6 +37,8 @@ private:
     char buffer_contadores_ACC[258];
     char buffer_contadores_ACC_encriptado[258];
     char buffer_contadores_ACC_final[258];
+
+    char buffer_contadores_ACC_NO[258];
 
     /* Buffer id maquina */
     char buffer_id_maq[258];
@@ -171,6 +175,10 @@ public:
     bool Set_buffer_contadores_ACC_CRC(void);
     char *Get_buffer_contadores_ACC(void);
 
+    bool Set_buffer_contadores_ACC_NO(int, Contadores_SAS, ESP32Time, Variables_Globales);
+    char *Get_buffer_contadores_ACC_NO(void);
+
+
     /* Buffer id maq */
     bool Set_buffer_id_maq(int, Contadores_SAS);
     bool Set_buffer_id_maq_encriptado(void);
@@ -252,3 +260,5 @@ public:
     bool Set_buffer_Registro_MQ_CRC(void);
     char *Get_buffer_Registro_MQ(void);
 };
+
+#endif

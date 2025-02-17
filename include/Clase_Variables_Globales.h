@@ -1,3 +1,9 @@
+
+#ifndef VARIABLES_H  // Protección contra inclusiones múltiples
+#define VARIABLES_H
+
+
+
 #include "Stream.h"
 #include <iostream>
 using namespace std;
@@ -245,3 +251,4 @@ public:
     void Set_Variable_Global_Uint16(int Filtro,uint16_t Change_estado);
     uint16_t Get_Variable_Global_Uint16(int Filtro);
 };
+#endif 

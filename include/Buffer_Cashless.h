@@ -37,6 +37,9 @@ class Buffer_RX_AFT
 {
 
 private: // Variables Privadas Buffer
+
+  char Buffer_Rx_TITO_Obj[4];
+  char Buffer_Rx_TITO_7B[128];
   char Info_MQ_AFT_[38];
   char Interrog_registro_ [258];
   char Buffer_registro_Mq [128];
@@ -57,6 +60,8 @@ private: // Variables Privadas Buffer
 
   char Buffer_Rx_TITO_4D[128];
   char Buffer_Rx_TITO_3D;
+ 
+  
 
   char Buffer_Rx_TITO_7C[128];
 
@@ -116,8 +121,21 @@ public:
   bool Init_Buffer_TITO_7C(void);
 
 
+  void Set_Buffer_TITO_Data(char Buffer_Transfer[]);
+  char* Get_Buffer_TITO_Data();
+  void Init_Buffer_TITO_Data();
+
+  bool Set_Buffer_TITO_7B(char Buffer[]);  
+  char *Get_Buffer_TITO_7B(void);
+  bool Init_Buffer_TITO_7B(void);
+  
+
+
+
+
   bool Set_Cashout_Type_Ticket(char Cashout_Type);
   //bool Amount_Ticket(char Buffer[]);
+  
 
   char Get_Cashout_Type_Informacion(void);
   char* Get_Amount_Ticket(void);

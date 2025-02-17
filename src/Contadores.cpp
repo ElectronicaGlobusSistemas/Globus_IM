@@ -14,6 +14,10 @@ extern API_Accounting Accounting;
 
 extern AutoUpdate UpdateOTA;
 extern uint8_t Version_Firmware_[];
+
+
+extern bool Flag_Change_Counters_Break;
+
 int Convert_Char_To_Int(char buffer[]);
 
 char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
@@ -1077,6 +1081,24 @@ bool Contadores_SAS::Verify_Close(byte Cliente_Operador[])
 }
 
 /* Agrega ID operador en trama  de contadores */
+bool Contadores_SAS::Set_Id_Operador_Generico(char Operador[])
+{
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Operador[i] = '0';
+  }
+
+  ID_Operador[0] = Operador[0];
+  ID_Operador[1] = Operador[1];
+  ID_Operador[2] = Operador[2];
+  ID_Operador[3] = Operador[3];
+  ID_Operador[4] = Operador[4];
+  ID_Operador[5] = Operador[5];
+  ID_Operador[6] = Operador[6];
+  ID_Operador[7] = Operador[7];
+
+  return true;
+}
 bool Contadores_SAS::Set_Operador_ID(char Operador[])
 {
   for (int i = 0; i < 8; i++)
@@ -1617,11 +1639,11 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
   int Valor_Prueba=0;
   if(contieneNumero(Counter_Cancel_Credit))
   {
-    /* Metodo de conversion 1 */
-    for (int i = 0; i < 8; i++)
-    {
-      Valor_Prueba = Valor_Prueba * 10 + (Counter_Cancel_Credit[i] - '0');
-    }
+    // /* Metodo de conversion 1 */
+    // for (int i = 0; i < 8; i++)
+    // {
+    //   Valor_Prueba = Valor_Prueba * 10 + (Counter_Cancel_Credit[i] - '0');
+    // }
 
     /* Medoto de conversion 2 */
     Current_Cancel_Credit=atoi(Counter_Cancel_Credit);
@@ -1629,23 +1651,19 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
     // Serial.println(Valor_Prueba);
     // Serial.println(Current_Cancel_Credit);
 
-    if(Current_Cancel_Credit == Valor_Prueba)
+    if (Last_Cancel_Credit == 0)
     {
-
-      if (Last_Cancel_Credit == 0)
-      {
-        Last_Cancel_Credit = Current_Cancel_Credit;
-        // Serial.println("Inicial-------");
-      }
-      if (Current_Cancel_Credit > Last_Cancel_Credit)
-      {
-        Last_Cancel_Credit = Current_Cancel_Credit;
-        Set_Flag_Premio(true);
-        // Serial.println("Cambio Premio-----");
-        /* Se agrego---->*/
-        Accounting.Change_Flag_Handler_Cancel_Credit(true);
-      }
-
+      Last_Cancel_Credit = Current_Cancel_Credit;
+      // Serial.println("Contaodor Inicial");
+    }
+    if (Current_Cancel_Credit > Last_Cancel_Credit)
+    {
+      Last_Cancel_Credit = Current_Cancel_Credit;
+      Set_Flag_Premio(true);
+      //Serial.println("Cambio Premio-----");
+      /* Se agrego---->*/
+     // Accounting.Change_Flag_Handler_Cancel_Credit(true);
+     Flag_Change_Counters_Break=true;
     }
   }else{
     // Serial.println("Letra contador ");

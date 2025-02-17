@@ -243,7 +243,6 @@ void loop()
 {
   
   //Tito.Request_Handle_Tito();
-
   if(!Verifica)
   {
     if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Enable_Cashless))==2)
@@ -607,71 +606,178 @@ static void Check_Comunicacion_Maq(void *parameter)
 (8)=5.5 Minutos
 (9)=6 Minutos 
 */
+// void TimeOut_Player_Tracking_Sesion(void)
+// {
+
+//   currentTime = millis();
+
+//   if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) == false && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) == true)
+//   {
+//     Creditos_Machine();
+//     delay(250);
+//     int Creditos_Actuales_Maquina = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+//     // Serial.println(Creditos_Actuales_Maquina);
+//     if (!condicionCumplida)
+//     {
+//       startTime = currentTime;
+//       condicionCumplida = true;
+//     }
+//     if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
+//     {
+//       startTime = currentTime;
+//       condicionCumplida = false;
+//     }
+//     if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
+//     {
+//       /* Tipo de maquina no cashless */
+//       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
+//       {
+//         Info_Cashless.Lock_Reader();
+//         Transmite_Contadores_Accounting();
+//         Close_Sesion_Player_Tracking();
+//         Info_Cashless.Unlock_Reader();
+//       }
+//       else
+//       {
+//         /* Tipo de maquina Cashless */
+//         if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+//         {
+//           /* Cashless  habilitado */
+//           if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+//           {
+//             Info_Cashless.Lock_Reader();
+//             bool Handle = true;
+//             if (Info_Cashless.Get_Status_Reader())
+//               Status_Barra(301);
+
+//             switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+//             {
+//             case REQUEST_SUCCESSFULLY_RECEIVED:
+//               Solicitud_Descarga_Cashless();
+//               Handle = false;
+//               break;
+
+//             default:
+//               Status_Barra(ERROR_LECTURA);
+//               Info_Cashless.Unlock_Reader();
+//               Handle = false;
+//               break;
+//             }
+//             if (Handle)
+//               Info_Cashless.Unlock_Reader();
+//           }
+//         }
+//         else
+//         {
+//           Info_Cashless.Lock_Reader();
+//           Transmite_Contadores_Accounting();
+//           Close_Sesion_Player_Tracking();
+//           Info_Cashless.Unlock_Reader();
+//         }
+//       }
+//       Contador_Transmision_Contadores = 0;
+//       New_Timer_Final = New_Timmer_Inicial;
+//       startTime = currentTime;
+//       condicionCumplida = false;
+//     }
+//   }
+//   else
+//   {
+//     condicionCumplida = false;
+//   }
+// }
+
 void TimeOut_Player_Tracking_Sesion(void)
 {
-
   currentTime = millis();
 
-  if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) == false && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) == true)
+  if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)) < 10)
   {
-    int Creditos_Actuales_Maquina = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
-    // Serial.println(Creditos_Actuales_Maquina);
+
     if (!condicionCumplida)
     {
       startTime = currentTime;
       condicionCumplida = true;
+      // Serial.println("Reinicia Tiempout por primera activacion ");
     }
-    if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina > 10)
+
+    if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking)
     {
-      startTime = currentTime;
-      condicionCumplida = false;
-    }
-    if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking && Creditos_Actuales_Maquina < 10)
-    {
-      /* Tipo de maquina no cashless */
-      if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
+      Creditos_Machine();
+      delay(250);
+      // Verifica créditos varias veces para evitar inconsistencias
+      bool consistentCreditos = true;
+      int Creditos;
+
+      for (int i = 0; i < 5; i++)
       {
-        Info_Cashless.Lock_Reader();
-        Transmite_Contadores_Accounting();
-        Close_Sesion_Player_Tracking();
-        Info_Cashless.Unlock_Reader();
-      }
-      else
-      {
-        /* Tipo de maquina Cashless */
-        if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+        Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+
+        if (Creditos >= 10)
         {
-          /* Cashless  habilitado */
-          if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
-          {
-            Info_Cashless.Lock_Reader();
-            bool Handle = true;
-            if (Info_Cashless.Get_Status_Reader())
-              Status_Barra(301);
+          consistentCreditos = false;
+          break;
+        }
+      }
 
-            switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
-            {
-            case REQUEST_SUCCESSFULLY_RECEIVED:
-              Solicitud_Descarga_Cashless();
-              Handle = false;
-              break;
+      if (consistentCreditos)
+      {
+        // Serial.println();
+        // Serial.print("Creditos: ");
+        // Serial.println(Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)));
+        // Serial.println("Cierra sesion por inactividad ");
+        // Serial.print("Timeout: ");
+        // Serial.println(currentTime - startTime);
 
-            default:
-              Status_Barra(ERROR_LECTURA);
-              Info_Cashless.Unlock_Reader();
-              Handle = false;
-              break;
-            }
-            if (Handle)
-              Info_Cashless.Unlock_Reader();
-          }
+        /* Maquina  No Cashless */
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
+        {
+          Transmite_Contadores_Accounting();
+          Close_Sesion_Player_Tracking();
         }
         else
         {
-          Info_Cashless.Lock_Reader();
-          Transmite_Contadores_Accounting();
-          Close_Sesion_Player_Tracking();
-          Info_Cashless.Unlock_Reader();
+          /* Maquina Cashless */
+          if (Variables_globales.Get_Variable_Global(Enable_Cashless))
+          {
+            /* Cashless  habilitado */
+            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+            {
+              // Info_Cashless.Lock_Reader();
+              bool Handle = true;
+              if (Info_Cashless.Get_Status_Reader())
+                Status_Barra(301);
+
+              switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+              {
+              case REQUEST_SUCCESSFULLY_RECEIVED:
+                Solicitud_Descarga_Cashless();
+                Handle = false;
+                break;
+
+              default:
+                Status_Barra(ERROR_LECTURA);
+                Info_Cashless.Unlock_Reader();
+                Handle = false;
+                break;
+              }
+
+              // if (Handle)
+              // Info_Cashless.Unlock_Reader();
+            }
+            else
+            {
+              Transmite_Contadores_Accounting();
+              Close_Sesion_Player_Tracking();
+            }
+          }
+          else
+          {
+            // Info_Cashless.Lock_Reader();
+            Transmite_Contadores_Accounting();
+            Close_Sesion_Player_Tracking();
+            // Info_Cashless.Unlock_Reader();
+          }
         }
       }
       Contador_Transmision_Contadores = 0;

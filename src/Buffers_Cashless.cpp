@@ -22,6 +22,9 @@
 #include "AutoUpdate.h"
 
 #include "SD.h"
+
+
+#define Unlock_Machine  26
 extern Configuracion_ESP32 Configuracion;
 extern Contadores_SAS contadores; // Objeto contiene contadores maquina
 extern Cashless_API Info_Cashless;
@@ -52,9 +55,29 @@ extern unsigned char Registra_Machine(void);
 extern unsigned char Delete_Registro_Machine(void);
 extern bool Consulta_Info_Cashless(void);
 const unsigned char Tabla_Ascii_Data[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+extern bool Reset_HandPay(void);
+extern bool Flag_Critial_Questions;
+extern bool Extended_Ticket_Command;
+
+bool Flag_Change_Counters_One=false;
+bool Flag_Change_Counters_TWO=false;
+
+bool Flag_Change_Counters_Response=false;
+bool Flag_Change_Counters_Break=false;
+
+bool Variable_Solicitud_Operador_Id=false;
+bool Solicitud_Expiracion_Ticket=false;
 
 
+#include "Buffers.h"
+extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 
+extern char buffer_contadores_ACC[258];
+extern bool Actualiza_Tarjeta_Mecanica(char res[]);
+
+extern bool Creditos_Machine(void);
+extern bool Encuesta_Creditos_Premio(void);
+extern int Convert_Char_To_Int10(char buffer[]);
 std::string IP_toString_A(char IP_Char[])
 {
     std::stringstream ss;
@@ -1601,6 +1624,14 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   /*********************************************************************************************************/
   /**********************************************CONFIG TITO************************************************/
   /*********************************************************************************************************/
+  /* Metodo Web configura la informacion de ticket 
+  Location: Nombre del Casino
+  Adress_1: Direccion 1
+  Adress_2: Direccion 2
+  Restricted_Ticket:  Titulo para ticket restringidos
+  Debit_Ticket_Title: Titulo para ticket debito
+  Ticket Casheable default: Cashout Vaouncher
+  */
   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_Informacion_Ticket", [](AsyncWebServerRequest* request, JsonVariant& json) {
     
 
@@ -1714,6 +1745,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
   }));
 
+  /* Metodo Web para deshabilitar el cobro por  modulo TITO */
   Server_API.on("/Evento_57_Tito_Deshabilitado",HTTP_GET, [](AsyncWebServerRequest *request){
     
 
@@ -1770,6 +1802,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     request->send(200, "application/json", Json);
   });
 
+  /* Metodo Web para habilitar el cobro por modulo TITO */
   Server_API.on("/Evento_57_Tito_Habilitado",HTTP_GET, [](AsyncWebServerRequest *request){
     
     
@@ -1876,6 +1909,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
    
   });
 
+  /* Metodo Web Envia contadores  TITO */
   Server_API.on("/Solicitud_Contadores_Tito",HTTP_GET, [](AsyncWebServerRequest *request)
   {
     DynamicJsonDocument jsonDocument(800);
@@ -1931,7 +1965,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     //Serial.println(Output);
     request->send(200, "application/json", Output);
   });
-
+  /* Metodo Web Habilita el modulo TITO */
   Server_API.on("/Habilitar_Tito",HTTP_GET, [](AsyncWebServerRequest *request){
 
 
@@ -2028,7 +2062,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       request->send(200, "application/json", Json);
       }
   });
-
+  /* Metodo Web Deshabilita el modulo TITO */
   Server_API.on("/Inhabilitar_Tito",HTTP_GET, [](AsyncWebServerRequest *request){
   
  
@@ -2163,11 +2197,256 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   }  
   });
 
+  /* Metodo Web para descargar archivo de transacciones pendiente modulo TITO */
   Server_API.on("/Transferencias_Tito", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/Ticket.txt", "text/plain", true);
     response->addHeader("Txt", "Transferencias Pendientes");
     request->send(response);
   });
+
+  /* Metodo Web configura la expiracion de ticket */
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_expiracion_ticket", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+    
+    int Code=0x100;
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+  
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesagge"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else
+    {
+
+      auto&& data = json.as<JsonObject>();
+
+      if(!data.containsKey("Cashable_ticket_expiration") ||!data.containsKey("Restricted_ticket_expiration") )
+      {
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "Tiempo de expiracion no soportado (mayor a 9999 dias)";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }else{
+        uint32_t Cashable_ticket_expiration = data["Cashable_ticket_expiration"].as<uint32_t>();
+        uint32_t Restricted_ticket_expiration = data["Restricted_ticket_expiration"].as<uint32_t>();
+
+        if(Cashable_ticket_expiration>9999||Restricted_ticket_expiration>9999)
+        {
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Mesagge"] = "Tiempo de expiracion no soportado (mayor a 9999 dias)";
+          String Json;
+          serializeJson(jsonDocument, Json); /* Serializa Data */
+          request->send(200, "application/json", Json);
+          return;
+        }
+        else
+        {
+
+
+          if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+          {
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Mesagge"] = "No hay comunicaciion con la MET";
+            String Json;
+            serializeJson(jsonDocument, Json); /* Serializa Data */
+            request->send(200, "application/json", Json);
+            return;
+          }
+
+          Buffer_Cashless.Init_Buffer_TITO_Data();
+          char Expiration_Cashable[2];
+          char Expiration__Restricted[2];
+         
+
+          // Calcular los dos bytes en formato BCD
+          Expiration_Cashable[1] = ((Cashable_ticket_expiration % 10) | ((Cashable_ticket_expiration / 10 % 10) << 4));         // Byte bajo: últimos 2 dígitos
+          Expiration_Cashable[0] = ((Cashable_ticket_expiration / 100 % 10) | ((Cashable_ticket_expiration / 1000 % 10) << 4)); // Byte alto: primeros 2 dígitos
+
+
+          // Calcular los dos bytes en formato BCD
+          Expiration__Restricted[1] = ((Restricted_ticket_expiration % 10) | ((Restricted_ticket_expiration / 10 % 10) << 4));         // Byte bajo: últimos 2 dígitos
+          Expiration__Restricted[0] = ((Restricted_ticket_expiration / 100 % 10) | ((Restricted_ticket_expiration / 1000 % 10) << 4)); // Byte alto: primeros 2 dígitos
+          
+
+          char Buffer[4];
+          // Expiración de tickets Cashables 
+          Buffer[0] = Expiration_Cashable[0];
+          Buffer[1] = Expiration_Cashable[1];
+          // Expiración de tickets Restricted
+          Buffer[2] = Expiration__Restricted[0];
+          Buffer[3] = Expiration__Restricted[1];
+          
+          Buffer_Cashless.Set_Buffer_TITO_Data(Buffer);
+
+          unsigned long Timout_Break_Response;
+          int Stop_Transaccion_Amount_Response = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+          Timout_Break_Response = millis();
+          esp_task_wdt_init(1000000, true);
+          esp_task_wdt_add(NULL);
+
+          Extended_Ticket_Command=true; /* Envia comando */
+          Solicitud_Expiracion_Ticket=true;
+
+          
+          while ((Buffer_Cashless.Get_Buffer_TITO_7B()[1] == 0xAA || Buffer_Cashless.Get_Buffer_TITO_7B()[1] == 0x00) && (millis() - Timout_Break_Response < Stop_Transaccion_Amount_Response))
+          {
+            esp_task_wdt_reset();
+
+            if (Buffer_Cashless.Get_Buffer_TITO_7B()[1] != 0xAA && Buffer_Cashless.Get_Buffer_TITO_7B()[1] != 0x00)
+              break;
+            vTaskDelay(300);
+             //Serial.println("Esperando repuesta de la maquina.....!");
+          }
+          // Serial.println(Buffer_Cashless.Get_Buffer_TITO_7B()[1],DEC);
+          // Serial.println(Buffer_Cashless.Get_Buffer_TITO_7B()[9],DEC);
+          // Serial.println(Buffer_Cashless.Get_Buffer_TITO_7B()[10],DEC);
+          if(Buffer_Cashless.Get_Buffer_TITO_7B()[1]==0x7B)
+          {
+            //Serial.println(" Comando Recibido por la maquina...");
+            
+            uint32_t Cashable_ticket_exp = 0;
+            uint32_t Restricted_ticket_exp = 0;
+
+            // Extraer dígitos del formato BCD
+            Cashable_ticket_exp += ((Buffer_Cashless.Get_Buffer_TITO_7B()[9] >> 4) & 0x0F) * 1000; // Dígito más significativo del byte alto
+            Cashable_ticket_exp += (Buffer_Cashless.Get_Buffer_TITO_7B()[9] & 0x0F) * 100;         // Segundo dígito del byte alto
+            Cashable_ticket_exp += ((Buffer_Cashless.Get_Buffer_TITO_7B()[10] >> 4) & 0x0F) * 10;   // Dígito más significativo del byte bajo
+            Cashable_ticket_exp += (Buffer_Cashless.Get_Buffer_TITO_7B()[10] & 0x0F);               // Segundo dígito del byte bajo
+
+            // Extraer dígitos del formato BCD
+            Restricted_ticket_exp += ((Buffer_Cashless.Get_Buffer_TITO_7B()[11] >> 4) & 0x0F) * 1000; // Dígito más significativo del byte alto
+            Restricted_ticket_exp += (Buffer_Cashless.Get_Buffer_TITO_7B()[11] & 0x0F) * 100;         // Segundo dígito del byte alto
+            Restricted_ticket_exp += ((Buffer_Cashless.Get_Buffer_TITO_7B()[12] >> 4) & 0x0F) * 10;   // Dígito más significativo del byte bajo
+            Restricted_ticket_exp += (Buffer_Cashless.Get_Buffer_TITO_7B()[12] & 0x0F);               // Segundo dígito del byte bajo
+
+            // Serial.println("----------------------------------------");
+            // Serial.println(Cashable_ticket_exp);
+            // Serial.println(Restricted_ticket_exp);
+            // Serial.println("----------------------------------------");
+
+            // Serial.println("----------------------------------------");
+            // Serial.println(Cashable_ticket_expiration);
+            // Serial.println(Restricted_ticket_expiration);
+            // Serial.println("----------------------------------------");
+
+            if(Cashable_ticket_expiration==Cashable_ticket_exp && Restricted_ticket_expiration == Restricted_ticket_exp)
+              jsonDocument["IsSuccess"] = true;
+
+            else if(Cashable_ticket_expiration==0 && Restricted_ticket_expiration==0)
+              jsonDocument["IsSuccess"] = true;
+            else
+              jsonDocument["IsSuccess"] = false;
+
+            jsonDocument["Cashable_ticket_expiration"] = Cashable_ticket_exp;
+            jsonDocument["Restricted_ticket_expiration"] = Restricted_ticket_exp;
+
+            if(Cashable_ticket_expiration==0 && Restricted_ticket_expiration==0)
+              jsonDocument["Mesagge"] = "Informacion generada correctamente";
+            else
+              jsonDocument["Mesagge"] = "Configuracion aplicada correctamente";
+          }else{
+
+            //Serial.println(" Comando no recibido....");
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Cashable_ticket_expiration"] = nullptr;
+            jsonDocument["Restricted_ticket_expiration"] = nullptr;
+            jsonDocument["Mesagge"] = "No se aplico  la configuracion";
+          }
+          Buffer_Cashless.Init_Buffer_TITO_7B();
+          Solicitud_Expiracion_Ticket=false;
+          String Json;
+          serializeJson(jsonDocument, Json); /* Serializa Data */
+          jsonDocument.clear();
+          
+          request->send(200, "application/json", Json);
+        }
+      }                                      
+    }
+    }));
+
+  /* Metodo Web configura parametros para habilitar/deshabilitar impresora para modulo TITO */
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Config",[](AsyncWebServerRequest*request,JsonVariant& json)
+  {
+
+    StaticJsonDocument<800> jsonDocument;
+    jsonDocument.clear();
+  
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesagge"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else{
+
+      auto&& data = json.as<JsonObject>();
+
+      if(data.containsKey("Printer_As_Cashout") && data.containsKey("Printer_As_Handpay")&& data.containsKey("Validate_Handpay")&&data.containsKey("Print_Restricted_Ticket")&&data.containsKey("Tickets_For_Foreign")&&data.containsKey("Ticket_Redemption"))
+      {
+
+        bool Use_Printer_As_Cashout_Device=data["Printer_As_Cashout"].as<bool>();
+        bool Use_Printer_As_handpay_Receipt_Device=data["Printer_As_Handpay"].as<bool>();
+        bool Validate_Handpay=data["Validate_Handpay"].as<bool>();
+        bool Print_Restricted_Ticket=data["Print_Restricted_Ticket"].as<bool>();
+        bool Tickets_For_Foreign=data["Tickets_For_Foreign"].as<bool>();
+        bool Ticket_Redemption=data["Ticket_Redemption"].as<bool>();
+
+     
+        uint8_t LSB = 0x00;
+        uint8_t MSB = 0x00;
+
+        // Asignar los valores booleanos a los bits correspondientes
+        LSB |= (Use_Printer_As_Cashout_Device << 0);         // Bit 0
+        LSB |= (Use_Printer_As_handpay_Receipt_Device << 1); // Bit 1
+        LSB |= (Validate_Handpay << 2);                      // Bit 2
+        LSB |= (Print_Restricted_Ticket << 3);               // Bit 3
+        LSB |= (Tickets_For_Foreign << 4);                   // Bit 4
+        LSB |= (Ticket_Redemption << 5);                     // Bit 5
+       
+
+        // Los bits 6-7 permanecen en 0, no es necesario modificarlos
+        Serial.printf("Resultado: 0x%02X\n", LSB); // Imprime el resultado, en este
+
+
+        char Config_Two_Bytes[2];
+        Config_Two_Bytes[0]=LSB;
+        Config_Two_Bytes[1]=MSB;
+
+        jsonDocument["IsSuccess"] = true;
+        jsonDocument["Printer_As_Cashout"] = Use_Printer_As_Cashout_Device;
+        jsonDocument["Printer_As_Handpay"] = Use_Printer_As_handpay_Receipt_Device;
+        jsonDocument["Validate_Handpay"] = Validate_Handpay;
+        jsonDocument["Print_Restricted_Ticket"] = Print_Restricted_Ticket;
+        jsonDocument["Tickets_For_Foreign"] = Tickets_For_Foreign;
+        jsonDocument["Ticket_Redemption"] = Ticket_Redemption;
+        jsonDocument["Mesagge"] = "Configuracion aplicada correctamente";
+
+
+        
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }else{
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "Tiempo de expiracion no soportado (mayor a 9999 dias)";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }
+    }
+
+  }));
+
 
   // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configura_Expiracion_Ticket",[](AsyncWebServerRequest*request,JsonVariant& json){
 
@@ -2189,6 +2468,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   /**********************************************PREMIOS SAS************************************************/
   /*********************************************************************************************************/
 
+  /* Metodo Web Habilita el envio de premios SAS */
   Server_API.on("/Habilitar_Premios_SAS", HTTP_GET, [](AsyncWebServerRequest *request)
   {
 
@@ -2228,6 +2508,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     }
   });
 
+  /* Metodo Web deshabilita el envio de premios SAS */
   Server_API.on("/Inhabilitar_Premios_SAS", HTTP_GET, [](AsyncWebServerRequest *request)
   {
 
@@ -2312,6 +2593,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   });
 
 
+
+ 
   //   Server_API.on("/Encuesta_Transaccion_Pendiente",HTTP_GET, [](AsyncWebServerRequest *request){
   //   StaticJsonDocument<200> jsonDocument;
   //   jsonDocument.clear();
@@ -2645,8 +2928,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     if (!json.is<JsonObject>()) {
 
       jsonDocument["IsSuccess"] = false;
-      jsonDocument["IsSuccess"] = Code;
-      jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
+      jsonDocument["Code"] = Code;
+      jsonDocument["Message"] = "Tipo de dato no identificado JSON";
       String Json;
       serializeJson(jsonDocument, Json); /* Serializa Data */
       request->send(200, "application/json", Json);
@@ -2813,7 +3096,473 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   // }));
 
 
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Solicitud_Reset_Handpay", [](AsyncWebServerRequest* request, JsonVariant& json) {
 
+    char Current_IP[4];
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+    
+    if (!json.is<JsonObject>()) {
+
+      StaticJsonDocument<200> jsonDocument;
+      jsonDocument.clear();
+      jsonDocument["IsSuccess"] =false;
+      jsonDocument["Data"] = nullptr;
+      jsonDocument["Ack"] = nullptr;
+      jsonDocument["Ip"] = IP_toString_(Current_IP);
+      jsonDocument["Message"]="La data no es un json ";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      return;
+
+    }else
+    {
+      auto&& data = json.as<JsonObject>();
+      
+
+      if(!data.containsKey("OperadorId"))
+      {
+        StaticJsonDocument<200> jsonDocument;
+        jsonDocument.clear();
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Data"] = nullptr;
+        jsonDocument["Ack"] = nullptr;
+        jsonDocument["Ip"] = IP_toString_(Current_IP);
+        jsonDocument["Message"] = "No existe la clave (OperadorId) en el json";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+        return; 
+      }else
+      {
+
+        
+        int Id_Op = data["OperadorId"].as<int>();
+        //Serial.println(Id_Op);
+        char Id_Op_Array[9];
+        char Copia_Op[8];
+
+        snprintf(Id_Op_Array, sizeof(Id_Op_Array), "%08d", Id_Op);
+
+        Copia_Op[0]=Id_Op_Array[0];
+        Copia_Op[1]=Id_Op_Array[1];
+        Copia_Op[2]=Id_Op_Array[2];
+        Copia_Op[3]=Id_Op_Array[3];
+        Copia_Op[4]=Id_Op_Array[4];
+        Copia_Op[5]=Id_Op_Array[5];
+        Copia_Op[6]=Id_Op_Array[6];
+        Copia_Op[7]=Id_Op_Array[7];
+
+        contadores.Close_ID_Operador();
+        contadores.Set_Id_Operador_Generico(Copia_Op);
+
+      
+        // Serial.print(int(contadores.Get_Operador_ID()[0]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[1]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[2]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[3]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[4]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[5]) - 48);
+        // Serial.print(int(contadores.Get_Operador_ID()[6]) - 48);
+        // Serial.println(int(contadores.Get_Operador_ID()[7]) - 48);
+      }
+    }
+
+    /* Retarda envio de premio por socket */
+    Variable_Solicitud_Operador_Id=true;
+
+
+    bool Handle_Encuesta=false;
+
+    
+
+    /* Contadores Antes del Premio */
+    int Cancel_Credit_Inicial=contadores.Get_Contadores_Int(Total_Cancel_Credit);
+    int Cancel_Credit_Handpay_Inicial=contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+
+    unsigned long Timout_Break_Response;
+    int Stop_Transaccion_Amount_Response = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+    Timout_Break_Response = millis();
+    esp_task_wdt_init(1000000, true);
+    esp_task_wdt_add(NULL);
+
+    int Ack=0x04;
+
+    /* RESET HANDPAY SAS o RELE */
+    if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+      Status_Barra(TARJETA_OPERADOR_INSERT);
+    Reset_Handle_LED();
+
+    if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
+    {
+
+      if (Variables_globales.Get_Variable_Global(Reset_Handpay_in_Process))
+      {
+        return;
+      }
+      else
+      {
+        Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
+
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
+        {
+          Handle_Encuesta = true;
+          delay(10);
+          digitalWrite(Unlock_Machine, LOW);
+          delay(250);
+          digitalWrite(Unlock_Machine, HIGH);
+        }
+        else
+        {
+          delay(10);
+          Creditos_Machine(); /* Encuesta creditos*/
+          delay(100);
+          int Creditos_Actuales = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+
+          if (Creditos_Actuales <= 0)
+          {
+            /* No hay condición de reset */
+
+            //Serial.println("Maquina no en condicion de pago..... ");
+            Ack = 0x01;
+            contadores.Close_ID_Operador();
+            Handle_Encuesta = false;
+            Status_Barra(ERROR_RESET_HANDPAY);
+            Reset_Handle_LED();
+            Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+            
+          }
+
+          else if (Creditos_Actuales > 0)
+          {
+            Handle_Encuesta = true;
+            delay(10);
+            digitalWrite(Unlock_Machine, LOW);
+            delay(250);
+            digitalWrite(Unlock_Machine, HIGH);
+            // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+            //Serial.println(" Condicion de pago OK ");
+          }
+
+          if (Handle_Encuesta)
+          {
+
+            unsigned long Timout_Break_Response_;
+            int Stop_Transaccion_Amount_Response_ = 10000; // Tiempo de espera en milisegundos (10 Seg MAX)
+            Timout_Break_Response_ = millis();
+
+            while (millis() - Timout_Break_Response_ < Stop_Transaccion_Amount_Response_)
+            {
+              esp_task_wdt_reset();
+
+              /* Simula LLave Maquina */
+              digitalWrite(Unlock_Machine, LOW);
+              delay(10);
+              Creditos_Machine(); /* Encuesta creditos*/
+              delay(100);
+              digitalWrite(Unlock_Machine, HIGH);
+
+              /*Consulta creditos */
+              int Creditos_Actuales_ = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+              delay(3);
+
+              if (Creditos_Actuales_ == 0) /* Reset_Realizado con Exito*/
+              {
+
+                Ack = 0x00;
+                /* Actualiza Maquinas */
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+                {
+                  if (Cancel_Credit_Inicial > 0 && Cancel_Credit_Handpay_Inicial > 0)
+                    Flag_Critial_Questions = true;
+                }
+
+                if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                  Status_Barra(Reset_Exitoso);
+                Reset_Handle_LED();
+                // delay(50);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia Timer Operador */
+                Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+                Handle_Encuesta = false;
+              }
+
+              /* Si la maquina no comunica en medio del proceso se cancela */
+              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15 && !Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+              {
+                Ack = 0x04;
+                if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                  Status_Barra(ERROR_RESET_HANDPAY);
+                Reset_Handle_LED();
+                contadores.Close_ID_Operador();
+                Handle_Encuesta = false;
+                Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+              }
+
+              if (!Handle_Encuesta)
+              {
+                esp_task_wdt_reset();
+                break;
+              }
+              esp_task_wdt_reset();
+              vTaskDelay(300);
+              //Serial.println("Esperando descarga por rele.....");
+            }
+
+            /* Si despues de  que termine el tiempo de espera los creditos son >0 es decir no hubo reset
+            Cancela la operacion por desconexion de rele o   maquina todavia en juego */
+            int Creditos_Actuales_ = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+
+            if (Creditos_Actuales_ > 0)
+            {
+
+              //Serial.println("Se Agoto el tiempo de espera ");
+              Ack = 0x04;
+              if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+                Status_Barra(ERROR_RESET_HANDPAY);
+              Reset_Handle_LED();
+              contadores.Close_ID_Operador();
+              Handle_Encuesta = false;
+              Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+            }
+          }
+        }
+      }
+
+
+      StaticJsonDocument<1024> jsonDocument;
+      jsonDocument.clear();
+
+      Buffer.Set_buffer_contadores_ACC_NO(3, contadores, RTC, Variables_globales);
+      char res[258] = {};
+      bzero(res, 258); // Pone el buffer en 0
+      memcpy(res, Buffer.Get_buffer_contadores_ACC_NO(), 258);
+
+      String convertedString = "";
+      for (int i = 0; i < 258; i++)
+      {
+        convertedString += String(res[i]);
+      }
+      //Serial.println(convertedString);
+
+      String Ack_Final = "";
+      switch (Ack)
+      {
+      case 0x00:
+        jsonDocument["IsSuccess"] = true;
+        Ack_Final = "C0";
+        break;
+
+      case 0x01:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C1";
+        break;
+
+      case 0x02:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C2";
+        break;
+
+      case 0x04:
+        jsonDocument["IsSuccess"] = true;
+        Ack_Final = "C4";
+        break;
+
+      case 0x05:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "HI";
+      break;
+
+      default:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C4";
+        break;
+      }
+
+      jsonDocument["Data"] = convertedString;
+      jsonDocument["Ack"] = Ack_Final;
+      jsonDocument["Ip"] = IP_toString_(Current_IP);
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      //Serial.println(Json);
+      request->send(200, "application/json", Json);
+
+      Variable_Solicitud_Operador_Id=false;
+    }
+    else
+    {
+
+      unsigned long Timout_Break;
+      int Stop_Transaccion = 5000; // Tiempo de espera en milisegundos (10 Seg MAX)
+      
+      /*----------------------------------------------------------------*/
+      /* Solicitud Reset Handpay */
+      Reset_HandPay(); /* Reset Premio por SAS*/
+      delay(200);
+      // while (Variables_globales.Get_Variable_Global_Char(Reset_Handay_OK) == 0x04 && (millis() - Timout_Break < Stop_Transaccion))
+      // {
+      //   esp_task_wdt_reset();
+          
+      //   vTaskDelay(300);
+      //   //Serial.println("Esperando respuesta de comando....");
+      // }
+      /*----------------------------------------------------------------*/
+
+      switch (Variables_globales.Get_Variable_Global_Char(Reset_Handay_OK))
+      {
+      case 0x00: /*Reset realizado con exito*/
+        
+        Flag_Critial_Questions = true;
+        //Transmite_Confirmacion('C', '0');
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
+        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+        Encuesta_Creditos_Premio();
+       
+        //Transmite_Contadores_Accounting();
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+          Status_Barra(Reset_Exitoso);
+        Reset_Handle_LED();
+        Ack=0x00;
+        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true);
+        break;
+      case 0x01: /*No existe condición de reset*/
+        /* Guarda ID Operador */
+        contadores.Close_ID_Operador();
+        //Transmite_Confirmacion('C', '1');
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+          Status_Barra(ERROR_RESET_HANDPAY);
+        Reset_Handle_LED();
+        Ack=0x01;
+        break;
+      case 0x02: /*Imposible realizar reset*/
+        contadores.Close_ID_Operador();
+        //Transmite_Confirmacion('C', '2');
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+          Status_Barra(ERROR_RESET_HANDPAY);
+        Reset_Handle_LED();
+
+        Ack=0x02;
+        break;
+      case 0x04: /* No  hay respuesta de la maquina*/
+        //Transmite_Confirmacion('C', '4');
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+          Status_Barra(ERROR_RESET_HANDPAY);
+        Reset_Handle_LED();
+        Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true);
+        Ack=0x04;
+        break;
+
+      default:
+        Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+        Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
+        Reset_Handle_LED();
+        Ack=0x04;
+        break;
+      }
+
+      int Cancel_Credit_Final = contadores.Get_Contadores_Int(Total_Cancel_Credit);
+      int Cancel_Credit_Handpay_Final = contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+
+      // if (Ack == 0x00) /* Reset OK */
+      // {
+
+      //   Serial.println("Reset OK");
+
+      //   while (millis() - Timout_Break_Response < Stop_Transaccion_Amount_Response)
+      //   {
+      //     esp_task_wdt_reset();
+      //     if (!Flag_Critial_Questions && Cancel_Credit_Final>Cancel_Credit_Inicial||!Flag_Critial_Questions && Cancel_Credit_Handpay_Final>Cancel_Credit_Handpay_Inicial)
+      //       break;
+      //     Serial.println(" Espera el cambio de contadores... ");
+      //     vTaskDelay(300);
+      //   }
+      // }
+
+      if (Ack == 0x00)
+      {
+        Flag_Critial_Questions = true;
+        Flag_Change_Counters_Response = true;
+        Timout_Break = millis();
+        while ((millis() - Timout_Break_Response < Stop_Transaccion_Amount_Response) && !Flag_Change_Counters_Break)
+        {
+          //Serial.println("Espera el cambio de contadores...");
+          vTaskDelay(pdMS_TO_TICKS(300)); // Conversión segura a ticks para FreeRTOS
+        }
+
+        Flag_Change_Counters_One=false;
+        
+      }
+      Flag_Change_Counters_Break=false;
+
+      StaticJsonDocument<1024> jsonDocument;
+      jsonDocument.clear();
+
+      
+      String Ack_Final = "";
+      switch (Ack)
+      {
+      case 0x00:
+        jsonDocument["IsSuccess"] = true;
+        Ack_Final = "C0";
+        break;
+
+      case 0x01:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C1";
+        break;
+
+      case 0x02:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C2";
+        break;
+
+      case 0x04:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C4";
+        break;
+
+      default:
+        jsonDocument["IsSuccess"] = false;
+        Ack_Final = "C4";
+        break;
+      }
+
+
+      Buffer.Set_buffer_contadores_ACC_NO(3, contadores, RTC, Variables_globales);
+      char res[258] = {};
+      bzero(res, 258); // Pone el buffer en 0
+      memcpy(res, Buffer.Get_buffer_contadores_ACC_NO(), 258);
+
+      String convertedString = "";
+      for (int i = 0; i < 258; i++)
+      {
+        convertedString += String(res[i]);
+      }
+      //Serial.println(convertedString);
+
+      jsonDocument["Data"] = convertedString;
+      jsonDocument["Ack"] = Ack_Final;
+      jsonDocument["Ip"] = IP_toString_(Current_IP);
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      //Serial.println(Json);
+      request->send(200, "application/json", Json);
+      Variable_Solicitud_Operador_Id=false;
+    }
+
+  }));
 
   // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualizacion", [](AsyncWebServerRequest* request, JsonVariant& json) {
   //   int Code;
@@ -2902,6 +3651,185 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   //     request->send(200, "application/json", Output);
   //   }
   // });
+
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualiza_Contadores_Mecanicos",[](AsyncWebServerRequest*request,JsonVariant& json)
+  {
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+  
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesagge"] = "Tipo de dato recibido no es un json";
+      jsonDocument["Ack"] = "A8";
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else{
+
+      auto&& data = json.as<JsonObject>();
+      
+
+      if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+      {
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "Tipo de maquina no compatible ";
+        jsonDocument["Ack"] = "A8";
+        
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+        return;
+      }
+
+      if(data.containsKey("Cancel_Credit")&& data.containsKey("Coin_In")&&data.containsKey("Coin_Out")&&data.containsKey("Total_Drop") &&data.containsKey("Multiplicador_Cancel_Credit")&& data.containsKey("Multiplicador_Coin_In")&&data.containsKey("Multiplicador_Coin_Out")&&data.containsKey("Multiplicador_Total_Drop"))
+      {
+
+        char Cancel_Credit_Data_char[9];
+        char Coin_In_Data_char[9];
+        char Coin_Out_Data_char[9];
+        char Total_Drop_Data_char[9];
+
+        char Cancel_Credit_Mult_char[9];
+        char Coin_In_Mult_char[9];
+        char Coin_Out_Mult_char[9];
+        char Total_Drop_Mult_char[9];
+
+        
+
+        /* Contadores */
+        int Cancel_Credit_Data=data["Cancel_Credit"].as<int>();
+        int Coin_In_Data=data["Coin_In"].as<int>();
+        int Coin_Out_Data=data["Coin_Out"].as<int>();
+        int Total_Drop_Data=data["Total_Drop"].as<int>();
+
+        /* Multiplicadores */
+        int Cancel_Credit_Mult=data["Multiplicador_Cancel_Credit"].as<int>();
+        int Coin_In_Mult=data["Multiplicador_Coin_In"].as<int>();
+        int Coin_Out_Mult=data["Multiplicador_Coin_Out"].as<int>();
+        int Total_Drop_Mult=data["Multiplicador_Total_Drop"].as<int>();
+
+
+        if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9)
+        {
+          Cancel_Credit_Mult=0;
+          Coin_In_Mult=0;
+          Coin_Out_Mult=0;
+          Total_Drop_Mult=0;
+        }
+
+
+
+        snprintf(Cancel_Credit_Data_char,sizeof(Cancel_Credit_Data_char),"%08d",Cancel_Credit_Data);
+        snprintf(Coin_In_Data_char,sizeof(Coin_In_Data_char),"%08d",Coin_In_Data);
+        snprintf(Coin_Out_Data_char,sizeof(Coin_Out_Data_char),"%08d",Coin_Out_Data);
+        snprintf(Total_Drop_Data_char,sizeof(Total_Drop_Data_char),"%08d",Total_Drop_Data);
+
+        snprintf(Cancel_Credit_Mult_char, sizeof(Cancel_Credit_Mult_char), "%08d", Cancel_Credit_Mult);
+        snprintf(Coin_In_Mult_char, sizeof(Coin_In_Mult_char), "%08d", Coin_In_Mult);
+        snprintf(Coin_Out_Mult_char, sizeof(Coin_Out_Mult_char), "%08d", Coin_Out_Mult);
+        snprintf(Total_Drop_Mult_char, sizeof(Total_Drop_Mult_char), "%08d", Total_Drop_Mult);
+
+
+        // Serial.println(Cancel_Credit_Data_char);
+        // Serial.println(Coin_In_Data_char);
+        // Serial.println(Coin_Out_Data_char);
+        // Serial.println(Total_Drop_Data_char);
+
+
+        // Serial.println(Cancel_Credit_Mult_char);
+        // Serial.println(Coin_In_Mult_char);
+        // Serial.println(Coin_Out_Mult_char);
+        // Serial.println(Total_Drop_Mult_char);
+
+
+        /* Trama Gmaster */
+
+        char Trama_Gmaster[128];
+        int currentIndex = 4;  // Comienza en el índice 4 de Trama_Gmaster
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Cancel_Credit_Data_char[i];
+        }
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Coin_In_Data_char[i];
+        }
+
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Coin_Out_Data_char[i];
+        }
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Total_Drop_Data_char[i];
+        }
+
+
+
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Cancel_Credit_Mult_char[i];
+        }
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Coin_In_Mult_char[i];
+        }
+
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Coin_Out_Mult_char[i];
+        }
+
+        for (int i = 0; i < 8; ++i)
+        {
+          Trama_Gmaster[currentIndex++] = Total_Drop_Mult_char[i];
+        }
+
+        //Serial.println(Trama_Gmaster);
+
+        if(Actualiza_Tarjeta_Mecanica(Trama_Gmaster))
+        {
+          jsonDocument["IsSuccess"] = true;
+          jsonDocument["Mesagge"] = "Contadores actualizados correctamente";
+          jsonDocument["Ack"] = "A7";
+        }
+        else
+        {
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Mesagge"] = "No hay comunicacion con la MET";
+          jsonDocument["Ack"] = "A8";
+        }
+          
+
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }else{
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "Falta uno o mas parametros para realizar la operacion";
+        jsonDocument["Ack"] = "A8";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }
+    }
+
+  }));
+
+
   
   Server_API.begin();
   return true;
@@ -3536,6 +4464,64 @@ bool Buffer_RX_AFT::Init_Buffer_TITO(void)
     return true;
   else
     return false;
+}
+
+
+
+bool Buffer_RX_AFT::Set_Buffer_TITO_7B(char Buffer_Machine[])
+{
+
+  for(int i=0; i<128;i++)
+  {
+    Buffer_Rx_TITO_7B[i]=Buffer_Machine[i];
+  }
+  return true;
+}
+
+char* Buffer_RX_AFT::Get_Buffer_TITO_7B(void)
+{
+  return Buffer_Rx_TITO_7B;
+}
+
+bool Buffer_RX_AFT::Init_Buffer_TITO_7B(void)
+{
+
+  for (int i = 0; i < 128; i++)
+  {
+    Buffer_Rx_TITO_7B[i]=0xAA;
+  }
+
+  if(Buffer_Rx_TITO_7B[0]==0xAA &&  Buffer_Rx_TITO_7B[127]==0xAA)
+    return true;
+  else
+    return false;
+}
+
+
+
+
+void Buffer_RX_AFT::Set_Buffer_TITO_Data(char Buffer_Transfer[])
+{
+  Buffer_Rx_TITO_Obj[0]=Buffer_Transfer[0];
+  Buffer_Rx_TITO_Obj[1]=Buffer_Transfer[1];
+  Buffer_Rx_TITO_Obj[2]=Buffer_Transfer[2];
+  Buffer_Rx_TITO_Obj[3]=Buffer_Transfer[3];
+}
+
+
+void Buffer_RX_AFT::Init_Buffer_TITO_Data()
+{
+  Buffer_Rx_TITO_Obj[0]=0x00;
+  Buffer_Rx_TITO_Obj[1]=0x00;
+  Buffer_Rx_TITO_Obj[2]=0x00;
+  Buffer_Rx_TITO_Obj[3]=0x00;
+}
+
+
+
+char* Buffer_RX_AFT::Get_Buffer_TITO_Data()
+{
+  return Buffer_Rx_TITO_Obj;
 }
 
 

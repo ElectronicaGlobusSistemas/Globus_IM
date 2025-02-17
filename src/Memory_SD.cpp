@@ -335,6 +335,8 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
       #ifdef Debug_Status_SD
       Serial.println("Archivo LOG Creado: " + String(ARCHIVO));
       #endif
+
+      myFile.flush();
       myFile.close();
       Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
       Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
@@ -368,6 +370,7 @@ void Write_Data_File_Txt(String Datos, char *ARCHIVO)
     else
     {
       myFile.println(Datos);
+      myFile.flush();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Evento Guardado en SD");
@@ -403,6 +406,7 @@ void LOG_ESP(char *ARCHIVO,bool Enable)
       {
         String Datos = String(Fallo);
         myFile2.println(RTC.getTime() + " Error: " + Datos);
+        myFile.flush();
         myFile2.close();
         #ifdef Debug_Escritura
         Serial.println("LOG Guardado");
@@ -443,6 +447,7 @@ void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje)
       else
       {
         myFile2.println(RTC.getTime() + " Error: " + Mensaje);
+        myFile.flush();
         myFile2.close();
         #ifdef Debug_Escritura
         Serial.println("LOG Guardado");
@@ -478,6 +483,7 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
     else
     {
       myFile.println(Encabezado);
+      myFile.flush();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
@@ -489,9 +495,9 @@ void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
   }
   else if (SD.exists("/"+String(ARCHIVO)))
   {
-    #ifdef Debug_Escritura
+    //#ifdef Debug_Escritura
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO);
-    #endif
+   // #endif
    // Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
    // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
    Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
@@ -514,6 +520,7 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
     else
     {
       myFile.println(Encabezado);
+      myFile.flush();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
@@ -551,6 +558,7 @@ void Write_Data_File(String Datos, char *ARCHIVO, bool select)
       #ifdef Debug_Escritura
       Serial.println("Dato: " + Datos + " Guardado en SD");
       #endif
+      myFile.flush();
       myFile.close();
     }
   }
@@ -568,6 +576,7 @@ void Write_Data_File(String Datos, char *ARCHIVO, bool select)
       #ifdef Debug_Escritura
       Serial.println("Dato: " + Datos + " Guardado en SD");
       #endif
+      myFile.flush();
       myFile.close();
     }
   }
@@ -599,6 +608,7 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
     {
       digitalWrite(SD_Status,LOW);
       myFile.println(Datos);
+      myFile.flush();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Contadores Guardados en SD");
@@ -625,6 +635,7 @@ void Erro_Log(String Datos, String archivo)
     else //  else por else if
     {
       myFile.println(Datos);
+      myFile.flush();
       myFile.close();
       #ifdef Debug_Escritura
       Serial.println("Log Capturado");
@@ -658,8 +669,6 @@ bool VerificaArchivo(const char* archivo, String DataTime)
   }
   return false;
 }
-
-
 
 //--------------------------------------------------------------------------------------------------------
 //---------------------------> Funcion para  guardar operador  reset handpay <----------------------------
@@ -697,6 +706,7 @@ void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer)
         /* Almacena estructura en archivo CSV*/
         Datos2 = Estructura_CSV_Premios[0] + Estructura_CSV_Premios[1];
         myFile.println(Datos2);
+        myFile.flush();
         myFile.close();
 
         for (int i = 0; i <= Datos2.length(); i++)
@@ -770,6 +780,7 @@ void Storage_Cliente(String archivo, bool Enable,byte *Buffer)
         Estructura_CSV_Sesiones[1] = String(BT1)+String(BT2)+String(BT3)+String(BT4)+String(BT5)+String(BT6)+String(BT7)+String(BT8);
         Datos=Estructura_CSV_Sesiones[0]+Estructura_CSV_Sesiones[1];
         myFile.println(Datos);
+        myFile.flush();
         myFile.close();
 
         for (int i = 0; i <= Datos.length(); i++)

@@ -90,9 +90,12 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,0,8};
+uint8_t Version_Firmware_[]={2,1,1,9};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
+
+
+
 
 void Init_Config(void)
 
@@ -140,10 +143,10 @@ void Init_Config(void)
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
     //------------------> Init Memoria SD <--------------------------
-    Init_RFID(); /* Inicializa Modulo RFID*/
-    Init_SD(); // Inicializa Memoria SD.
     
-
+    Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
+    Init_RFID(); /* Inicializa Modulo RFID*/
+    
     //------------------> AutoUpdate <-------------------------------
   //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
   //  UpdateOTA.Auto_Update(false); /* Verifica Actualizacion */

@@ -4,6 +4,10 @@
                     ->Metodo Get_Contadores
                     ->Metodo Set_Contadores
 */
+
+#ifndef CONTADORES_H  // Protección contra inclusiones múltiples
+#define CONTADORES_H
+
 #include "Stream.h"
 #include <iostream>
 using namespace std;
@@ -203,7 +207,9 @@ public:
 
 
   int Get_Operador_ID_Int(char Operador_ID[]);
-
+  bool Set_Id_Operador_Generico(char Operador[]);
   int Convert_Char_In(byte Id[]);
   
 };
+
+#endif  // MILIBRERIAESP32_H

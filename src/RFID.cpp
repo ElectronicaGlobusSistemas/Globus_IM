@@ -1220,6 +1220,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                         Info_Cashless.Close_Player_Tracking_Sesion(true);
                         Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
                         contadores.Close_ID_Client_Transaccion();
+                        Info_Cashless.Unlock_Reader(); /* Habilita lector */
                         Handle=true;
                         break;
 
@@ -1230,6 +1231,20 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                         case REQUEST_SUCCESSFULLY_RECEIVED:
                             Solicitud_Descarga_Cashless();
                             break;
+
+                        case NOT_CONEXION_WITH_SERVER:
+                            Status_Barra(ERROR_LECTURA);
+                            Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            Handle=true;
+                            Reset_Handle_LED();
+                        break;
+
+                        case PROBLEM_WITH_THE_SERVER:
+                            Status_Barra(ERROR_LECTURA);
+                            Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            Handle=true;
+                            Reset_Handle_LED();
+                        break;
 
                         default:
                             Status_Barra(ERROR_LECTURA);
@@ -1242,17 +1257,15 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
                     default: /*  Solicitud manual de cierre  Sesion Player Tracking  */
                         Status_Barra(ERROR_LECTURA);
-                        Handle=true;
+                        Info_Cashless.Unlock_Reader();  /* Habilita lector */
                         Reset_Handle_LED();
                         break;
                     }
                 }else{
                     Info_Cashless.Close_Player_Tracking_Sesion(true);
-                    Handle=true;
-                }
-
-                if(Handle)
                     Info_Cashless.Unlock_Reader();  /* Habilita lector */
+                }
+               // Info_Cashless.Unlock_Reader();  /* Habilita lector */
             }
             else
             {
@@ -4416,7 +4429,7 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
             {
             case PLAYER_CASHLESS_SESION:
                 
-                Info_Cashless.Lock_Reader();
+               // Info_Cashless.Lock_Reader();
                 // Status_Barra(301);
                 // Serial.println("Se identifico Sesion Cashless");
                 // Serial.println("Recuperando sesion......");
@@ -4444,7 +4457,7 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
                         Status_Barra(301); /* Lector ocupado por transaccion */
                       //  Serial.println("Tarea de trasacción pendiente habilitada");
                         Variables_globales.Set_Variable_Global(Event_Load_Cashless_Pending, true);
-                        Info_Cashless.Lock_Reader();
+                        //Info_Cashless.Lock_Reader();
                     }
 
                     if(Donmload_Critical)
@@ -4453,15 +4466,15 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
                         Status_Barra(301); /* Lector ocupado por transaccion */
                       //  Serial.println("Tarea de trasacción pendiente habilitada");
                         Variables_globales.Set_Variable_Global(Event_Dowmload_Cashless_Pending, true);
-                        Info_Cashless.Lock_Reader();
+                        //Info_Cashless.Lock_Reader();
                     }
                 }
-                if(!Test)
-                    Info_Cashless.Unlock_Reader();
+                // if(!Test)
+                //     Info_Cashless.Unlock_Reader();
                 break;
 
             case PLAYER_TRACKING_SESION:
-
+                Info_Cashless.Unlock_Reader();
                 // Serial.println("Se identifico un ID despues del Reinicio");
                 // Serial.println("Se identifico Sesion Player Tracking...");
                 // Serial.println("Borra Datos para no recuperar Player Tracking....");
@@ -4767,7 +4780,7 @@ bool Cashless_API::Lock_Reader(void)
 {
     Handle_Lector_RFID=true;
 
-    if(Handle_Lector_RFID)
+    if(Handle_Lector_RFID==true)
         return true;
     else    
         return false;

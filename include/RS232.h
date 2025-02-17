@@ -20,6 +20,8 @@ extern bool Update_Out_Cashless;
 extern bool Update_In_Tito;
 extern bool Update_Out_Tito;
 
+extern bool Solicitud_Expiracion_Ticket;
+
 extern DynamicJsonDocument Objeto_Ticket_In_Response;
 
 bool Ack_Cashless_Transfer_Load=false;
@@ -205,6 +207,7 @@ void Actualiza_Salida_Tito(void);
 void Actualiza_Entrada_Tito(void);
 
 void Critial_Question(void);
+void Tito_Expiration_Ticket(void);
 
 extern unsigned long Bandera_RS232;
 extern unsigned long Bandera_RS232_F;
@@ -240,6 +243,11 @@ bool Act_Coin_out_Poker = false;
 bool Act_Bill_Poker = false;
 bool Act_Current_Credits = false;
 int Cuenta_Save_Mecanicas=0;
+
+
+extern bool Flag_Change_Counters_Response;
+extern bool Flag_Change_Counters_One;
+bool Extended_Ticket_Command=false;
 
 #define flag_bloquea_Maquina            1
 #define flag_desbloquea_Maquina         2
@@ -965,7 +973,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
               if(buff[4]==0x40)
               {
-                Serial.println("Transfer OK");
+                //Serial.println("Transfer OK");
               }
           }
           /* -----------------------------------> Buffer datos TITO <-------------------------------------------------- */
@@ -1000,6 +1008,20 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           {
             Variables_globales.Set_Variable_Global(Amount_Download_Ready,true);
             Buffer_Cashless.Set_RX_AFT(Buffer_RX_Cashless,buffer);
+          }
+
+          if(buffer[1]==0x7B)
+          {
+            // Serial.println("Recibido ack 7b");
+            Buffer_Cashless.Init_Buffer_TITO_7B();
+            Buffer_Cashless.Set_Buffer_TITO_7B(buffer);
+            // Serial.println("----------------->Response<-------------------");
+            // for(int i=0;i<20; i++)
+            // {
+            //   Serial.print(buffer[i],DEC);
+            //   Serial.println();
+            // }
+            //  Serial.println("----------------->Response<-------------------");
           }
 
           if (buffer[0] == 0x01 && buffer[1] == 0x73)
@@ -1072,7 +1094,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 //              if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4)
                 //                Calcula_Cancel_Credit_IRT();
                 //? Serial.println("Guardado con exito") : Serial.println("So se pudo guardar");
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13)
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 10||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 1||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
                 {
                   Estructura_CSV[0] = RTC.getTime() + ","; // Add Hora MAQ Generica
                 }
@@ -1087,7 +1109,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                   /*---------------------------------------------------------------*/
                 }
 
-               // Serial.println("Credit ");
+                //Serial.println("Credit ");
                 break;
               case 11:
 
@@ -1309,7 +1331,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 contadores.Set_Contadores(Billetes_50k, contador);
                 break;
               default:
-                Serial.println("Default");
+               // Serial.println("Default");
                 break;
               }
             }
@@ -1412,7 +1434,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             
               
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4 ||
-                Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==2)
+                Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 1)
                 {
 
                   Contador_Save_Data++;
@@ -1429,7 +1451,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                       Contador_Save_Data=0;
                     }
 
-                    if(Contador_Save_Data>1&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5)
+                    if(Contador_Save_Data>1&& Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 1)
                     {
                       Selector_Modo_SD();
                       Storage_Contadores_SD(Archivo_CSV_Contadores, Encabezado_Contadores, Variables_globales.Get_Variable_Global(Enable_Storage));
@@ -2194,6 +2216,11 @@ void Encuestas_Maquina(void *pvParameters)
         Info_Cashless.Set_Controller_Transfer_Download(false);
       }
 
+      if(Extended_Ticket_Command)
+      {
+        Tito_Expiration_Ticket();
+        Extended_Ticket_Command=false;
+      }
 
       if(Flag_Set_Ticket_Data)
       {
@@ -6001,10 +6028,14 @@ bool Creditos_Machine(void)
 
 void Transmite_Encuesta_Creditos(void)
 {
-  Transmite_Poll(0x1A);
-  delay(100);
-  Transmite_Poll(0x1A);
-  delay(100);
+
+  for (int i = 0; i < 5; i++)
+  {
+    Transmite_Poll(0x1A);
+    delay(100);
+    Transmite_Poll(0x1A);
+    delay(100);
+  }
 }
 
 void Transmite_Encuesta_Maquina_Juego(void)
@@ -8074,19 +8105,21 @@ void Requerimiento_Ticket_In(void)
 
       Buffer_Cashless.Init_Buffer_TITO_70();
       CalcularCRC_Transfer(command, command_Size);
-
-      for (int i = 0; i < 21; i++)
+      for (int i = 0; i < 3; i++)
       {
-        if (i == 0)
+        for (int i = 0; i < 21; i++)
         {
-          sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-        }
+          if (i == 0)
+          {
+            sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+          }
 
-        else
-        {
+          else
+          {
 
-          // Serial.println(command[i],DEC);
-          Transmite_Poll_Long(command[i]);
+            // Serial.println(command[i],DEC);
+            Transmite_Poll_Long(command[i]);
+          }
         }
       }
     }
@@ -8253,9 +8286,16 @@ void Critial_Question(void)
       Transmite_Poll_Long(0x00);
       Transmite_Poll_Long(0xFF);
       Transmite_Poll_Long(0xE0);
-      delay(200);
       esp_task_wdt_reset();
+      delay(200);
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      Transmite_Poll(0x1A);
+      delay(200);
+      
     }
+
+    if(Flag_Change_Counters_Response)
+      Flag_Change_Counters_One=true;
   }
 }
 
@@ -8403,7 +8443,6 @@ void Requerimiento_TITO(void)
         else
         {
           /* 0x80 y 0x81*/
-
           Serial.println("Error Generando Ticket ");
           Tito.Update_Ticket(0xFF, 0xAA);
           Tito.Set_Flag_Ticket_Out_Pending(true);
@@ -8412,6 +8451,8 @@ void Requerimiento_TITO(void)
       }
       else
       {
+        Tito.Update_Ticket(0xFF, 0xAA);
+        Tito.Set_Flag_Ticket_Out_Pending(true);
         Serial.println("Comando 58 no recibido ");
         Tito.Status_Process_Ticket(false);
       }
@@ -8426,4 +8467,54 @@ void Requerimiento_TITO(void)
   }
 
   //Tito.Status_Process_Ticket(false); /* Reset de proceso */
+}
+
+void Tito_Expiration_Ticket(void)
+{
+  
+  // 01 7B 08 00 FF 00 FF 00 10 00 10 6C F6
+  //Serial.println("Extend ticket");
+  char Host_Command[13];
+  int Host_Size = 10;
+
+  /*DIRECCION MAQUINA */
+  Host_Command[0] = 0x01;
+  /* COMANDO */
+  Host_Command[1] = 0x7B;
+  Host_Command[2] = 0x08;
+
+
+  Host_Command[3] = 0x00;
+  Host_Command[4] = 0x00;
+
+  Host_Command[5] = 0x00;
+  Host_Command[6] = 0x00;
+
+  
+  Host_Command[7] = Buffer_Cashless.Get_Buffer_TITO_Data()[0];
+  Host_Command[8] = Buffer_Cashless.Get_Buffer_TITO_Data()[1];
+
+  Host_Command[9] =  Buffer_Cashless.Get_Buffer_TITO_Data()[2];
+  Host_Command[10] = Buffer_Cashless.Get_Buffer_TITO_Data()[3];
+
+  Host_Command[11] = 0x00;
+  Host_Command[12] = 0x00;
+
+ 
+  /* Limpia buffer para la transaccion */
+  Buffer_Cashless.Init_Buffer_TITO_7B();
+  CalcularCRC_Transfer(Host_Command, Host_Size);
+  delay(1);
+
+  for (int i = 0; i < 13; i++)
+  {
+    if (i == 0)
+      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    else
+    {
+      Transmite_Poll_Long(Host_Command[i]);
+      //Serial.println(Host_Command[i],DEC);
+    }
+      
+  }
 }
