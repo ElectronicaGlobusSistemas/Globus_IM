@@ -180,6 +180,7 @@ void AutoUpdate::Init_AutoUpdate(String Version_Firmware_, String URL_Generic_,S
   VERSION_FIR.trim();
   //Serial.println(VERSION_FIR);
   VERSION_FIR=Version_Firmware_; /* Version de firmware desde Api*/
+  
   URL_GENERIC=URL_Generic_; /* URL Generica */
   API_BIN=URL_Bin_; /* URL Archivo de actualizacion */
   API_RES=Respuest; /**/
@@ -329,7 +330,8 @@ void AutoUpdate::firmwareUpdate(void)
 bool AutoUpdate::FirmwareVersionCheck(void)
 {
  
-
+ // Serial.println(VERSION_FIR_LOCAL);
+ // Serial.println(VERSION_FIR);
   if(VERSION_FIR_LOCAL==VERSION_FIR)
   {
     #ifdef Debug_HTTPS

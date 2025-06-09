@@ -48,8 +48,12 @@ liberando el bus despues de usarlo.
 #include "Buffer_Cashless.h"
 #include <queue>
 #include <SPIFFS.h>
+#include <esp_task_wdt.h>
 
 #include "Preferences.h"
+
+
+#include "Pantalla_TFT.h"
 extern Preferences NVS;
 
 esp_timer_handle_t readTimer;
@@ -63,6 +67,12 @@ bool hayTransaccionesPendientes_Download = false;
 bool Transfer_Pending_Load=false;
 bool Transfer_Pending_Download=false;
 
+unsigned long Count_Reader_Init=0;
+unsigned long Count_Failed_Reader=0;
+
+unsigned long Brek_Point=0;
+unsigned long Brek_Point_Final=0;
+int Timeout_Break_Point=20000;
 
 bool Update_In_Cashless=false;
 bool Update_Out_Cashless=false;
@@ -96,10 +106,16 @@ int CodeHttp=0;
 extern bool Flag_Entradas_Cashless_OK;
 extern bool Flag_Salidas_Cashless_OK;
 
+bool Flag_Sesion_Ok=false;
 
 //#define DEBUG_RFID
 extern unsigned long New_Timer_Final;
 extern unsigned long New_Timmer_Inicial;
+
+
+unsigned long Timer_Inicial_Poll;
+unsigned long Timer_Final_Poll;
+int Timeout_Check_Reader_Polling=3000;
 
 /* ------------------------------> Variables externas <-------------------------------------------*/
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
@@ -115,6 +131,9 @@ extern Contadores_SAS contadores; // Objeto contiene contadores maquina
 extern Configuracion_ESP32 Configuracion;
 extern ESP32Time RTC;
 extern Transsaccion_Cashless Cashless;
+extern SPIClass spiRFID;
+
+
 
 Cashless_API Info_Cashless;
 extern Buffer_RX_AFT Buffer_Cashless;
@@ -141,10 +160,12 @@ extern bool Condicion_Cumpl;
 char Buffer_Info_Lector[200];
 
 
-DynamicJsonDocument Objeto_Transfer(800);
-DynamicJsonDocument Objeto_Transfer_Download(800);
+DynamicJsonDocument Objeto_Transfer(1024);
+DynamicJsonDocument Objeto_Transfer_Download(1024);
 /*-----------------------------------------------------------------------------------------------*/
 /* ------------------------------> Instancias <-------------------------------------------------- */
+//MFRC522 mfrc522(P2, MFRC522::UNUSED_PIN);   // Create MFRC522 instance.
+
  MFRC522 mfrc522(P2, P0);   // Create MFRC522 instance.
  PCF8574 pcf8574(ADRESS); //  Dirección expansor I2C.
 /*------------------------------------------------------------------------------------------------*/
@@ -208,6 +229,8 @@ extern  unsigned long startTime;
 unsigned long TimeOut_Automatico=0;
 unsigned long TimeOut_Automatico_Inicial=0;
 int Close_Automatico=120000;
+
+bool New_State_Sesion=false;
 
 extern int Intentos_Conect_RFID;
 
@@ -312,11 +335,18 @@ void customTone(int Itera, int Tono)
 //     }
 // }
 
+void Reset_Down_Mode(void)
+{
+    pcf8574.digitalWrite(P0, HIGH);
+    mfrc522.PCD_Reset();
+}
+
 /**********************************************************************************/
 /*                              CONECTA MÓDULO DESPUES DE INICIO                  */
 /**********************************************************************************/
 void Check_RFID(void)
 {
+    byte version;
     scanner.Init();
    
     for (uint8_t index = 0; index < num_addresses; index++)
@@ -337,27 +367,42 @@ void Check_RFID(void)
 	}
     if (VERIFY_WIRE_CONNECTION)
     {
+        
         pcf8574.begin(); // Inicializa Expansor I2C
         pcf8574.pinMode(P1, OUTPUT);
         pcf8574.pinMode(P0, INPUT);
         pcf8574.pinMode(P2, OUTPUT);
         
         
-
+        delay(5); /* Espera para aplicar configuración */
+        SPI.begin(); /* Inicializa Puerto SPI*/
+        mfrc522.PCD_Reset();
+        pcf8574.digitalWrite(P0,LOW);
+        delay(300);
         mfrc522.PCD_Init(); // Inicializa Módulo RFID
+        delay(10);
+        //mfrc522.PCD_Init(); // Inicializa Módulo RFID
+        Serial.println(pcf8574.digitalRead(P0));
         Status_Barra(INICIO_MODULO);
         delay(100);
-        mfrc522.PCD_Init();                              // Inicializa Módulo RFID
-        mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_43dB); // Activa  antena con ganancia 33dB RxGain_33dB
+        //mfrc522.PCD_Init();                              // Inicializa Módulo RFID
+        mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); // Activa  antena con ganancia 33dB RxGain_33dB
         byte gain = mfrc522.PCD_GetAntennaGain();        // Obtiene  configuracion de antena  para verifica conexión  de modulo RFID
 
-        if (gain >= 0 && gain <= 1000)
+        if (gain == mfrc522.RxGain_18dB || 
+            gain == mfrc522.RxGain_23dB || 
+            gain == mfrc522.RxGain_33dB || 
+            gain == mfrc522.RxGain_38dB || 
+            gain == mfrc522.RxGain_43dB || 
+            gain == mfrc522.RxGain_48dB)
         {
             /* --------------------------- >Configura RIFD <------------------------------------*/
-            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_43dB); /* Configura Gancia en la antena*/
+            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); /* Configura Gancia en la antena*/
 #ifdef Init_RFID_
             Serial.println("Modulo RFID Inicializado....");
 #endif
+            version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
+            Report_Http_Code(READER_KO,"Modulo RFID Inicializado correctamente version:  "+String(version),true);
             Variables_globales.Set_Variable_Global(Conexion_RFID, true); /*Modulo OK*/
             Status_Barra(MODULO_OK);
             Variables_globales.Set_Variable_Global(Verify_Modulo_RFID,true);
@@ -370,10 +415,12 @@ void Check_RFID(void)
             Variables_globales.Set_Variable_Global(Conexion_RFID, false);
             Status_Barra(MODULO_KO);
             Intentos_Conect_RFID++;
+            Report_Http_Code(READER_KO,"Modulo RFID no inicializado:  "+String(version),false);
         }
     }else{
         Serial.println("Modulo RFID no Conectado...");
         Intentos_Conect_RFID++;
+        Report_Http_Code(READER_KO,"Modulo RFID no conectado:  ",false);
     }
 }
 
@@ -383,6 +430,8 @@ void Check_RFID(void)
 void Init_RFID(void)
 {
     /*---------------> SCAN I2C <----------------------------*/
+    byte version;
+
     Wire.begin(21, 22);
     scanner.Init();
    
@@ -406,41 +455,212 @@ void Init_RFID(void)
     if (VERIFY_WIRE_CONNECTION)
     {
         pcf8574.begin(); // Inicializa Expansor I2C
+        delay(5);/* Espera para estabilizar I2C */
         pcf8574.pinMode(P1, OUTPUT);
         pcf8574.pinMode(P0, INPUT);
         pcf8574.pinMode(P2, OUTPUT);
-        
-        
-
+        delay(5); /* Espera para aplicar configuración */
+        SPI.begin(); /* Inicializa Puerto SPI*/
+        mfrc522.PCD_Reset();
+        pcf8574.digitalWrite(P0,LOW);
+        delay(300);
         mfrc522.PCD_Init(); // Inicializa Módulo RFID
+        delay(10);
+        //mfrc522.PCD_Init(); // Inicializa Módulo RFID
         Status_Barra(INICIO_MODULO);
         delay(100);
-        mfrc522.PCD_Init();                              // Inicializa Módulo RFID
-        mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_43dB); // Activa  antena con ganancia 33dB RxGain_33dB
+       // Serial.println(pcf8574.digitalRead(P0));
+        //mfrc522.PCD_Init();                              // Inicializa Módulo RFID
+        mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); // Activa  antena con ganancia 33dB RxGain_33dB
         byte gain = mfrc522.PCD_GetAntennaGain();        // Obtiene  configuracion de antena  para verifica conexión  de modulo RFID
 
-        if (gain >= 0 && gain <= 125)
+        mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x03); // Non-inverting TX2
+        mfrc522.PCD_WriteRegister(MFRC522::GsNReg, 0x44);       // Also try FF
+        mfrc522.PCD_WriteRegister(MFRC522::CWGsPReg, 0x0F);     // Also try 3F
+        mfrc522.PCD_WriteRegister(MFRC522::ModGsPReg, 0x0F);    // Also try //3F
+
+        if (gain == mfrc522.RxGain_18dB || 
+            gain == mfrc522.RxGain_23dB || 
+            gain == mfrc522.RxGain_33dB || 
+            gain == mfrc522.RxGain_38dB || 
+            gain == mfrc522.RxGain_43dB || 
+            gain == mfrc522.RxGain_48dB)
         {
             
             /* --------------------------- >Configura RIFD <------------------------------------*/
-            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_43dB); /* Configura Gancia en la antena*/
+            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); /* Configura Gancia en la antena*/
 #ifdef Init_RFID_
             Serial.println("Modulo RFID Inicializado....");
 #endif
             Variables_globales.Set_Variable_Global(Conexion_RFID, true); /*Modulo OK*/
             Status_Barra(MODULO_OK);
             Variables_globales.Set_Variable_Global(Verify_Modulo_RFID,true);
+            version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
+            String Hex_De="0x";
+            Report_Http_Code(READER_OK,"Modulo RFID Inicializado correctamente version "+Hex_De+String(version,HEX)+":",true);
+
+           // Init_TFT_Display();
         }
         else
         {
+            String Hex_De="0x";
 #ifdef Init_RFID_
             Serial.println("Error Inicializando Modulo");
 #endif
             Variables_globales.Set_Variable_Global(Conexion_RFID, false);
             Status_Barra(MODULO_KO);
+            Report_Http_Code(READER_KO,"Modulo RFID no inicializado"+Hex_De+String(version,HEX)+":",false);
         }
     }else{
         Serial.println("Modulo RFID no Conectado...");
+
+        Report_Http_Code(READER_KO,"Modulo RFID no conectado:  ",false);
+    }
+}
+
+void Resurrect_reader(void)
+{
+    Brek_Point = millis();
+
+    if ((Brek_Point - Brek_Point_Final) >= Timeout_Break_Point && !Variables_globales.Get_Variable_Global(Updating_System))
+    {
+        bool Test;
+        byte version;
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID))
+        {
+           // Serial.println(Count_Reader_Init);
+
+            Count_Reader_Init++;
+            SPI.end();   /* Inicializa Puerto SPI*/
+            delay(5);    /* Espera para aplicar configuración */
+            SPI.begin(); /* Inicializa Puerto SPI*/
+            delay(5);
+            mfrc522.PCD_Reset();
+            pcf8574.digitalWrite(P0, LOW);
+            delay(5);
+            mfrc522.PCD_Init(); // Inicializa Módulo RFID
+            delay(10);
+            // Inicializa Módulo RFID
+            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); // Activa  antena con ganancia 33dB RxGain_33dB
+            byte gain = mfrc522.PCD_GetAntennaGain();        // Obtiene  configuracion de antena  para verifica conexión  de modulo RFID
+
+            mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x03); // Non-inverting TX2
+            mfrc522.PCD_WriteRegister(MFRC522::GsNReg, 0x44);       // Also try FF
+            mfrc522.PCD_WriteRegister(MFRC522::CWGsPReg, 0x0F);     // Also try 3F
+            mfrc522.PCD_WriteRegister(MFRC522::ModGsPReg, 0x0F);    // Also try //3F
+
+            if (gain == mfrc522.RxGain_18dB ||
+                gain == mfrc522.RxGain_23dB ||
+                gain == mfrc522.RxGain_33dB ||
+                gain == mfrc522.RxGain_38dB ||
+                gain == mfrc522.RxGain_43dB ||
+                gain == mfrc522.RxGain_48dB)
+            {
+
+                /* --------------------------- >Configura RIFD <------------------------------------*/
+                mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); /* Configura Gancia en la antena*/
+                                                                 // #ifdef Init_RFID_
+                 //Serial.println("Modulo RFID Inicializado....");
+                 // #endif
+                Variables_globales.Set_Variable_Global(Conexion_RFID, true); /*Modulo OK*/
+                // Status_Barra(MODULO_OK);
+                Variables_globales.Set_Variable_Global(Verify_Modulo_RFID, true);
+                Test=true;
+            }
+            else
+            {
+                Test=false;
+                // #ifdef Init_RFID_
+                 //Serial.println("Error Inicializando Modulo");
+                // #endif
+                Variables_globales.Set_Variable_Global(Conexion_RFID, false);
+                Count_Failed_Reader++;
+            }
+            
+
+            if(Count_Reader_Init>=50 && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+            {
+                String Hex_De = "0x";
+                version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
+                if (Test)
+                    Report_Http_Code(READER_OK, "Modulo RFID iniciado correctamente" + Hex_De + String(version, HEX) + ":", true);
+                else
+                    Report_Http_Code(READER_KO, "Modulo RFID no inicializado" + Hex_De + String(version, HEX) + ":", false);
+                
+                Count_Reader_Init=0;
+            }
+        }
+        else
+        {
+            if(Count_Reader_Init>=50 && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+            {
+                Report_Http_Code(READER_KO,"Modulo RFID no conectado:  ",false);
+                Count_Reader_Init=0;
+            }
+        }
+
+        // if(Count_Failed_Reader>=5)
+        // {
+
+        //     Report_Http_Code(RSET_IP,"Limite de intentos de conexion de lector RFID alcanzado reinicio de dispositivo:  ",false);
+
+        //     delay(250);
+        //     ESP.restart();
+        //     Count_Failed_Reader=0;
+        // }
+
+
+        Brek_Point_Final=Brek_Point;
+    }
+}
+
+void check_Status_Reader_Polling(void)
+{
+
+    Timer_Inicial_Poll = millis();
+
+    if ((Timer_Inicial_Poll - Timer_Final_Poll) >= Timeout_Check_Reader_Polling && Variables_globales.Get_Variable_Global(Conexion_RFID))
+    {
+        byte version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
+
+        bool Test=false;
+
+        if(pcf8574.digitalRead(P0) == LOW)
+        {
+            pcf8574.pinMode(P0, OUTPUT);		// Now set the resetPowerDownPin as digital output.
+			pcf8574.digitalWrite(P0, HIGH);
+            Test=true;
+        }
+        if(Test)
+            mfrc522.PCD_Reset();
+        
+        // Serial.print("VersionReg: ");
+        // Serial.println(version, HEX);
+        if (version == 0x00 || version == 0xFF)
+        {
+        
+           
+            delay(10);
+            mfrc522.PCD_Init(); // Inicializa Módulo RFID                           // Inicializa Módulo RFID
+            mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_48dB); // Activa  antena con ganancia 33dB RxGain_33dB
+        }
+        
+       // SPI.begin();
+        // Paso 1: Activar alimentación lógica (si aplica)
+        digitalWrite(5, HIGH); // Si este pin controla alimentación o lógica asociada al lector
+        // Paso 2: Poner el pin de reset en LOW (reset activo)
+        pcf8574.pinMode(P0, OUTPUT);
+        pcf8574.digitalWrite(P0, LOW);
+        delay(10); // Breve espera con reset activo (mínimo 1ms, con 10ms sobra)
+        // Paso 3: Poner el pin de reset en HIGH (salida del reset)
+        pcf8574.digitalWrite(P0, HIGH);
+        delay(100); // Esperar a que el RC522 arranque (oscila + lógica interna)
+        mfrc522.PCD_Reset();
+        delay(10);
+        mfrc522.PCD_Init(); // Inicializa Módulo RFID  
+        //Serial.println(pcf8574.digitalRead(P0));
+
+        Timer_Final_Poll = Timer_Inicial_Poll; 
     }
 }
 
@@ -551,22 +771,35 @@ void Lee_Tarjeta()
                 /*-----------------------------------------------------------------------------------------------------------------*/
 
                 /*-------------------------------------> NO HAY COMUNICACION <-----------------------------------------------------*/
-                if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && !Variables_globales.Get_Variable_Global(Updating_System)&&!Variables_globales.Get_Variable_Global(Access_Point_Mode) &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && !Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
                 {
 
                     TimeOut_Automatico_Inicial = millis();
+                    /* Garantiza Mantener el tiempo */
+                    if (!New_State_Sesion)
+                    {
+                        TimeOut_Automatico = TimeOut_Automatico_Inicial;
+                        New_State_Sesion = true;
+                    }
 
                     if ((TimeOut_Automatico_Inicial - TimeOut_Automatico) >= Close_Automatico && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
                     {
 
-                        if(Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
-                            Close_Sesion_Player_Tracking();
+                        // if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
+                        // {
+                        //     Close_Sesion_Player_Tracking();
+                        //     Report_Http_Code(CLOSE_PLAYER_TRACKING,"Sesion cerrada por  perdida de comunicacion con la MET: ");
+                        // }   
                         TimeOut_Automatico = TimeOut_Automatico_Inicial;
                     }
                     if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     {
                         Status_Barra(NO_HAY_COMUNICACION);
                     }
+                }
+                else
+                {
+                    New_State_Sesion = false;
                 }
                 /*-----------------------------------------------------------------------------------------------------------------*/
                 if(!Variables_globales.Get_Variable_Global(Conexion_RFID) &&!Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
@@ -592,15 +825,35 @@ void Lee_Tarjeta()
             }
         }
         /*-----------------------------------------------------------------------------------------------------------------*/
-        if (Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Info_Cashless.Get_Status_Reader()==false&& !Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
+        if (Variables_globales.Get_Variable_Global(Conexion_RFID) && Variables_globales.Get_Variable_Global(Comunicacion_Maq) && Info_Cashless.Get_Status_Reader() == false && !Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
         {
             Animation_Free_Session();
 
-            if ((!mfrc522.PICC_IsNewCardPresent())||!mfrc522.PICC_ReadCardSerial())
+            // if ((!mfrc522.PICC_IsNewCardPresent())||!mfrc522.PICC_ReadCardSerial())
+            // {
+            //     RESET_Handle();
+            //     return;
+            // }
+            // digitalWrite(5,HIGH);
+            // pcf8574.digitalWrite(P2, LOW);
+
+            if (!mfrc522.PICC_IsNewCardPresent())
             {
                 RESET_Handle();
                 return;
             }
+
+            // Select one of the cards
+            if (!mfrc522.PICC_ReadCardSerial())
+            {
+                RESET_Handle();
+                return;
+            }
+            
+            // Serial.println(F("**Card Detected:**"));
+            //-------------------------------------------
+
+            mfrc522.PICC_DumpDetailsToSerial(&(mfrc522.uid)); // dump some details about the card
 
             // if (!mfrc522.PICC_ReadCardSerial())
             // {
@@ -629,13 +882,16 @@ void Lee_Tarjeta()
                 Serial.print(F("Authentication failed: "));
                 Serial.println(mfrc522.GetStatusCodeName(status));
 #endif
-                //Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 mfrc522.PICC_HaltA();
                 mfrc522.PCD_StopCrypto1();
                 RESET_Handle();
-                
+                Status_Barra(ERROR_LECTURA);
+                Report_Http_Code(AUTHENTICATION_ERROR,"Error de autenticacion de tarjeta: ");
                 return;
             }
+
+            delay(50);
 
             status = mfrc522.MIFARE_Read(block, buffer1, &len);
             if (status != MFRC522::STATUS_OK)
@@ -645,13 +901,15 @@ void Lee_Tarjeta()
                 Serial.print(F("Reading failed: "));
                 Serial.println(mfrc522.GetStatusCodeName(status));
 #endif
-               // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 mfrc522.PICC_HaltA();
                 mfrc522.PCD_StopCrypto1();
                 RESET_Handle();
+
+                Status_Barra(ERROR_LECTURA);
+                Report_Http_Code(READ_ERROR,"Error de lectura de tarjeta: ");
                 return;
             }
-           
 
             buffer2[0] = buffer1[1];
             buffer2[1] = buffer1[2];
@@ -666,22 +924,28 @@ void Lee_Tarjeta()
             mfrc522.PICC_HaltA();
             mfrc522.PCD_StopCrypto1();
 
+            //delay(150);
+
+            // pcf8574.digitalWrite(P2, HIGH);
+            // digitalWrite(5,LOW);
+            
+
             /*-----------------------------> Verifica Usuario Valido <--------------------------------*/
             if (!contadores.Verity_ID_NOT_NULL(buffer2, 'M'))
             {
-               // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 Status_Barra(ERROR_LECTURA);
                 return;
             }
             else if (!contadores.Verify_Client_ID(buffer2))
             {
-               // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 Status_Barra(ERROR_LECTURA);
                 return;
             }
             else if (!contadores.Verity_ID_NOT_NULL(buffer1, 'C'))
             {
-               // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
+                // Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                 Status_Barra(ERROR_LECTURA);
                 return;
             }
@@ -690,7 +954,63 @@ void Lee_Tarjeta()
             else
             {
                 Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
-                Cliente_VS_Operador(buffer1, buffer2);
+                bool OK = false;
+
+                /* Pregunta si es maquina Cashless */
+                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4 ||
+                    Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+                {
+#ifdef DEBUG_RFID
+                    Serial.println("Maquina Cashless identificada");
+#endif
+
+                    /* Si tiene  transacciones pendientes  no permite transacciones */
+                    if (Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) || Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) || !transaccionesPendientes.empty())
+                    {
+#ifdef DEBUG_RFID
+                        Serial.println("Transferencia pendiente!");
+#endif
+                        OK = false;
+                    }
+                    else
+                    {
+#ifdef DEBUG_RFID
+                        Serial.println("No existen transferencias pendientes!");
+#endif
+                        OK = true;
+                    }
+                }
+                else /* Si no es maquina Cashless no valida transacciones pendientes para lectura de tarjetas */
+                {
+#ifdef DEBUG_RFID
+                    Serial.println("Maquinas Solo fidelizacion");
+#endif
+                    OK = true;
+                }
+
+                if (OK && !Variables_globales.Get_Variable_Global(Status_Games_Machine))
+                    Cliente_VS_Operador(buffer1, buffer2);
+                else
+                {
+                    if (transaccionesPendientes.empty())
+                    {
+                        Report_Http_Code(TRANSFER_PENDING, " Transaccion pendiente por consulta en maquina ");
+                        Status_Barra(302);
+                    }
+
+                    else if (Variables_globales.Get_Variable_Global(Status_Games_Machine))
+                    {
+                        Report_Http_Code(MAQUINA_EN_JUEGO, "Rechaza procedimiento por maquina en juego");
+                        Status_Barra(302);
+                        Info_Cashless.Log(RTC,"Rechaza lectura de tarjeta por Maquina en juego");
+                    }
+                    else
+                    {
+                        /* El servidor aun no recibe el ack */
+                        Report_Http_Code(TRANSFER_PENDING, "Rechazada por transaccion pendiente de recepcion");
+                        Status_Barra(302);
+                    }
+                }
             }
             /*------------------------------------------------------------------------------------------*/
         }
@@ -1029,14 +1349,58 @@ bool Verify_Current_Credit_Cashless(char Buffer_Current_Credit[])
         return false;
 }
 
+void Report_Http_Code(int Code_Http, String Msg,bool Status)
+{
+
+    int Code;
+
+    int httpCode;
+    bool Status_Code;
+    char IP_Server[4];
+    char Current_IP[4];
+
+
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    std::string Ip=IP_toString_(IP_Server);
+    String Ip_Server=String(Ip.c_str());
+    std::string Ip_Local=IP_toString_(Current_IP);
+    String Ip_Local_Device=String(Ip_Local.c_str());
+    String Puerto="9595";
+
+    StaticJsonDocument<1024> jsonDocument;
+    
+    jsonDocument["IsSuccess"]=Status;
+    jsonDocument["Message"] = Msg+" "+String(Code_Http);
+    jsonDocument["Ip"] = Ip_Local_Device;
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+
+   //String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/MensajeMonitor?"+"ip="+Ip_Local_Device+"&"+"mensaje="+Mensaje+"&"+"exitoso="+Status;
+    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/MensajeMonitor";
+   // Serial.println(fwurl);
+    //http://192.168.5.180:9595/api/Cashless/MensajeMonitor?ip=192.168.5.180&mensaje=mensaje de pruebas&exitoso=False
+
+    WiFiClient client;
+    HTTPClient https;
+    https.setTimeout(5000);
+
+    if (https.begin(client, fwurl))
+    {
+        https.addHeader("Content-Type", "application/json");
+        httpCode = https.POST(Json);
+      //  Serial.println(httpCode);
+        https.end();
+    }
+}
+
+
 void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 {
 
     if (MEMORIA[0] == 'O')
     {
-
-
-        
         /* Bloquea lector */
         Info_Cashless.Lock_Reader();
 
@@ -1053,7 +1417,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
         
 
         /* Maquina Cashless */
-        if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
+        if (Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4||Variables_globales.Get_Variable_Global(Enable_Cashless) && Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
         {
 
             contadores.Close_ID_Operador();           /* Borra ID operador anterior */
@@ -1194,7 +1558,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
         Status_Barra(301); /*Notificacion de espera...*/
        
-        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4) /* Maquinas Cashless */
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) /* Maquinas Cashless */
         {
 
             int contador = 0;
@@ -1213,53 +1577,123 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 
                 if (Variables_globales.Get_Variable_Global(Enable_Cashless))
                 {
-                    switch (Info_Cashless.Type_Sesion())
+                    /* Reset Timeout Player Tracking y Cashless Auto*/
+                    condicionCumplida=false;
+
+                    /* Pregunta si no existe transacciones en maquina */
+                    if (Info_Cashless.Get_Status_Transfer() == TRANSFER_IDLE)
                     {
-                    case PLAYER_TRACKING_SESION: /*  Solicitud manual de cierre  Sesion Player Tracking  */
-
-                        Info_Cashless.Close_Player_Tracking_Sesion(true);
-                        Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
-                        contadores.Close_ID_Client_Transaccion();
-                        Info_Cashless.Unlock_Reader(); /* Habilita lector */
-                        Handle=true;
-                        break;
-
-                    case PLAYER_CASHLESS_SESION: /* Solicitud de cierre Sesion Player Cashless */
-                        /* Descarga maquina*/
-                        switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(),RTC,"D",Cashless.Get_Trans_ID_Int()))
+                        int ClientID = contadores.Get_Client_ID_Transaccion_Int();
+                        switch (Info_Cashless.Type_Sesion())
                         {
-                        case REQUEST_SUCCESSFULLY_RECEIVED:
-                            Solicitud_Descarga_Cashless();
+                        case PLAYER_TRACKING_SESION: /*  Solicitud manual de cierre  Sesion Player Tracking  */
+
+                            // if (contadores.Get_Client_ID_Int() > 0 && contadores.Get_Client_ID_Transaccion_Int() > 0 && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+                            // {
+                            //     switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+                            //     {
+                            //     case REQUEST_SUCCESSFULLY_RECEIVED:
+                            //         Solicitud_Descarga_Cashless();
+                            //         break;
+
+                            //     case NOT_CONEXION_WITH_SERVER:
+                            //         Status_Barra(ERROR_LECTURA);
+                            //         Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            //         Handle = true;
+                            //         Reset_Handle_LED();
+                            //         break;
+
+                            //     case PROBLEM_WITH_THE_SERVER:
+                            //         Status_Barra(ERROR_LECTURA);
+                            //         Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            //         Handle = true;
+                            //         Reset_Handle_LED();
+                            //         break;
+
+                            //     case HTTP_CODE_UNAUTHORIZED:
+                            //         Handle = true;
+                            //         Status_Barra(ERROR_LECTURA);
+                            //         Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            //         Reset_Handle_LED();
+                            //         Report_Http_Code(HTTP_CODE_UNAUTHORIZED, "Token de autenticacion no valido Codigo HTTP");
+                            //         break;
+
+                            //     default:
+                            //         Status_Barra(ERROR_LECTURA);
+                            //         Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            //         Handle = true;
+                            //         Reset_Handle_LED();
+                            //         break;
+                            //     }
+                            // }
+                            // else
+                            // {
+
+                            Info_Cashless.Close_Player_Tracking_Sesion(true);
+                            Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                            contadores.Close_ID_Client_Transaccion();
+                            Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                            Handle = true;
+                            Report_Http_Code(TERMINA_SESION_MANUAL, "Sesion Cashless terminada por Usuario: ", true);
+                            // }
+
                             break;
 
-                        case NOT_CONEXION_WITH_SERVER:
-                            Status_Barra(ERROR_LECTURA);
-                            Info_Cashless.Unlock_Reader(); /* Habilita lector */
-                            Handle=true;
-                            Reset_Handle_LED();
-                        break;
+                        case PLAYER_CASHLESS_SESION: /* Solicitud de cierre Sesion Player Cashless */
+                            /* Descarga maquina*/
 
-                        case PROBLEM_WITH_THE_SERVER:
-                            Status_Barra(ERROR_LECTURA);
-                            Info_Cashless.Unlock_Reader(); /* Habilita lector */
-                            Handle=true;
-                            Reset_Handle_LED();
-                        break;
+                            switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(), ClientID))
+                            {
+                            case REQUEST_SUCCESSFULLY_RECEIVED:
+                                Info_Cashless.Log(RTC, "ENVIA_TRANSACCION_CASHLESS_DESCARGA_MAQUINA");
+                                Objeto_Transfer_Download["Operacion"]="Solicitud Descarga por Usuario";
+                                Solicitud_Descarga_Cashless();
+                                break;
 
-                        default:
+                            case NOT_CONEXION_WITH_SERVER:
+                                Info_Cashless.Log(RTC, "ERROR_EN_SOLICITUD_DESCARGA");
+                                Status_Barra(ERROR_LECTURA);
+                                Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                                Handle = true;
+                                Reset_Handle_LED();
+                                break;
+
+                            case PROBLEM_WITH_THE_SERVER:
+                                Info_Cashless.Log(RTC, "ERROR_EN_SOLICITUD_DE_DESCARGA");
+                                Status_Barra(ERROR_LECTURA);
+                                Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                                Handle = true;
+                                Reset_Handle_LED();
+                                break;
+
+                            case HTTP_CODE_UNAUTHORIZED:
+                                Info_Cashless.Log(RTC, "TOKEN_NO_AUTORIZADO");
+                                Handle = true;
+                                Status_Barra(ERROR_LECTURA);
+                                Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                                Reset_Handle_LED();
+                                Report_Http_Code(HTTP_CODE_UNAUTHORIZED, "Token de autenticacion no valido Codigo HTTP");
+                                break;
+
+                            default:
+                                Info_Cashless.Log(RTC, "ERROR_SOLICITUD_NO_IDENTIFICADO");
+                                Status_Barra(ERROR_LECTURA);
+                                Info_Cashless.Unlock_Reader(); /* Habilita lector */
+                                Handle = true;
+                                Reset_Handle_LED();
+                                break;
+                            }
+                            break;
+
+                        default: /*  Solicitud manual de cierre  Sesion Player Tracking  */
                             Status_Barra(ERROR_LECTURA);
                             Info_Cashless.Unlock_Reader(); /* Habilita lector */
-                            Handle=true;
                             Reset_Handle_LED();
                             break;
                         }
-                        break;
-
-                    default: /*  Solicitud manual de cierre  Sesion Player Tracking  */
-                        Status_Barra(ERROR_LECTURA);
-                        Info_Cashless.Unlock_Reader();  /* Habilita lector */
-                        Reset_Handle_LED();
-                        break;
+                    }else{
+                        Report_Http_Code(TRANSFER_PENDING, " La tarjeta esta en proceso de descarga ");
+                        Status_Barra(302);
                     }
                 }else{
                     Info_Cashless.Close_Player_Tracking_Sesion(true);
@@ -1284,6 +1718,8 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 if (Variables_globales.Get_Variable_Global(Enable_Cashless))
                 {
 
+                    condicionCumplida=false;
+
                     /* Logica: Si Existe una  Sesion Player Cashless Activa anterior y un usuario  se identifica
                     Se verifica si los creditos son <10. Si es asi, Cierra la sesión anterior espera hasta completar y inicia una lasesion del cliente nuevo.
                     Por otro lado, si la sesión anterior tiene creditos  >=10 Permite el cierre solo por Operador. */
@@ -1297,34 +1733,59 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                     unsigned long Timout_Break_Controller;
                     int Stop_Transaccion_Controller = 6500; // 3500
 
-                    if(Info_Cashless.Type_Sesion()==PLAYER_CASHLESS_SESION)
+                    if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
                     {
-                        
-                        if (!Verify_Current_Credit_Cashless(Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless)))
+                        if (Info_Cashless.Get_Status_Transfer() == TRANSFER_IDLE)
                         {
-                            switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+                            if (!Verify_Current_Credit_Cashless(Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless)))
                             {
-                            case REQUEST_SUCCESSFULLY_RECEIVED:
-                                Error=true;
-                                Solicitud_Descarga_Cashless();
-                                
-                                break;
-                            default:
+                                int ClientID = contadores.Get_Client_ID_Transaccion_Int();
+                                switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(), ClientID))
+                                {
+                                case REQUEST_SUCCESSFULLY_RECEIVED:
+                                    Error = true;
+                                    Info_Cashless.Log(RTC, "SOLICITUD_CIERRE_USUARIO_ANTERIOR");
+                                    Objeto_Transfer_Download["Operacion"] = "Solicitud Descarga por Usuario anterior";
+                                    Info_Cashless.Log(RTC, "ENVIA_TRANSACCION_CASHLESS_DESCARGA_MAQUINA");
+                                    Solicitud_Descarga_Cashless();
+
+                                    break;
+
+                                case HTTP_CODE_UNAUTHORIZED:
+                                    Info_Cashless.Log(RTC, "TOKEN_NO_AUTORIZADO");
+                                    Error = true;
+                                    Status_Barra(ERROR_LECTURA);
+                                    Handle = true;
+                                    Reset_Handle_LED();
+                                    Report_Http_Code(HTTP_CODE_UNAUTHORIZED, "Token de autenticacion no valido Codigo HTTP");
+                                    break;
+
+                                default:
+
+                                    Info_Cashless.Log(RTC, "ERROR_EN_SOLICITUD_NO_IDENTIFICADO");
+                                    Error = true;
+                                    Status_Barra(ERROR_LECTURA);
+                                    Handle = true;
+                                    Reset_Handle_LED();
+                                    break;
+                                }
+                            }
+                            else
+                            {
                                 Error = true;
                                 Status_Barra(ERROR_LECTURA);
-                                Handle=true;
                                 Reset_Handle_LED();
-                                break;
+                                Handle = true;
                             }
-                        }else
+                        }
+                        else
                         {
-                            Error=true;
-                            Status_Barra(ERROR_LECTURA);
-                            Reset_Handle_LED();
-                            Handle=true;
+                            Report_Http_Code(TRANSFER_PENDING, " La tarjeta esta en proceso de descarga ");
+                            Status_Barra(302);
+                            Handle = true;
                         }
 
-                        if(Handle)
+                        if (Handle)
                             Info_Cashless.Unlock_Reader();
                     }
 
@@ -1333,19 +1794,33 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
                         Error = false;
                         
-                        /* Si no Existen transacciones pendientes por confirmar y  la maquina no tiene transacciones */
+                        /* Si no Existen transacciones pendientes por confirmar y  la maquina no tiene transacciones pendientes tramita transaccion */
 
                         if (transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
                         {
+                            bool Handl = true;
+                            char ID_Temp_Tarjeta[8];
                             /*  Abre nueva Sesion */
                             contadores.Set_Client_ID_Transaccion(ID_Temp); /* Guarda ID de cliente */
+
+
+                            if(contadores.Get_Client_ID_Transaccion_Int()<=0)
+                            {
+                                Report_Http_Code(INVALIDE_CLIENT,"Error procesando id de cliente en tarjeta: "+String(contadores.Get_Client_ID_Transaccion_Int()),false);
+                                Info_Cashless.Unlock_Reader();
+                                Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                return;
+                            }    
+
                             switch (Info_Cashless.Info_Client(contadores.Get_Client_ID_Transaccion(), RTC, LOAD_TRANSACTION, Cashless.Get_Trans_ID_Int()))
                             {
                             case REQUEST_SUCCESSFULLY_RECEIVED:
+                                Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CASHLESS_CARGA_MAQUINA");
                                 Solicitud_Carga_Cashless();
                                 break;
 
                             case INSUFFICIENT_BALANCE:
+                                Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CASHLESS_CARGA_MAQUINA");
                                 Solicitud_Carga_Cashless(); /* Carga en 0 */
                                 break;
 
@@ -1353,18 +1828,88 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 Objeto_Transfer["IsSuccess"] = false;
                                 Objeto_Transfer["Trans_Estado"] = TRANS_ID_NO_MACTH;
                                 hayTransaccionesPendientes = true;
-                                Status_Barra(ERROR_LECTURA);
+                               // Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                               // Reset_Handle_LED();
+                               
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+            
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    //Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(TRANS_ID_NO_MACTH,"Inicia Player tracking numero de transaccion de solicitud diferente al recibido",false);
+                                    // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+            
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+            #ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+            #endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
+                               
+            
                                 break;
 
                             case CLIENT_NOT_MACTH:
                                 Objeto_Transfer["IsSuccess"] = false;
                                 Objeto_Transfer["Trans_Estado"] = CLIENT_NOT_MACTH;
                                 hayTransaccionesPendientes = true;
-                                Status_Barra(ERROR_LECTURA);
+                                //Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                               // Reset_Handle_LED();
+
+                               
+
+                                
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+            
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    //Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(CLIENT_NOT_MACTH,"Inicia Player tracking cliente de solicitud  diferente al recibido",false);
+                                   // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+            
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+            #ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+            #endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
                                 break;
 
                             case INVALID_BALANCE:
@@ -1373,9 +1918,43 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 hayTransaccionesPendientes = true;
                                 // Variables_globales.Set_Variable_Global(Flag_Sesion_Cashless, true);
                                 // Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());
-                                Status_Barra(ERROR_LECTURA);
+                               // Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                                //  Reset_Handle_LED();
+
+                               
+
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(INVALID_BALANCE,"Inicia Player tracking El monto de transaccion no es un  entero de 32bits",false);
+                                    // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+#endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
                                 break;
 
                             case TYPE_TRANS_NOT_MACTH:
@@ -1383,14 +1962,82 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 Objeto_Transfer["Trans_Estado"] = TYPE_TRANS_NOT_MACTH;
                                 hayTransaccionesPendientes = true;
                                 Handle = true;
-                                Status_Barra(ERROR_LECTURA);
-                                Reset_Handle_LED();
+                               // Status_Barra(ERROR_LECTURA);
+                               // Reset_Handle_LED();
+
+                               
+
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(TYPE_TRANS_NOT_MACTH,"Inicia Player tracking El tipo de transaccion de solicitud es diferente al recibido",false);
+                                     // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+#endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
                                 break;
 
                             case PROBLEM_WITH_THE_SERVER: /* CLIENTE BLOQUEADO  */
-                                Status_Barra(ERROR_LECTURA);
+                                // Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                                // Reset_Handle_LED();
+
+                                
+
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(PROBLEM_WITH_THE_SERVER,"Inicia Player tracking Error en procesamiento de solicitud ",false);
+                                     // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+#endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
                                 break;
 
                             case NOT_CONEXION_WITH_SERVER: /* NO CONEXION CON EL SERVIDOR */
@@ -1420,18 +2067,128 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 Objeto_Transfer["IsSuccess"] = false;
                                 Objeto_Transfer["Trans_Estado"] = TYPE_MACHINE_NOT_MACTH;
                                 hayTransaccionesPendientes = true;
-                                Status_Barra(ERROR_LECTURA);
+                               // Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                                // Reset_Handle_LED();
+
+                                
+
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                    // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                    Report_Http_Code(TYPE_MACHINE_NOT_MACTH,"Inicia Player tracking El tipo de maquina de solicitud es diferente al recibido",false);
+                                     // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+#endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
+                                break;
+
+                            case HTTP_CODE_UNAUTHORIZED:
+                                Handle = true;
+                                // Status_Barra(ERROR_LECTURA);
+                                // Reset_Handle_LED();
+
+                                
+                                ID_Temp_Tarjeta[0] = INFO[0];
+                                ID_Temp_Tarjeta[1] = INFO[1];
+                                ID_Temp_Tarjeta[2] = INFO[2];
+                                ID_Temp_Tarjeta[3] = INFO[3];
+                                ID_Temp_Tarjeta[4] = INFO[4];
+                                ID_Temp_Tarjeta[5] = INFO[5];
+                                ID_Temp_Tarjeta[6] = INFO[6];
+                                ID_Temp_Tarjeta[7] = INFO[7];
+
+                                if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                {
+                                    Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+
+                                    // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                    Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                    Info_Cashless.Unlock_Reader();
+                                     // contadores.Close_ID_Client_Transaccion();
+                                }
+                                else
+                                {
+
+                                    Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                    Serial.println("Host Gmaster disconected");
+#endif
+                                    Info_Cashless.Unlock_Reader();
+                                    Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                    delay(100);
+                                }
+
+                                Report_Http_Code(HTTP_CODE_UNAUTHORIZED,"Token de autenticacion no valido Codigo HTTP");
                                 break;
 
                             default:
                                 Objeto_Transfer["IsSuccess"] = false;
                                 Objeto_Transfer["Trans_Estado"] = NOT_COMMUNICATION_WITH_THE_MACHINE;
                                 hayTransaccionesPendientes = true;
-                                Status_Barra(ERROR_LECTURA);
+                               // Status_Barra(ERROR_LECTURA);
                                 Handle = true;
-                                Reset_Handle_LED();
+                                // Reset_Handle_LED();
+
+                                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                                {
+                                    
+
+                                    ID_Temp_Tarjeta[0] = INFO[0];
+                                    ID_Temp_Tarjeta[1] = INFO[1];
+                                    ID_Temp_Tarjeta[2] = INFO[2];
+                                    ID_Temp_Tarjeta[3] = INFO[3];
+                                    ID_Temp_Tarjeta[4] = INFO[4];
+                                    ID_Temp_Tarjeta[5] = INFO[5];
+                                    ID_Temp_Tarjeta[6] = INFO[6];
+                                    ID_Temp_Tarjeta[7] = INFO[7];
+
+                                    if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
+                                    {
+                                        Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
+                                        // Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
+                                        Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
+                                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+                                        Info_Cashless.Unlock_Reader();
+                                        Report_Http_Code(ERROR_NOT_IDENTIFY,"Inicia Player tracking Error no codificado",false);
+                                         // contadores.Close_ID_Client_Transaccion();
+                                    }
+                                    else
+                                    {
+
+                                        Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
+#ifdef DEBUG_RFID
+                                        Serial.println("Host Gmaster disconected");
+#endif
+                                        Info_Cashless.Unlock_Reader();
+                                        Status_Barra(CONEXION_TO_HOTS_FAILED);
+                                        delay(100);
+                                    }
+                                }
                                 break;
                             }
                             /* Si Existe un Ack error D Habilita lector */
@@ -1443,7 +2200,14 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                         }
                         else
                         {/*s*/
-                            /* Pendiente por Reportar transaccion */
+                            
+                            if(transaccionesPendientes.empty())
+                                Report_Http_Code(TRANSFER_PENDING," Transaccion pendiente por consulta en maquina ");
+                            else{
+                                /* Pendiente por Reportar transaccion */
+                               // String  transaccion = transaccionesPendientes.front(); /* Toma la primera transferencia */
+                                Report_Http_Code(TRANSFER_PENDING,"Rechazada por transaccion pendiente de recepcion");
+                            }   
                             Status_Barra(302);
                             Handle = true;
                         }
@@ -1470,6 +2234,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
                     if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
                     {
+                        //Info_Cashless.Saves_Current_Player_Sesion(INFO,PLAYER_TRACKING_SESION);
                         Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
                         Variables_globales.Set_Variable_Global(Conexion_To_Host, false);
                         Info_Cashless.Unlock_Reader();
@@ -1538,13 +2303,13 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                 if (INFO[i] == contadores.Get_Client_ID()[i])
                 {
                     contador++;
-
                 }
             }
 
             if(contador>=8)
             {
                 Info_Cashless.Close_Player_Tracking_Sesion(true);
+                Report_Http_Code(TERMINA_SESION_MANUAL, "Sesion terminada por Usuario: " , true);
                 Info_Cashless.Unlock_Reader();
             }
             else
@@ -1590,6 +2355,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
 
                 if (Info_Cashless.Await_Conexion(ID_Temp_Tarjeta, 'C'))
                 {
+                    //Info_Cashless.Saves_Current_Player_Sesion(ID_Temp,PLAYER_TRACKING_SESION); /* Guarda sesion en memoria */
                     Info_Cashless.Init_Player_Tracking_Sesion(ID_Temp);
                     delay(500);
                     Info_Cashless.Unlock_Reader();
@@ -1612,6 +2378,11 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             Info_Cashless.Unlock_Reader();
         }
         
+    }else
+    {
+        Status_Barra(ERROR_LECTURA);
+        Report_Http_Code(TARJETA_NO_IDENTIFICADA,"Tarjeta no identificada no es cliente no operador: ");
+        Info_Cashless.Unlock_Reader();
     }
         
 }
@@ -2156,6 +2927,17 @@ void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactivi
 bool Close_Sesion_Player_Tracking(void)
 {
     
+    // switch (contadores.Get_Type_Sesion())
+    // {
+    // case PLAYER_TRACKING_SESION:
+    //     //Serial.println("Id Borrado OK");
+    //     Info_Cashless.Remove_Currrent_Player_Sesion();
+    //     break;
+
+    // default:
+    //     break;
+    // }
+
     contadores.Close_ID_Client();
     contadores.Close_ID_Client_Temp();
     Sesion_Cerrada_Color=true;
@@ -2470,7 +3252,9 @@ void Sesion_Abierta_Color(int Figura)
 
 void RESET_Handle(void)
 {
+   // SPI.begin();
     mfrc522.PCD_Reset();
+    pcf8574.digitalWrite(P0,LOW);
     delay(10);
     mfrc522.PCD_Init();
 }
@@ -3126,6 +3910,16 @@ void Status_Barra(int Status)
             Handle_LED = false;
             break;
 
+        case 500:
+            Handle_LED=true; 
+            Barra_Status_Sesion_Client.setPixelColor(0, Barra_Status_Sesion_Client.Color(255, 0, 0)); // rojo
+            Barra_Status_Sesion_Client.setPixelColor(1, Barra_Status_Sesion_Client.Color(255, 0, 0)); // rojo
+            Barra_Status_Sesion_Client.setPixelColor(2, Barra_Status_Sesion_Client.Color(255, 0, 0)); // rojo
+            Barra_Status_Sesion_Client.setPixelColor(3, Barra_Status_Sesion_Client.Color(255, 0, 0)); // rojo
+            Barra_Status_Sesion_Client.show();
+            Handle_LED=false; 
+        break;
+
         default:
             break;
         }
@@ -3208,9 +4002,10 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
         jsonDocument["Tipo_Maq"] = "AFT";
         break;
 
-    // case 5:
-    //     jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
-    //     break;
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+
     default:
         jsonDocument["Tipo_Maq"] = "";
         break;
@@ -3220,6 +4015,8 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     https.setTimeout(15000);
+
+   // Info_Cashless.Log(RTC,"ENVIA_SOLICITUD_INFO_CLIENTE_CARGA: ",Json);
     
     if (https.begin(client, fwurl))
     {
@@ -3307,10 +4104,16 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
                         Tipo_Maq_Local="AFT";
                         break;
 
+                    case 17:
+                        Tipo_Maq_Local = "EFT";
+                    break;
+
                     default:
                         Tipo_Maq_Local="";
                         break;
                     }
+
+                  //  Info_Cashless.Log(RTC,"SOLICITUD_INFO_CLIENTE_CARGA_RECIBIDA: ",String(Response));
 
                     if (IsSuccess)
                     {
@@ -3387,7 +4190,13 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
         else
         {
             Info_Cashless.Log(RTC,"ERROR_SOLICITUD_INFO_CLIENTE_CARGA",String(httpCode));
-            Code=NOT_CONEXION_WITH_SERVER; /* No se logro establecer comunicación con el servidor HTTP */
+
+            if(httpCode==401)
+                Code=401;
+            else
+                Code=NOT_CONEXION_WITH_SERVER; /* No se logro establecer comunicación con el servidor HTTP */
+
+            
         }
         https.end();
 
@@ -3399,7 +4208,7 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
     return Code;
 }
 
-int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String Type_Transaction, uint32_t Transaction_ID)
+int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String Type_Transaction, uint32_t Transaction_ID,int ClientID,int Operacion)
 {
 
     int Code;
@@ -3426,7 +4235,7 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
 
     
     jsonDocument["IsSuccess"] = true;
-    jsonDocument["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+    jsonDocument["Cliente_ID"] = ClientID;
     jsonDocument["Trans_Tipo"] = Type_Transaction;
     jsonDocument["Fecha_Hora"] = DataTime;
     jsonDocument["Trans_ID"] = Transaction_ID;
@@ -3449,6 +4258,10 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
     case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
         break;
+
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
+    break;
     
     default:
         jsonDocument["Tipo_Maq"] = "";
@@ -3458,9 +4271,10 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     
-   
-    
     https.setTimeout(15000);
+
+   // Info_Cashless.Log(RTC,"ENVIA_SOLICITUD_INFO_CLIENTE_DESCARGA: ",Json);
+
     if (https.begin(client, fwurl))
     {
        
@@ -3501,10 +4315,23 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
                     String Ip_Tarjeta=doc["Ip"];
                     String Key=doc["Key"];
                     String Mac=doc["MAC"];
-                    String Trans_Estado=doc["Trans_Estado"];
+                    int Trans_Estado;
+
+                    if(!doc.containsKey("Trans_Estado")||doc["Trans_Estado"].isNull()||doc["Trans_Estado"]=="null")
+                        Trans_Estado=-1;
+                    else 
+                        Trans_Estado=doc["Trans_Estado"];
+
+
                     String Tipo_Maq=doc["Tipo_Maq"];
 
-    
+                    bool test=false;
+                    if(!doc.containsKey("Ip")||!doc.containsKey("Cliente_ID")||!doc.containsKey("Key")||!doc.containsKey("MAC")||Current_Cliente_ID_Server_Int<=0)
+                        test=true;
+
+
+                 //   Info_Cashless.Log(RTC,"SOLICITUD_INFO_CLIENTE_DESCARGA_RECIBIDA: ",String(Response));
+                   
                     int Year, Month, Day, Hour, Minutes, Seconds;
                     sscanf(Data_Time_Response_Server.c_str(), "%d-%d-%d %d:%d:%d", &Year, &Month, &Day, &Hour, &Minutes, &Seconds);
                     
@@ -3526,10 +4353,16 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
                     Objeto_Transfer_Download["Trans_Estado"] = Trans_Estado;
                     Objeto_Transfer_Download["Tipo_Maq"]=Tipo_Maq;
 
-
                     if (IsSuccess)
                     {
-                        Code = REQUEST_SUCCESSFULLY_RECEIVED; /* OK */
+
+                        if (Objeto_Transfer_Download["Cliente_ID"]<=0||test)
+                        {
+                            Info_Cashless.Log(RTC, "ERROR_SOLICITUD_INFO_CLIENTE_DESCARGA", String(PROBLEM_WITH_THE_SERVER, HEX));
+                            Code = PROBLEM_WITH_THE_SERVER; /* Error en servidor HTTP */
+                        }
+                        else
+                            Code = REQUEST_SUCCESSFULLY_RECEIVED; /* OK */
                     }
                     else
                     {
@@ -3542,8 +4375,13 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
         }
         else
         {
+            if(httpCode==HTTP_CODE_UNAUTHORIZED)
+                Code=HTTP_CODE_UNAUTHORIZED;
+            else
+                Code=NOT_CONEXION_WITH_SERVER; /* No se logro establecer comunicación con el servidor HTTP */
+
             Info_Cashless.Log(RTC,"ERROR_SOLICITUD_INFO_CLIENTE_DESCARGA",String(httpCode));
-            Code=NOT_CONEXION_WITH_SERVER; /* No se logro establecer comunicación con el servidor HTTP */
+            
         }
         https.end();
         return Code;
@@ -3595,39 +4433,67 @@ uint32_t Convert_5BCD_To_Int(char Buffer_5BCD[],int filtro) {
     }
 }
 
-
 /* Actualiza objeto  para reporte de transacciones de carga */
 bool Cashless_API::Status_Transfer(int Code, char Buffer_Transfer[], ESP32Time RTC)
 {
 
     String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
-    /* Actualiza Objeto Carga */
-    if (Code == 0x00 || Code == 0x01)
-        Objeto_Transfer["IsSuccess"] = true;
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17) /* Maquinas EFT */
+    {
+        /* Actualiza Objeto Carga */
+        if (Code == 0x00)
+            Objeto_Transfer["IsSuccess"] = true;
+        else
+            Objeto_Transfer["IsSuccess"] = false;
+    }
     else
-        Objeto_Transfer["IsSuccess"] = false;
+    {
+        /* Actualiza Objeto Carga */
+        if (Code == 0x00 || Code == 0x01)
+            Objeto_Transfer["IsSuccess"] = true;
+        else
+            Objeto_Transfer["IsSuccess"] = false;
+    }
 
-    Objeto_Transfer["Cliente_ID"]= contadores.Get_Client_ID_Transaccion_Int();
+    Objeto_Transfer["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
     Objeto_Transfer["Trans_Tipo"] = "C";
-    Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 7);
-    Objeto_Transfer["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 12);
-    Objeto_Transfer["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 17);
-    Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17) /* Maquinas EFT */
+    {
+        Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 4);
+        Objeto_Transfer["Saldo_Restringido"] = 0;
+        Objeto_Transfer["Saldo_No_Restringido"] = 0;
+        Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_EFT();
+        Objeto_Transfer["Tipo_Maq"] = "EFT";
+    }
+    else /* Maquinas AFT */
+    {
+        Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 7);
+        Objeto_Transfer["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 12);
+        Objeto_Transfer["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 17);
+        Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+        Objeto_Transfer["Tipo_Maq"] = "AFT";
+    }
+
     Objeto_Transfer["Fecha_Hora"] = DataTime;
     Objeto_Transfer["Trans_Estado"] = Code;
 
     String Json;
     serializeJson(Objeto_Transfer, Json); /* Serializa Data */
+
+    // Info_Cashless.Log(RTC,"OBJETO_TRANSFER_ACTUALIZADO",Json);
+
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
     hayTransaccionesPendientes = true;
-    //Serial.println(Json);
-    if(Code == 0x00 || Code == 0x01)
-        Saves_Current_Player_Sesion(contadores.Get_Client_ID_Transaccion(),Info_Cashless.Type_Sesion());
-    
+
+    // Serial.println(Json);
+    if (Code == 0x00 || Code == 0x01)
+        Saves_Current_Player_Sesion(contadores.Get_Client_ID_Transaccion(), Info_Cashless.Type_Sesion());
+
     return true;
 }
 
@@ -3640,69 +4506,148 @@ bool Cashless_API::Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32T
     {
         String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
-        /* Actualiza Objeto Carga */
-        Objeto_Transfer["IsSuccess"] = false;
-        Objeto_Transfer["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
-        Objeto_Transfer["Trans_Tipo"] = "C";
-        Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 7);
-        Objeto_Transfer["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 12);
-        Objeto_Transfer["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 17);
-        Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_Int();
-        Objeto_Transfer["Fecha_Hora"] = DataTime;
-        Objeto_Transfer["Trans_Estado"] = Code;
+        if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2|| Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+        {
+
+            /* Actualiza Objeto Carga */
+            Objeto_Transfer["IsSuccess"] = false;
+            Objeto_Transfer["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+            Objeto_Transfer["Trans_Tipo"] = "C";
+            Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 5);
+            Objeto_Transfer["Saldo_Restringido"] = 0;
+            Objeto_Transfer["Saldo_No_Restringido"] = 0;
+            Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_EFT();
+            Objeto_Transfer["Fecha_Hora"] = DataTime;
+            Objeto_Transfer["Trans_Estado"] = Code;
+            Objeto_Transfer["Tipo_Maq"] ="EFT";
+        }
+        else
+        {
+            /* Actualiza Objeto Carga */
+            Objeto_Transfer["IsSuccess"] = false;
+            Objeto_Transfer["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+            Objeto_Transfer["Trans_Tipo"] = "C";
+            Objeto_Transfer["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 7);
+            Objeto_Transfer["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 12);
+            Objeto_Transfer["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 17);
+            Objeto_Transfer["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            Objeto_Transfer["Fecha_Hora"] = DataTime;
+            Objeto_Transfer["Trans_Estado"] = Code;
+            Objeto_Transfer["Tipo_Maq"] ="AFT";
+        }
+
         Transfer_Pending_Load = true;
-        
     }
     else
     {
-        String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-        Objeto_Transfer_Download["IsSuccess"] = false;
-        Objeto_Transfer_Download["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
-        Objeto_Transfer_Download["Trans_Tipo"] = "D";
+
+        char Current_IP[4];
+        memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+        Objeto_Transfer_Download["Ip"] = IP_toString_(Current_IP);
+        Objeto_Transfer_Download["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+        Objeto_Transfer_Download["MAC"] = WiFi.macAddress();
+
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+        {
+            String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+            Objeto_Transfer_Download["IsSuccess"] = false;
+            Objeto_Transfer_Download["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+            Objeto_Transfer_Download["Trans_Tipo"] = "D";
+            Objeto_Transfer_Download["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 5);
+            Objeto_Transfer_Download["Saldo_Restringido"] = 0;
+            Objeto_Transfer_Download["Saldo_No_Restringido"] = 0;
+            Objeto_Transfer_Download["Trans_ID"] = Cashless.Get_Trans_ID_EFT();
+            Objeto_Transfer_Download["Fecha_Hora"] = DataTime;
+            Objeto_Transfer_Download["Trans_Estado"] = Code;
+            Objeto_Transfer_Download["Tipo_Maq"]= "EFT";
+
+        }
+        else
+        {
+            String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+            Objeto_Transfer_Download["IsSuccess"] = false;
+            Objeto_Transfer_Download["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+            Objeto_Transfer_Download["Trans_Tipo"] = "D";
+            Objeto_Transfer_Download["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 12);
+            Objeto_Transfer_Download["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 17);
+            Objeto_Transfer_Download["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 22);
+            Objeto_Transfer_Download["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            Objeto_Transfer_Download["Fecha_Hora"] = DataTime;
+            Objeto_Transfer_Download["Trans_Estado"] = Code;
+            Objeto_Transfer_Download["Tipo_Maq"]= "AFT";
+        }
+
+        Transfer_Pending_Download=true;
+    }
+    return true;
+}
+
+/* Actualiza objeto  para reporte de transacciones de descarga  */
+bool Cashless_API::Status_Transfer_Download(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client)
+{
+
+    String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
+    char Current_IP[4];
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+    {
+        if (Code == 0x00)
+            Objeto_Transfer_Download["IsSuccess"] = true;
+        else
+            Objeto_Transfer_Download["IsSuccess"] = false;
+    }
+    else
+    {
+        if (Code == 0x00 || Code == 0x01)
+            Objeto_Transfer_Download["IsSuccess"] = true;
+        else
+            Objeto_Transfer_Download["IsSuccess"] = false;
+    }
+
+    Objeto_Transfer_Download["Ip"] = IP_toString_(Current_IP);
+    Objeto_Transfer_Download["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+    Objeto_Transfer_Download["MAC"] = WiFi.macAddress();
+
+    Objeto_Transfer_Download["Cliente_ID"] = Id_Client;
+    Objeto_Transfer_Download["Trans_Tipo"] = "D";
+
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+    {
+        Objeto_Transfer_Download["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 5);
+        Objeto_Transfer_Download["Saldo_Restringido"] = 0;
+        Objeto_Transfer_Download["Saldo_No_Restringido"] = 0;
+        Objeto_Transfer_Download["Trans_ID"] = Cashless.Get_Trans_ID_EFT();
+        Objeto_Transfer_Download["Fecha_Hora"] = DataTime;
+        Objeto_Transfer_Download["Trans_Estado"] = Code;
+        Objeto_Transfer_Download["Tipo_Maq"] = "EFT";
+    }
+    else
+    {
         Objeto_Transfer_Download["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 12);
         Objeto_Transfer_Download["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 17);
         Objeto_Transfer_Download["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 22);
         Objeto_Transfer_Download["Trans_ID"] = Cashless.Get_Trans_ID_Int();
         Objeto_Transfer_Download["Fecha_Hora"] = DataTime;
         Objeto_Transfer_Download["Trans_Estado"] = Code;
-        Transfer_Pending_Download=true;
-       
+        Objeto_Transfer_Download["Tipo_Maq"] = "AFT";
     }
-    return true;
-}
 
-/* Actualiza objeto  para reporte de transacciones de descarga  */
-bool Cashless_API::Status_Transfer_Download(int Code,char Buffer_Transfer[],ESP32Time RTC)
-{
-
-    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-    
-    char Current_IP[4];
-    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
-
-    if(Code==0x00||Code==0x01)
-        Objeto_Transfer_Download["IsSuccess"]=true;
-    else
-        Objeto_Transfer_Download["IsSuccess"]=false;
-
-    Objeto_Transfer_Download["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
-    Objeto_Transfer_Download["Trans_Tipo"] = "D";
-    Objeto_Transfer_Download["Saldo_Canjeable"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, CASHABLES, 12);
-    Objeto_Transfer_Download["Saldo_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, RESTRICTED, 17);
-    Objeto_Transfer_Download["Saldo_No_Restringido"] = Cashless.BCDtoUint32_Pos(Buffer_Transfer, NON_RESTRICTED, 22);
-    Objeto_Transfer_Download["Trans_ID"] = Cashless.Get_Trans_ID_Int();
-    Objeto_Transfer_Download["Fecha_Hora"] = DataTime;
-    Objeto_Transfer_Download["Trans_Estado"] = Code;
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
     Info_Cashless.Reader_Lock(false);
-    Sesion_Anterior=true;
+    Sesion_Anterior = true;
     String Json;
     serializeJson(Objeto_Transfer_Download, Json); /* Serializa Data */
-    hayTransaccionesPendientes_Download=true;
-   // Serial.println(Json);
-    if(Code==0x00||Code==0x01)
+
+    // Info_Cashless.Log(RTC,"OBJETO_TRANSFER_DOWNLOAD_ACTUALIZADO",Json);
+
+    hayTransaccionesPendientes_Download = true;
+    // Serial.println(Json);
+    if (Code == 0x00 || Code == 0x01)
         Info_Cashless.Remove_Currrent_Player_Sesion();
     return true;
 }
@@ -3807,7 +4752,7 @@ String Cashless_API::Get_Current_Status_Transfer()
     String Json;
     serializeJson(Objeto_Transfer, Json); /* Serializa Data */
     Objeto_Transfer.clear(); /*  Limpia  Objeto Ack Transferencias carga */
-    Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
+    //Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
     return Json;
 }
 
@@ -3819,7 +4764,7 @@ String Cashless_API::Get_Current_Status_Transfer_Download()
     Objeto_Transfer_Download.clear(); /*  Limpia  Objeto Ack Transferencias carga */
     Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
     
-    Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
+    //Buffer_Cashless.Init_Buffer_Transfer_AFT(true);
     return Json;
 }
 
@@ -4005,6 +4950,8 @@ void Cashless_API::nuevaTransferencia(const String& json) {
         transaccionesPendientes.push_back(json); // Agregar a la lista si no se puede enviar
         guardarTransacciones(); // Guardar en el archivo
         Transaccion_Finalizada();
+
+       
         
     }else{
 
@@ -4025,6 +4972,8 @@ void Cashless_API::nuevaTransferencia(const String& json) {
             }     
         }
         Transaccion_Finalizada();
+
+       
     }
 }
 
@@ -4035,6 +4984,7 @@ void Cashless_API::Reporting_Pending_Transfers(unsigned long TimeOut)
     if(hayTransaccionesPendientes)
     {
         nuevaTransferencia(Get_Current_Status_Transfer());
+       /// Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CARGA-API");
         hayTransaccionesPendientes=false;
     }
     if(Transfer_Pending_Load)
@@ -4046,6 +4996,7 @@ void Cashless_API::Reporting_Pending_Transfers(unsigned long TimeOut)
     if(Transfer_Pending_Download)
     {
         enviarTransaccion(Get_Current_Pending_Ack_Download());
+       // Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_DESCARGA-API");
         Transfer_Pending_Download=false;
     }
 
@@ -4054,6 +5005,9 @@ void Cashless_API::Reporting_Pending_Transfers(unsigned long TimeOut)
     {
         nuevaTransferencia(Get_Current_Status_Transfer_Download());
         hayTransaccionesPendientes_Download=false;
+        Info_Cashless.Set_Status_Transfer(TRANSFER_DONE);
+        delay(50);
+        Info_Cashless.Set_Status_Transfer(TRANSFER_IDLE);
     }
 
     /* Envia Transacciones Cashless pendientes de Recepcion */
@@ -4147,6 +5101,10 @@ bool Cashless_API::Init_Player_Tracking_Sesion(byte Id_Client[])
         else
             Status_Barra(SESION_INICIADA);
 
+
+
+        //Init_Player_TFT("Jose Manuel Ordonez Gongora", 1000, 1850, 2,0, 0,0);
+
         if(contadores.Verify_Client_ID(contadores.Get_Client_ID()) && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
             return true;
         else
@@ -4165,6 +5123,18 @@ bool Cashless_API::Init_Player_Tracking_Sesion(byte Id_Client[])
 bool Cashless_API::Close_Player_Tracking_Sesion(bool Enable)
 {
 
+    /* Borra sesion de fidelización de la memoria */
+    // switch (contadores.Get_Type_Sesion())
+    // {
+    // case PLAYER_TRACKING_SESION:
+    //     //Serial.println("Id Borrado OK");
+    //     Remove_Currrent_Player_Sesion();
+    //     break;
+
+    // default:
+    //     break;
+    // }
+
     contadores.Close_ID_Client();
     contadores.Close_ID_Client_Temp();
     Sesion_Cerrada_Color=true;
@@ -4174,6 +5144,8 @@ bool Cashless_API::Close_Player_Tracking_Sesion(bool Enable)
     delay(10);
     Reset_Handle_LED();
     delay(50);
+
+   // Close_Player_TFT();
 
     if(!Enable)
     {
@@ -4236,22 +5208,25 @@ bool Cashless_API::Updated_Cashless_Counters(String Type_Transaccion)
     String Trans_Tipo = doc["Trans_Tipo"];
     //Serial.println(Trans_Tipo);
 
-    
+    esp_task_wdt_init(1000000, true);
+    esp_task_wdt_add(NULL);
 
     if(Trans_Tipo==LOAD_TRANSACTION)
     {
         Actualiza_Cashless_Entradas();
 
         unsigned long Respuesta_Server = millis();
-        int TIMEOUT_CONECT_SERVER = 3500; // Espera 3.5 seg para Encuestar contadores
-        while (!Flag_Entradas_Cashless_OK && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+        int TIMEOUT_CONECT_SERVER = 5500; // Espera 3.5 seg para Encuestar contadores
+        while (millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
         {
+
+            esp_task_wdt_reset();
 #ifdef DEBUG_RFID
             Serial.println("Encuestando contadores.....");
 #endif
             vTaskDelay(300);
-            if(Flag_Entradas_Cashless_OK)
-                break;
+            // if(Flag_Entradas_Cashless_OK)
+            //     break;
         }
 
         Flag_Entradas_Cashless_OK=false;
@@ -4262,16 +5237,16 @@ bool Cashless_API::Updated_Cashless_Counters(String Type_Transaccion)
         Actualiza_Cashless_Salidas();
 
         unsigned long Respuesta_Server = millis();
-        int TIMEOUT_CONECT_SERVER = 3500; // 3500 Espera 3.5 seg para Encuestar contadores
-        while (!Flag_Salidas_Cashless_OK && millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
+        int TIMEOUT_CONECT_SERVER = 5500; // 3500 Espera 3.5 seg para Encuestar contadores
+        while (millis() - Respuesta_Server < TIMEOUT_CONECT_SERVER)
         {
 #ifdef DEBUG_RFID
             Serial.println("Encuestando contadores.....");
 #endif
-            
+            esp_task_wdt_reset();
             vTaskDelay(300);
-            if(Flag_Salidas_Cashless_OK)
-                break;
+            // if(Flag_Salidas_Cashless_OK)
+            //     break;
         }
         Flag_Salidas_Cashless_OK=false;
     }
@@ -4317,6 +5292,10 @@ bool Cashless_API::Updated_Cashless_Counters(String Type_Transaccion)
     case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
         break;
+
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
+    break;
     
     default:
         jsonDocument["Tipo_Maq"] = "";
@@ -4394,24 +5373,29 @@ void Cashless_API::Log(ESP32Time RTC,String Msg,String Data)
 retorna (21) = PLAYER_TRACKING_SESION
 retorna (22) = PLAYER_CASHLESS_SESION
 */
-int  Cashless_API::Type_Sesion(int Flag,bool Status)
+int Cashless_API::Type_Sesion(int Flag, bool Status)
 {
 
     /* WRITE */
-    if(Flag==PLAYER_CASHLESS_SESION)
+    if (Flag == PLAYER_CASHLESS_SESION)
     {
-        Variables_globales.Set_Variable_Global(Flag_Sesion_Cashless,Status);
+        Variables_globales.Set_Variable_Global(Flag_Sesion_Cashless, Status);
     }
 
     /* READ */
-    
-    if(!Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless) && Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
-        return PLAYER_TRACKING_SESION;
-    else if(Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
+
+    // if(!Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless) && Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
+    //     return PLAYER_TRACKING_SESION;
+    // else if(Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
+    //     return PLAYER_CASHLESS_SESION;
+    // else{
+    //     return PLAYER_TRACKING_SESION;
+    // }
+
+    if (Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
         return PLAYER_CASHLESS_SESION;
-    else{
+    else
         return PLAYER_TRACKING_SESION;
-    }
 }
 
 /* Retorna 1 Maquina no comunica 
@@ -4422,6 +5406,25 @@ int Cashless_API::Recovery_Player_Sesion(byte Id_Client_Recovery[], int Type_Ses
     
     if(Variables_globales.Get_Variable_Global(Comunicacion_Maq)) /* Comunicacion OK*/
     {
+
+        // if(contadores.Verify_Tarjeta(Id_Client_Recovery)&&!Handle_Cashless)
+        // {
+        //     switch (Type_Sesion)
+        //     {
+        //     case PLAYER_TRACKING_SESION:
+
+        //         contadores.Set_Client_ID(Id_Client_Recovery);
+        //         Info_Cashless.Init_Player_Tracking_Sesion(Id_Client_Recovery);
+        //         Info_Cashless.Unlock_Reader();
+        //         break;
+            
+        //     default:
+        //         break;
+        //     }
+
+        //     return 2;
+        // }
+
         if(contadores.Verify_Tarjeta(Id_Client_Recovery) && Handle_Cashless) /* Existe ID */
         {
             bool Test=false;
@@ -4593,15 +5596,22 @@ Enable -> False No procesa evento 6A y espera cobro por  asistente de pagos.
 */
 bool Cashless_API::Requerimiento_AFT_6A(int Evento, bool Enable)
 {
-    if (Enable && Variables_globales.Get_Variable_Global(Enable_Cashless) && Evento == 0x6A && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+    if (Enable && Variables_globales.Get_Variable_Global(Enable_Cashless) && Evento == 0x6A && Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
     {
         Info_Cashless.Lock_Reader();
-
-        switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int()))
+        int ClientID=contadores.Get_Client_ID_Transaccion_Int();
+        switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(),ClientID))
         {
         case REQUEST_SUCCESSFULLY_RECEIVED:
             Solicitud_Descarga_Cashless();
             return true;
+            break;
+
+        case HTTP_CODE_UNAUTHORIZED:
+            Status_Barra(ERROR_LECTURA);
+            Info_Cashless.Unlock_Reader(); /* Habilita lector */
+            Report_Http_Code(HTTP_CODE_UNAUTHORIZED, "Token de autenticacion no valido Codigo HTTP");
+            return false;
             break;
 
         default:
@@ -4615,6 +5625,7 @@ bool Cashless_API::Requerimiento_AFT_6A(int Evento, bool Enable)
     return false;
     
 }
+
 
 /* Problema identificado el Ack*/
 bool Cashless_API::Update_Ack_Evento_69(String Type_Transaccion,int Code)
@@ -4686,6 +5697,7 @@ bool Cashless_API::Set_Controller_Transfer_Load(bool Enable)
         return false;
 }
 
+
 bool Cashless_API::Set_Controller_Transfer_Download(bool Enable)
 {
     Enable_Transfer_Download=Enable;
@@ -4695,6 +5707,9 @@ bool Cashless_API::Set_Controller_Transfer_Download(bool Enable)
     else
         return false;
 }
+
+
+
 
 bool  Cashless_API::Get_Controller_Transfer_Load(void)
 {
@@ -5076,4 +6091,24 @@ bool Cashless_API::Await_Conexion(char ID_Temp[8],char Type_Client,int Timeout)
         return Code;
     }
     return false;
+}
+
+
+
+// Constructor para inicializar el estado
+Cashless_API::Cashless_API() {
+    estado_transfer = TRANSFER_IDLE;
+}
+
+
+void Cashless_API::Set_Status_Transfer(EstadoTransfer nuevo_estado) {
+    if (estado_transfer != nuevo_estado) {
+        // Opcional: log o depuración del cambio
+        //Serial.printf("[STATUS] Cambio de estado: %d -> %d\n", estado_transfer, nuevo_estado);
+    }
+    estado_transfer = nuevo_estado;
+}
+
+EstadoTransfer Cashless_API::Get_Status_Transfer() const {
+    return estado_transfer;
 }

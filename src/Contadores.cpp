@@ -1217,8 +1217,14 @@ bool Contadores_SAS::Set_Client_ID(byte Cliente[])
 
 int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
 {
-  char clientIDString[8];
-  memcpy(clientIDString, ID_Client_Transaccion, sizeof(ID_Client_Transaccion));
+  char clientIDString[9]; // 8 caracteres + 1 para '\0'
+
+  for (int i = 0; i < 8; i++)
+  {
+    clientIDString[i] = static_cast<char>(ID_Client_Transaccion[i]); // Convertir byte a char
+  }
+  clientIDString[8] = '\0'; // Asegurar terminación nula
+
   int Client_Id_Int=atoi(clientIDString);
   return Client_Id_Int;
 }
@@ -1289,6 +1295,36 @@ bool Contadores_SAS::Close_ID_Client_Transaccion(void)
 byte *Contadores_SAS::Get_Client_ID(void)
 {
 return ID_Client;
+}
+
+int Contadores_SAS::Get_Client_ID_Int(void)
+{
+
+  char clientIDString[9]; // 8 caracteres + 1 para '\0'
+
+  for (int i = 0; i < 8; i++)
+  {
+    clientIDString[i] = static_cast<char>(ID_Client[i]); // Convertir byte a char
+  }
+  clientIDString[8] = '\0'; // Asegurar terminación nula
+
+  int Client_Id_Int = atoi(clientIDString);
+  return Client_Id_Int;
+}
+
+
+int Contadores_SAS::Get_Operador_ID_Int_Op(void)
+{
+  char clientIDString_Op[9]; // 8 caracteres + 1 para '\0'
+
+  for (int i = 0; i < 8; i++)
+  {
+    clientIDString_Op[i] = static_cast<char>(ID_Operador[i]); // Convertir byte a char
+  }
+  clientIDString_Op[8] = '\0'; // Asegurar terminación nula
+
+  int Client_Id_Int_Op = atoi(clientIDString_Op);
+  return Client_Id_Int_Op;
 }
 
 bool Contadores_SAS::Close_ID_Client(void)

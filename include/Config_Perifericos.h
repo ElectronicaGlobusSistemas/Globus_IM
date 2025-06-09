@@ -8,7 +8,7 @@
 #include "AutoUpdate.h"
 #include "Web_Config.h"
 #include "Event_Real_Time.h"
-
+#include <ESP32Ping.h>
 //#define Debug_Task
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency  240//240//
@@ -90,15 +90,13 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,1,9};
+uint8_t Version_Firmware_[]={2,1,4,8};
+uint8_t Address_Device_TFT_Display[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
 
 
-
-
 void Init_Config(void)
-
 {
    // pinMode(FLASH_RESET_Pin,INPUT_PULLUP);
     /* Define entradas */
@@ -140,12 +138,13 @@ void Init_Config(void)
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
+    
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
     //------------------> Init Memoria SD <--------------------------
-    
-    Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
     Init_RFID(); /* Inicializa Modulo RFID*/
+    Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
+    
     
     //------------------> AutoUpdate <-------------------------------
   //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
@@ -192,6 +191,11 @@ unsigned long debounceDelay = 50;    // Tiempo de rebote del botón
 unsigned long buttonPressStartTime = 0;  // Tiempo de inicio de la pulsación del botón
 unsigned long buttonHoldDuration = 0; 
 bool Wifi_State_AP = LOW;
+unsigned long Ping_Counter=0;
+unsigned long TimerPing=0;
+#define MAX_PING_TEST_HIGH      15
+#define MAX_PING_TEST_MEDIUM    10
+#define MAX_PING_TEST_LOW       5
 
 void PuntoAcceso_On(int Reset_Pin)
 {
@@ -254,6 +258,46 @@ void PuntoAcceso_On(int Reset_Pin)
             }
         }
         lastButtonState = reading;
+}
+
+void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
+{
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        if ((millis() - TimerPing) >= Timeout)
+        {
+            IPAddress gateway = WiFi.gatewayIP();
+
+            if (Ping.ping((gateway)))
+            {
+                Ping_Counter = 0;
+            }
+            else
+                Ping_Counter++;
+
+            unsigned Intentos = MAX_PING_TEST_HIGH;
+
+            if (Sesion_Act)
+                Intentos = MAX_PING_TEST_LOW;
+            else if (Status_Maq)
+                Intentos = MAX_PING_TEST_MEDIUM;
+            else
+                Intentos = MAX_PING_TEST_HIGH;
+
+            if (Ping_Counter > Intentos)
+            {
+                Ping_Counter = 0;
+                Serial.println("Error Ping");
+                WiFi.disconnect(true); /* Lanza tarea de reconexion WiFi */
+            }
+            TimerPing = millis();
+        }
+    }
+    else
+    {
+        Ping_Counter = 0;
+    }
 }
 
 static void ManagerTasks(void *parameter)
@@ -427,6 +471,8 @@ static void ManagerTasks(void *parameter)
         // UBaseType_t uxHighWaterMark2 = uxTaskGetStackHighWaterMark(RecepcionRS232);
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
+       
+        //Ping_Test(20000);
         
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -956,6 +1002,23 @@ void Init_Configuracion_Inicial(void)
         bool Premios_SAS=false;
         NVS.putBool("P_SAS",Premios_SAS);
     }
+
+    if(!NVS.isKey("Ignore_Reg_Maq"))
+    {
+        /* Ignora registro maquina 
+        True= Ignora registro Maq Cashless
+        False= Espera registro Maq Cashless
+        */
+        bool Ignore_Register=false;
+        NVS.putBool("Ignore_Reg_Maq",Ignore_Register);
+    }
+
+
+    // if(!NVS.isKey("Address_TFT"))
+    // {
+    //     uint8_t Adress_TFT_Display[] = {0x34, 0x85, 0x18, 0x71, 0x0C, 0xCC};
+    //     NVS.putBytes("Address_TFT", Adress_TFT_Display, sizeof(Adress_TFT_Display));
+    // }
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1176,6 +1239,10 @@ void Init_Configuracion_Inicial(void)
     case 16:
         Serial.println("Ruleta IRT");
         break;
+
+    case 17:
+        Serial.println("Aristocrat EFT");
+    break;
 
     default:
         break;
@@ -1515,7 +1582,7 @@ void Init_Configuracion_Inicial(void)
 
     /********************************************************** Cashless ****************************************************** */
 
-    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4)
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
     {
         size_t Key_AFT_Size = NVS.getBytesLength("Reg_AFT");
         char AFT_Key[Key_AFT_Size];
@@ -1560,13 +1627,26 @@ void Init_Configuracion_Inicial(void)
 
         bool Only_Cashless=NVS.getBool("Only_Cashless",false);
         Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,Only_Cashless);
+        
+        bool Ignore_Reg_Maq;
+        Ignore_Reg_Maq=NVS.getBool("Ignore_Reg_Maq",false);
+        Variables_globales.Set_Variable_Global(Ignore_Register_Machie,Ignore_Reg_Maq);
+
+        if(Ignore_Reg_Maq)
+            Serial.println("Flag Ignora registro ");
+
     }else{
         Cashless.Set_Inicial_Trans_ID(0);
         Variables_globales.Set_Variable_Global(Enable_Cashless, false);
         Serial.println("Transacciones Cashless Inhabilitadas");
         byte Current_Id_Recovery[8]={'0','0','0','0','0','0','0','0'};
         contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, SESION_DEFAULT);
-        Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,false);
+        // size_t Leng_id = NVS.getBytesLength("Id_Client");
+        // byte Current_Id_Recovery[Leng_id];
+        // NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
+        // int Type_Sesion = NVS.getInt("Sesion_Type", SESION_DEFAULT);
+        // contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, Type_Sesion);
+        // Variables_globales.Set_Variable_Global(Descarga_Solo_Cashelss,false);
     }
 
 
@@ -1601,6 +1681,39 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Premios SAS: Habilitados");
     else
         Serial.println("Premios SAS: Deshabilitatos");
+
+
+    // size_t adress_TFT_Display_Len= NVS.getBytesLength("Address_TFT");
+    // uint8_t Adress_TFT_Display[adress_TFT_Display_Len];
+    // int Count_test=0;
+    // NVS.getBytes("Address_TFT",Adress_TFT_Display,adress_TFT_Display_Len);
+
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     if (Adress_TFT_Display[i] == 0x00)
+    //     {
+    //         Count_test++;
+    //     }
+    // }
+
+    // if(Count_test>=6)
+    // {
+    //     /* No Existe un dispositivo sincronizado */
+    //     Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,false);
+    //     Variables_globales.Set_Variable_Global(Conexion_TFT_Display,false);
+    //     Serial.println("Pantalla TFT: No existe dispositivo sincronizado");
+    // }else{
+    //     /* Existe un dispositivo sincronizado */
+    //     memcpy(Address_Device_TFT_Display, Adress_TFT_Display, sizeof(Address_Device_TFT_Display) / sizeof(Address_Device_TFT_Display[0]));
+        
+    //     Serial.print("Pantalla TFT Wireless: ");
+    //     for(int i=0; i<6; i++)
+    //     {
+    //         Serial.print(Address_Device_TFT_Display[i],HEX);
+    //         Serial.print(":");
+    //     }
+    //     Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
+    // }
 
     Serial.println("\n");
     NVS.end();

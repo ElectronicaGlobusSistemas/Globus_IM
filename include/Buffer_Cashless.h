@@ -60,6 +60,8 @@ private: // Variables Privadas Buffer
 
   char Buffer_Rx_TITO_4D[128];
   char Buffer_Rx_TITO_3D;
+
+  char Buffer_Rx_Lock_Status[128];
  
   
 
@@ -68,7 +70,9 @@ private: // Variables Privadas Buffer
   char Cashout_Type=0xAA;
   char Amount_Ticket[6]={0xAA,0xAA,0xAA,0xAA,0xAA,0xAA};
 
-  
+  char Buffer_Reg_Rev[128];
+
+  int Status_Reg=0xAA;
 
 public:
   
@@ -121,6 +125,11 @@ public:
   bool Init_Buffer_TITO_7C(void);
 
 
+  bool Set_Buffer_Lock_Status_74(char Buffer[]);
+  char*Get_Buffer_Lock_Status_74(void);
+  bool Init_Buffer_Lock_Status_74(void);
+
+
   void Set_Buffer_TITO_Data(char Buffer_Transfer[]);
   char* Get_Buffer_TITO_Data();
   void Init_Buffer_TITO_Data();
@@ -130,7 +139,9 @@ public:
   bool Init_Buffer_TITO_7B(void);
   
 
-
+  void Set_Buffer_Reg_AFT(char buffer[]);
+  char* Get_Buffer_Reg_AFT(void);
+  void Init_Buffer_Reg(void);
 
 
   bool Set_Cashout_Type_Ticket(char Cashout_Type);
@@ -142,9 +153,9 @@ public:
 
   bool Attend_Tito_Request(int Evento,bool Status_Machine,bool Transaction_Status=false,bool Enable_Tito=false);
 
+  void Set_Status_Reg(int);
   
-  
-
+  int Get_Status_Reg(void);
 
 };
 
@@ -216,6 +227,10 @@ class Transsaccion_Cashless
     uint32_t Get_Credit_Number(int Type);
     uint32_t BCDtoUint32(char Credit_To_Load[], int Select);
     uint32_t BCDtoUint32_Pos(char Credit_To_Load[], int Select, int Inicial_Index = 0);
+
+    uint32_t FBCDtoUint32(char Credit_To_Load[], int Select);
+
+
     void Registra_Maquina_Auto(void);
     bool Transmite_Info_Registro(String Json);
     void Set_Reintento_Registro(bool Set);

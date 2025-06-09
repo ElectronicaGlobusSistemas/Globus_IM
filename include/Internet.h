@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+
+
 #define WIFI_Status 15
 const int wifi_timeout = 10000;
 
@@ -166,6 +168,8 @@ void Storage_Status_WIFI(void)
           break;
         }
 }
+
+
 void CONNECT_WIFI(void)
 {
   //-----------------------------------------------------------------------------------------------------------
@@ -230,25 +234,25 @@ void CONNECT_WIFI(void)
     digitalWrite(WIFI_Status, HIGH);
     Serial.print("Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
+    Serial.print("Canal WiFi: ");
+    Serial.println(WiFi.channel());
+
 
     Reset_Config_Intentos_WIFI();
   }
   else
   {
-    
-    
     Serial.print("\nNo se puede conectar a... ");
     Serial.println(SSID_Wifi);
     digitalWrite(WIFI_Status, LOW);
-    
   }
 }
 
 /* Verifica el limite de Fallos de intentos de conexion y reinicia el dispositivo */
 void WIFI_VERIFY(int Intentos_Conexion)
 {
-
-  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3)
+  /*Si no es Cashless y no hay sesiones abiertas */
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3 && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
   {
     if (Intentos_Conexion > MAX_INTENT_CONEXION_WIFI && !Variables_globales.Get_Variable_Global(Excepcion_WIFI))
     {
@@ -414,7 +418,7 @@ void RECONECT_WIFI_ESP()
     
     WIFI_VERIFY(Intentos_Conexion_WIFI);
 
-    if (Variables_globales.Get_Variable_Global(Access_Point_Mode) == true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+    if (Variables_globales.Get_Variable_Global(Access_Point_Mode) == true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
     {
       Intentos_Conexion_WIFI = 0;
     }
@@ -543,7 +547,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       WIFI_VERIFY(Intentos_Conexion_WIFI);
       /*-----------------------------------------------------------------------------------------------------------*/
 
-      if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+      if(Variables_globales.Get_Variable_Global(Access_Point_Mode)==true||Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
       {
         Intentos_Conexion_WIFI=0;
       }

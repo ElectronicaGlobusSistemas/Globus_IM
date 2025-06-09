@@ -4,6 +4,11 @@
 using namespace std;
 #include "string.h"
 
+
+#ifndef Tabla_Eventos_H  // Protección contra inclusiones múltiples
+#define Tabla_Eventos_H
+
+
 #define Puerta_Abierta                              0x11
 #define Puerta_Cerrada                              0x12
 #define Maquina_Encendida                           0x17
@@ -75,6 +80,8 @@ public:
    String Get_Descrip_Eventos(int Eventoss);
     void  Init_Tabla_Eventos(void);
 };
+
+#endif 
 
 String Tabla_Eventos::Get_Descrip_Eventos(int Eventoss)
 {
@@ -212,3 +219,6 @@ void Tabla_Eventos::Init_Tabla_Eventos(void)
     Partitioned_EEPROM_Error_Bad_checksum_c_="Comparación de checksum incorrecta Error de EEPROM particionado";
     Memory_Error_Reset_="Error reinicio de memoria";
 }
+
+
+

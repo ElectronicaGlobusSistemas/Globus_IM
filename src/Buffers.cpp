@@ -894,6 +894,13 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
 
     String string_dato = String(Firma[0], HEX);
 
+
+
+    if(string_dato.length() < 2)
+    {
+        string_dato = "0" + string_dato;
+    }
+
     (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
     (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
 
@@ -901,20 +908,22 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
 
     String string_dato1 = String(Firma[1], HEX);
 
+    if(string_dato1.length() < 2)
+    {
+        string_dato1 = "0" + string_dato1;
+    }
+
     (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
     (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
 
-
-    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
     {
-        req[203]='0';
-        req[204]='0';
-        req[205]='0';
-        req[206]='0';
+        req[203] = '0';
+        req[204] = '0';
+        req[205] = '0';
+        req[206] = '0';
     }
-    
-    
-    
+
     req[207] = '|'; // 207
     //--------------------------------------------------------------------------------------------------
     // SERIE TRAMA
@@ -1463,6 +1472,23 @@ bool Buffers::Set_buffer_contadores_ACC_NO(int Com, Contadores_SAS contadores, E
 
     String string_dato = String(Firma[0], HEX);
 
+    if(string_dato.length() < 2)
+    {
+        string_dato = "0" + string_dato;
+    }
+    
+
+    /*
+    
+    /*
+    
+    if(string_dato1.length() < 2)
+    {
+        string_dato1 = "0" + string_dato1;
+    }
+    */
+
+
     (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
     (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
 
@@ -1470,20 +1496,23 @@ bool Buffers::Set_buffer_contadores_ACC_NO(int Com, Contadores_SAS contadores, E
 
     String string_dato1 = String(Firma[1], HEX);
 
+
+    if(string_dato1.length() < 2)
+    {
+        string_dato1 = "0" + string_dato1;
+    }
+
     (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
     (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
 
-
-    if(req[203]=='3' &&req[204]=='0'&&req[205]=='3'&&req[206]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
     {
-        req[203]='0';
-        req[204]='0';
-        req[205]='0';
-        req[206]='0';
+        req[203] = '0';
+        req[204] = '0';
+        req[205] = '0';
+        req[206] = '0';
     }
-    
-    
-    
+
     req[207] = '|'; // 207
     //--------------------------------------------------------------------------------------------------
     // SERIE TRAMA
@@ -2772,17 +2801,32 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
 
     
     String string_dato = String(res[0], HEX);
+
+    if(string_dato.length() < 2)
+    {
+        string_dato = "0" + string_dato;
+    }
+
+
     (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
     (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
 
+
+
     //    Serial.println(res[1], HEX);
     String string_dato1 = String(res[1], HEX);
+
+
+    if(string_dato1.length() < 2)
+    {
+        string_dato1 = "0" + string_dato1;
+    }
 
     (string_dato1[0] > 96) ? req[6] = string_dato1[0] - 32 : req[6] = string_dato1[0];
     (string_dato1[1] > 96) ? req[7] = string_dato1[1] - 32 : req[7] = string_dato1[1];
 
 
-    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
+    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==17)
     {
         req[4]='0';
         req[5]='0';

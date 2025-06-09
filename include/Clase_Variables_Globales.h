@@ -128,6 +128,12 @@ using namespace std;
 #define Handle_Premios_SAS                  105
 
 #define Event_Dowmload_Cashless_Pending     106
+#define Ignore_Register_Machie              107
+#define Conexion_TFT_Display                108
+#define Status_Device_TFT_Display           109
+#define Status_Games_Machine                110
+
+
 
 
 class Variables_Globales
@@ -234,6 +240,10 @@ private:
     bool Trasnsmite_Transacion_to_Machine_;
     bool Handle_Premios_SAS_;
     bool Event_Dowmload_Cashless_Pending_;
+    bool Ignore_Register_Machie_;
+    bool Conexion_TFT_Display_;
+    bool Status_Device_TFT_Display_;
+    bool Status_Games_Machine_;
     
 
 public:

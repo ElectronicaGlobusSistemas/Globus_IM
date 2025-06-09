@@ -602,13 +602,24 @@ bool TITO::Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC)
     Validations[6]=Buffer_4D[17];
     Validations[7]=Buffer_4D[18];
 
-   
+    
+    char Id_Cli[8];
+
+    Id_Cli[0]=contadores.Get_Client_ID()[0];
+    Id_Cli[1]=contadores.Get_Client_ID()[1];
+    Id_Cli[2]=contadores.Get_Client_ID()[2];
+    Id_Cli[3]=contadores.Get_Client_ID()[3];
+    Id_Cli[4]=contadores.Get_Client_ID()[4];
+    Id_Cli[5]=contadores.Get_Client_ID()[5];
+    Id_Cli[6]=contadores.Get_Client_ID()[6];
+    Id_Cli[7]=contadores.Get_Client_ID()[7];
+    
     Objeto_Ticket_In_Transfer["Codigo"]=Code;
     Objeto_Ticket_In_Transfer["Saldo"]=Convert_5BCD_Uint32(Amount,0);
     Objeto_Ticket_In_Transfer["Parsing_Code"]=Parsing_Code;
     Objeto_Ticket_In_Transfer["Numero_Validacion"]=  Validacion_Number(Validations);
     Objeto_Ticket_In_Transfer["Validation_System_ID"]=Id_System_String;
-    Objeto_Ticket_In_Transfer["Cliente_ID"]=contadores.Get_Client_ID_Transaccion_Int();    
+    Objeto_Ticket_In_Transfer["Cliente_ID"]=atoi(Id_Cli);   
     Objeto_Ticket_In_Transfer["Trans_Tipo"]="0x00";
     Objeto_Ticket_In_Transfer["Fecha_Hora"]=DataTime;
 
@@ -723,6 +734,19 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     Buffer_Cashless.Init_Buffer_TITO_4D();
 
 
+
+    char Id_Cli[8];
+
+    Id_Cli[0]=contadores.Get_Client_ID()[0];
+    Id_Cli[1]=contadores.Get_Client_ID()[1];
+    Id_Cli[2]=contadores.Get_Client_ID()[2];
+    Id_Cli[3]=contadores.Get_Client_ID()[3];
+    Id_Cli[4]=contadores.Get_Client_ID()[4];
+    Id_Cli[5]=contadores.Get_Client_ID()[5];
+    Id_Cli[6]=contadores.Get_Client_ID()[6];
+    Id_Cli[7]=contadores.Get_Client_ID()[7];
+
+
     if(Objeto_Ticket_Out["Code"]==0x00)
     {
         Objeto_Ticket_Out["Codigo"]=0x00;
@@ -749,7 +773,7 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     else
         Objeto_Ticket_Out["Expiracion_Ticket"]=Expiration_Ticket;
 
-    Objeto_Ticket_Out["Cliente_ID"]= contadores.Get_Client_ID_Transaccion_Int();
+    Objeto_Ticket_Out["Cliente_ID"]= atoi(Id_Cli);
     Objeto_Ticket_Out["Fecha_Hora"] = DataTime;
     
 
@@ -881,8 +905,6 @@ bool TITO::Handle_Event_Tito(int Evento,bool Enable)
 }
 
 
-
-
 bool TITO::Get_Status(void)
 {
     return Attend_Tito_OK;
@@ -905,14 +927,10 @@ void TITO::Set_Status_Ticket_In(bool Set)
 }
 
 
-
-
-
 void TITO::Set_Status_3D(bool Set)
 {
     Ticket_OK=Set;
 }
-
 
 
 bool TITO::Get_Status_3D()
@@ -1145,7 +1163,6 @@ bool TITO::Consult_Ticket(String Ticket_Informations)
     return false;
 }
 
-
 bool TITO:: Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
 {
     if (Evento == 0x67  && Habilita_Tito)
@@ -1158,7 +1175,6 @@ bool TITO:: Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
     else
         return false;
 }
-
 
 void TITO::Load_Pending_Ticket_Transactions(void)
 {
@@ -1186,8 +1202,6 @@ void TITO::Load_Pending_Ticket_Transactions(void)
         }
     }
 }
-
-
 
 bool TITO::Send_Transfer_Ticket(const String & json)
 {
@@ -1258,7 +1272,6 @@ bool TITO::Send_Transfer_Ticket(const String & json)
     return Code;
 }
 
-
 void TITO::New_Transfer_Ticket(const String& json)
 {
     if(!Send_Transfer_Ticket(json))
@@ -1303,7 +1316,6 @@ void TITO::Save_Ticket_Transaction(void)
     }
 }
 
-
 void TITO::Set_Flag_Ticket_Out_Pending(int Status)
 {
     Flag_New_Transfer_Ticket__Out_Pending_=Status;
@@ -1313,7 +1325,6 @@ bool TITO::Get_Flag_Ticket_Out_Pending(void)
 {
     return Flag_New_Transfer_Ticket__Out_Pending_;
 }
-
 
 void TITO::Available_Ticket_Transfer(int Timeout)
 {

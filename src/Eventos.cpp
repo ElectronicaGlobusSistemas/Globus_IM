@@ -152,6 +152,16 @@ bool Eventos_SAS::Set_evento(char evento)
             return true;
             break;
 
+        case 0x7E:
+            Evento_SAS=evento;
+            return true;
+            break;
+
+        case 0x7F:
+            Evento_SAS=evento;
+            return true;
+            break;
+
         case 0x67:
         //Serial.println(evento,HEX);
         Evento_SAS=evento;
@@ -199,6 +209,10 @@ retorna = false Evento repetido durante el tiempo de espera
 */
 bool Eventos_SAS::Ignore_Event(int Event)
 {
+
+    if (Event == 0x4F || Event == 0x2C || Event == 0x8C || Event == 0x7F || Event == 0x7E)
+        return false;
+
     if(Event!=Last_Event_Gerate || (Current_Time_Generate_Event-Last_Time_Event_Generate>=TimeOut_Exec))
     {
         Last_Event_Gerate=Event;

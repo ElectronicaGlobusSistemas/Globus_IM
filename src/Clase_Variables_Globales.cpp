@@ -332,6 +332,22 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Event_Dowmload_Cashless_Pending:
         return Event_Dowmload_Cashless_Pending_;
         break;
+
+    case Ignore_Register_Machie:
+        return Ignore_Register_Machie_;
+        break;
+
+
+    case Conexion_TFT_Display:
+        return Conexion_TFT_Display_;
+        break;
+
+    case Status_Device_TFT_Display:
+        return Status_Device_TFT_Display_;
+        break;
+    case Status_Games_Machine:
+        return Status_Games_Machine_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -663,6 +679,22 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Event_Dowmload_Cashless_Pending:
         Event_Dowmload_Cashless_Pending_=Change_estado;
         break;
+
+    case Ignore_Register_Machie:
+        Ignore_Register_Machie_=Change_estado;
+        break;
+
+    case Conexion_TFT_Display:
+        Conexion_TFT_Display_=Change_estado;
+        break;
+
+    case Status_Device_TFT_Display:
+        Status_Device_TFT_Display_=Change_estado;
+        break;
+
+    case Status_Games_Machine:
+        Status_Games_Machine_=Change_estado;
+        break;
     }
 }
 
@@ -779,7 +811,10 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Trasnsmite_Transacion_to_Machine_=false;
     Handle_Premios_SAS_=false;
     Event_Dowmload_Cashless_Pending_=false;
-
+    Ignore_Register_Machie_=false;
+    Conexion_TFT_Display_=false;
+    Status_Device_TFT_Display_=false;
+    Status_Games_Machine_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

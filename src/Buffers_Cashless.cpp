@@ -34,7 +34,7 @@ extern uint8_t Version_Firmware_[];
 extern Preferences NVS;
 
 extern bool Flag_Set_Ticket_Data;
-
+extern bool Flaggg;
 extern TaskHandle_t Task_Poker_Hopper;
 using namespace std;
 extern ESP32Time RTC; // Objeto contiene hora y fecha
@@ -639,6 +639,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       jsonDocument["Tipo_Maq"] = "AFT";
       break;
 
+    case 17:
+      jsonDocument["Tipo_Maq"] = "EFT";
+    break;
+
     default:
       jsonDocument["Tipo_Maq"] = "";
       break;
@@ -657,7 +661,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     
     
 
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
     {
       StaticJsonDocument<500> jsonDocument;
       jsonDocument.clear();
@@ -696,6 +700,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         break;
       case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+        case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
         break;
 
       default:
@@ -742,6 +750,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         jsonDocument["Tipo_Maq"] = "AFT";
         break;
 
+      case 17:
+        jsonDocument["Tipo_Maq"] = "AFT";
+      break;
+
       default:
         jsonDocument["Tipo_Maq"] = "";
         break;
@@ -759,31 +771,159 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
   Server_API.on("/Habilitar_Cashless",HTTP_GET, [](AsyncWebServerRequest *request){
     
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
     {
-      NVS.begin("Config_ESP32", false);
-      NVS.putBool("Enable_Cashless",true);
-      bool Test=NVS.getBool("Enable_Cashless",false);
-      Variables_globales.Set_Variable_Global(Enable_Cashless,Test);
-      NVS.end();
+      // bool Test;
+      // NVS.begin("Config_ESP32", false);
+      // NVS.putBool("Enable_Cashless",true);
+      // Test=NVS.getBool("Enable_Cashless",false);
+      // Variables_globales.Set_Variable_Global(Enable_Cashless,Test);
+      // NVS.end();
 
-      if(Test && Variables_globales.Get_Variable_Global(Enable_Cashless))
-      {
-        int Status;
-        Status = Registra_Machine();
-        delay(300); /* Espera Por respuesta de la maquina */
-
-        String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-
-        StaticJsonDocument<500> jsonDocument;
+      //if (Test && Variables_globales.Get_Variable_Global(Enable_Cashless))
+      //{
+        StaticJsonDocument<800> jsonDocument;
         jsonDocument.clear();
-        jsonDocument["IsSuccess"] = true;
+
+        /* Verifica si es AFT O EFT */
+
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17) /*EFT*/
+        {
+
+          bool Test;
+          NVS.begin("Config_ESP32", false);
+          NVS.putBool("Enable_Cashless", true);
+          Test = NVS.getBool("Enable_Cashless", false);
+          Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+          NVS.end();
+
+          Buffer_Cashless.Set_RX_AFT_2(6); /* Crea llave registro solo en Sistema Porque EFT no  necesita este parametro */
+          if (Cashless.Get_Trans_ID_EFT() > 0)
+          Cashless.Delete_Trans_ID();
+          Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+          jsonDocument["IsSuccess"] = true;
+          jsonDocument["Desc"] = "Cashless Habilitado con Exito EFT!";
+        }
+        else /*AFT*/
+        {
+
+          /* Pregunta si la maquina AFT admite registro */
+
+          if (Variables_globales.Get_Variable_Global(Ignore_Register_Machie))
+          {
+
+            bool Test;
+            NVS.begin("Config_ESP32", false);
+            NVS.putBool("Enable_Cashless", true);
+            Test = NVS.getBool("Enable_Cashless", false);
+            Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+            NVS.end();
+
+            Buffer_Cashless.Set_RX_AFT_2(6); /* Crea llave registro solo en Sistema porque la maquina funciona sin registro */
+            if (Cashless.Get_Trans_ID() > 0)
+              Cashless.Delete_Trans_ID();
+
+            jsonDocument["IsSuccess"] = true;
+            jsonDocument["Desc"] = "Cashless Habilitado con Exito AFT!";
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+
+          }
+          else
+          {
+            bool Test;
+            // Buffer_Cashless.Set_Status_Reg(0xAA);
+            Flaggg = true; /* Transmite Registro Maquina */
+            delay(500);
+            unsigned long Timout_Break_Response1;
+            int Stop_Transaccion_Amount_Response1 = 8000; // Tiempo de espera en milisegundos (2 Seg MAX)
+            Timout_Break_Response1 = millis();
+            esp_task_wdt_init(1000000, true);
+            esp_task_wdt_add(NULL);
+
+            while ((Buffer_Cashless.Get_Status_Reg() == 0xAA) && (millis() - Timout_Break_Response1 < Stop_Transaccion_Amount_Response1))
+            {
+              esp_task_wdt_reset();
+              vTaskDelay(300);
+              // Serial.println("Esperando respuesta de maquina......");
+            }
+            String Code;
+            // Serial.println(Buffer_Cashless.Get_Status_Reg());
+            switch (Buffer_Cashless.Get_Status_Reg())
+            {
+            case 0x00:
+
+              NVS.begin("Config_ESP32", false);
+              NVS.putBool("Enable_Cashless", true);
+              Test = NVS.getBool("Enable_Cashless", false);
+              Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+              NVS.end();
+
+              jsonDocument["IsSuccess"] = true;
+              jsonDocument["Desc"] = "Cashless Habilitado con Exito AFT!";
+              Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+              break;
+
+            case 0x01:
+
+              NVS.begin("Config_ESP32", false);
+              NVS.putBool("Enable_Cashless", true);
+              Test = NVS.getBool("Enable_Cashless", false);
+              Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+              NVS.end();
+
+              jsonDocument["IsSuccess"] = true;
+              jsonDocument["Desc"] = "Cashless Habilitado con Exito AFT!";
+              Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+              break;
+
+            case 0x40:
+              // NVS.begin("Config_ESP32", false);
+              // NVS.putBool("Enable_Cashless", false);
+              // Test = NVS.getBool("Enable_Cashless", false);
+              // Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+              // NVS.end();
+              jsonDocument["IsSuccess"] = false;
+              jsonDocument["Desc"] = "Registro AFT pendiente AFT!";
+              break;
+
+            case 0x80:
+              // NVS.begin("Config_ESP32", false);
+              // NVS.putBool("Enable_Cashless", false);
+              // Test = NVS.getBool("Enable_Cashless", false);
+              // Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+              // NVS.end();
+              jsonDocument["IsSuccess"] = false;
+              jsonDocument["Desc"] = "Maquina no registrada!";
+              break;
+
+            default:
+              jsonDocument["IsSuccess"] = false;
+              Code = "Codigo: ";
+              if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                jsonDocument["Desc"] = "No hay comunicacion con la MET";
+              else
+                jsonDocument["Desc"] = "No hubo respuesta de la maquina! " + Code + String(Buffer_Cashless.Get_Status_Reg());
+              // NVS.begin("Config_ESP32", false);
+              // NVS.putBool("Enable_Cashless", true);
+              // Test = NVS.getBool("Enable_Cashless", false);
+              // Variables_globales.Set_Variable_Global(Enable_Cashless, Test);
+              // NVS.end();
+              break;
+            }
+          }
+
+          // int Status;
+          // Status = Registra_Machine();
+          // delay(300); /* Espera Por respuesta de la maquina */
+        }
+
+        String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
         jsonDocument["Fecha_Hora"] = DataTime;
         jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Desc"] = "Cashless Habilitado con Exito!";
-        jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-        
-        
+
+        jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+
         switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
         {
         case 0:
@@ -799,6 +939,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
             jsonDocument["Tipo_Maq"] = "AFT";
             break;
 
+        case 17:
+            jsonDocument["Tipo_Maq"] = "EFT";
+            break;
+
         default:
             jsonDocument["Tipo_Maq"] = "";
             break;
@@ -809,45 +953,47 @@ bool Transsaccion_Cashless::Init_API_Server(void)
        // Serial.println(Json);
         request->send(200, "application/json", Json);
         delay(800);
-        ESP.restart();
-      }
-      else
-      {
-        String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
-        StaticJsonDocument<200> jsonDocument;
-        jsonDocument.clear();
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Desc"] = "No fue posible habilitar Cashless";
-        jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-        switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
-        {
-        case 0:
-          jsonDocument["Tipo_Maq"] = "AFT";
-          break;
-        case 1:
-          jsonDocument["Tipo_Maq"] = "AFT";
-          break;
-        case 2:
-          jsonDocument["Tipo_Maq"] = "EFT";
-          break;
-        case 3:
-          jsonDocument["Tipo_Maq"] = "AFT";
-          break;
-        default:
-          jsonDocument["Tipo_Maq"] = "";
-          break;
-        }
-        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-        String Json;
-        serializeJson(jsonDocument, Json); /* Serializa Data */
-       // Serial.println(Json);
-        request->send(200, "application/json", Json);
-        delay(800);
-        ESP.restart();
-      }
+        if(jsonDocument["IsSuccess"]==true)
+          ESP.restart();
+      //}
+      // else
+      // {
+      //   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+
+      //   StaticJsonDocument<200> jsonDocument;
+      //   jsonDocument.clear();
+      //   jsonDocument["IsSuccess"] = false;
+      //   jsonDocument["Fecha_Hora"] = DataTime;
+      //   jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+      //   jsonDocument["Desc"] = "No fue posible habilitar Cashless";
+      //   jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
+      //   switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+      //   {
+      //   case 0:
+      //     jsonDocument["Tipo_Maq"] = "AFT";
+      //     break;
+      //   case 1:
+      //     jsonDocument["Tipo_Maq"] = "AFT";
+      //     break;
+      //   case 2:
+      //     jsonDocument["Tipo_Maq"] = "EFT";
+      //     break;
+      //   case 3:
+      //     jsonDocument["Tipo_Maq"] = "AFT";
+      //     break;
+      //   default:
+      //     jsonDocument["Tipo_Maq"] = "";
+      //     break;
+      //   }
+      //   jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+      //   String Json;
+      //   serializeJson(jsonDocument, Json); /* Serializa Data */
+      //  // Serial.println(Json);
+      //   request->send(200, "application/json", Json);
+      //   delay(800);
+      //   ESP.restart();
+      // }
     }
     else
     {
@@ -873,6 +1019,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         break;
       case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+      case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
         break;
 
       default:
@@ -918,6 +1068,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         break;
     case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
         break;
     
     default:
@@ -966,6 +1121,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     case 5:
         jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
         break;
+
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
     
     default:
         jsonDocument["Tipo_Maq"] = "";
@@ -999,6 +1158,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         jsonDocument["Tipo_Maq"] = "AFT";
         break;
 
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
+        break;
+
     // case 5:
     //     jsonDocument["Tipo_Maq"] = "AFT"; /* Eliminar*/
     //     break;
@@ -1018,7 +1181,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   Server_API.on("/Registra_Maquina",HTTP_GET, [](AsyncWebServerRequest *request){
   
   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-  StaticJsonDocument<200> jsonDocument;
+  StaticJsonDocument<800> jsonDocument;
   jsonDocument.clear();
   switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
   {
@@ -1038,79 +1201,150 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     jsonDocument["Tipo_Maq"] = "";
     break;
   }
-  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
   {
-    
-   
-    int Status;
-    
-    Status = Registra_Machine();
-    delay(300); /* Espera Por respuesta de la maquina */
 
-    switch (Status)
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
     {
-    case 1:
-      if(Cashless.Get_Trans_ID_Int()>0)
-        Cashless.Delete_Trans_ID();
-      Variables_globales.Set_Variable_Global(Status_AFT_Machine,true);
+      Buffer_Cashless.Set_RX_AFT_2(6); /* Crea llave registro solo en Sistema Porque EFT no  necesita este parametro */
       jsonDocument["IsSuccess"] = true;
-      jsonDocument["Fecha_Hora"] = DataTime;
-      jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-      jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-      jsonDocument["Desc"] = "Maquina Registrada con Exito";
-      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-
-      //Serial.println("Maquina Registrada con exito!");
-      break;
-    case 2:
-      
-      //Serial.println("Maquina Registrada anteriormente");
-      jsonDocument["IsSuccess"] = true;
-      jsonDocument["Fecha_Hora"] = DataTime;
-      jsonDocument["Key"]=Buffer_Cashless.Get_Key_Register_AFT_String();
-      jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-      jsonDocument["Desc"] = "Maquina ya se encontraba registrada";
-      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-      break;
-    
-    default:
-      //Serial.println("Maquina no responde ");
+        if (Cashless.Get_Trans_ID_EFT() > 0)
+          Cashless.Delete_Trans_ID();
+        Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+        jsonDocument["Fecha_Hora"] = DataTime;
+        jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+        jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+        jsonDocument["Desc"] = "Maquina EFT Registrada con Exito";
+        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+    }
+    else
+    {
 
       if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
       {
         jsonDocument["IsSuccess"] = false;
         jsonDocument["Fecha_Hora"] = DataTime;
-        jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
-        jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-        jsonDocument["Desc"] = "No hay comunicacion con la maquina";
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-      }else{
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
-        jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-        jsonDocument["Desc"] = "No hubo respuesta de la maquina";
+        jsonDocument["Key"] = nullptr;
+        jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+        jsonDocument["Desc"] = "No hay comunicacion con la MET";
         jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
       }
-      break;
+      else
+      {
+
+        if (Variables_globales.Get_Variable_Global(Ignore_Register_Machie))
+        {
+          Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+          Buffer_Cashless.Set_RX_AFT_2(6); /* Crea llave registro solo en Sistema porque la maquina funciona sin registro */
+          jsonDocument["IsSuccess"] = true;
+          if (Cashless.Get_Trans_ID_Int() > 0)
+            Cashless.Delete_Trans_ID();
+          jsonDocument["Fecha_Hora"] = DataTime;
+          jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+          jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+          jsonDocument["Desc"] = "Maquina Registrada con Exito";
+          jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+        }
+        else
+        {
+          // Status = Registra_Machine();
+          // delay(300); /* Espera Por respuesta de la maquina */
+          Buffer_Cashless.Set_Status_Reg(0xAA);
+          Flaggg = true; /* Transmite Registro Maquina */
+          // delay(100);
+          unsigned long Timout_Break_Response1;
+          int Stop_Transaccion_Amount_Response1 = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+          Timout_Break_Response1 = millis();
+          esp_task_wdt_init(1000000, true);
+          esp_task_wdt_add(NULL);
+
+          while ((Buffer_Cashless.Get_Status_Reg() == 0xAA) && (millis() - Timout_Break_Response1 < Stop_Transaccion_Amount_Response1))
+          {
+            esp_task_wdt_reset();
+            vTaskDelay(300);
+            // Serial.println("Esperando respuesta de maquina......");
+          }
+
+          switch (Buffer_Cashless.Get_Status_Reg())
+          {
+          case 0x00:
+            jsonDocument["IsSuccess"] = true;
+
+            if (Cashless.Get_Trans_ID_Int() > 0)
+              Cashless.Delete_Trans_ID();
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+            jsonDocument["Fecha_Hora"] = DataTime;
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "Maquina Registrada con Exito";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            break;
+
+          case 0x01:
+            jsonDocument["IsSuccess"] = true;
+            if (Cashless.Get_Trans_ID_Int() > 0)
+              Cashless.Delete_Trans_ID();
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, true);
+            jsonDocument["Fecha_Hora"] = DataTime;
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "Maquina Registrada con Exito";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            break;
+
+          case 0x40:
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Fecha_Hora"] = DataTime;
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "Registro pendiente";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            break;
+
+          case 0x80:
+
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Fecha_Hora"] = DataTime;
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "Maquina no registrada";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            break;
+
+          default:
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Fecha_Hora"] = DataTime;
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "No hubo respuesta de la maquina";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            break;
+          }
+        }
+      }
+
+      Buffer_Cashless.Set_Status_Reg(0xAA);
     }
 
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
-   // Serial.println(Json);
+                                       // Serial.println(Json);
     request->send(200, "application/json", Json);
-  }else{
-    
+  }
+  else
+  {
+
     jsonDocument["IsSuccess"] = false;
     jsonDocument["Fecha_Hora"] = DataTime;
-    jsonDocument["Key"]=nullptr;
-    jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
+    jsonDocument["Key"] = nullptr;
+    jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
     jsonDocument["Desc"] = "No compatible con el tipo de maquina";
     jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
     jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
-   // Serial.println(Json);
+                                       // Serial.println(Json);
     request->send(200, "application/json", Json);
   }
   
@@ -1124,9 +1358,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
   int Status;
 
-  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
   {
-     
+
     switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
     {
     case 0:
@@ -1146,13 +1380,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         jsonDocument["Tipo_Maq"] = "";
         break;
     }
-    Status = Delete_Registro_Machine();
-    delay(100); /* Espera Por respuesta de la maquina */
 
-    switch (Status)
+    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17) /* Cancela Registro EFT */
     {
-    case 1:
-
       if (Buffer_Cashless.Delete_Key_Register_AFT(true))
         Variables_globales.Set_Variable_Global(Status_AFT_Machine, false);
       Cashless.Delete_Trans_ID();
@@ -1162,58 +1392,121 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
       else
         jsonDocument["Key"] = nullptr;
-      jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-      jsonDocument["Desc"] = "Registro Maquina AFT Cancelado con Exito!";
+      jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+      jsonDocument["Desc"] = "Registro Maquina EFT Cancelado con Exito!";
       jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
       jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-      //Serial.println("Se elimino el registro de la maquina con exito");
+      // Serial.println("Se elimino el registro de la maquina con exito");
       Cashless.Set_Reintento_Registro(false);
-      break;
-    case 2:
-      
-      //Serial.println("Maquina Registrada anteriormente");
-      jsonDocument["IsSuccess"] = false;
-      jsonDocument["Fecha_Hora"] = DataTime;
-      if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
-        jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
-      else
-        jsonDocument["Key"] = nullptr;
-      jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-      jsonDocument["Desc"] = "Registro no eliminado";
-      jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-      jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-      break;
-    
-    default:
-      //Serial.println("Maquina no responde ");
-
-      if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-      {
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
-          jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
-        else
-          jsonDocument["Key"] = nullptr;
-        jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-        jsonDocument["Desc"] = "No hay comunicacion con la maquina";
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-      }else{
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Fecha_Hora"] = DataTime;
-        if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
-          jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
-        else
-          jsonDocument["Key"] = nullptr;
-        jsonDocument["Trans_ID"]=Cashless.Get_Trans_ID_Int();
-        jsonDocument["Desc"] = "No hubo respuesta de la maquina";
-        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
-        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
-      }
-      break;
     }
+    else
+    {
 
+      if (Variables_globales.Get_Variable_Global(Ignore_Register_Machie))
+      {
+        if (Buffer_Cashless.Delete_Key_Register_AFT(true))
+          Variables_globales.Set_Variable_Global(Status_AFT_Machine, false);
+        Cashless.Delete_Trans_ID();
+        jsonDocument["IsSuccess"] = true;
+        jsonDocument["Fecha_Hora"] = DataTime;
+        if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
+          jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+        else
+          jsonDocument["Key"] = nullptr;
+        jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+        jsonDocument["Desc"] = "Registro Maquina AFT Cancelado con Exito!";
+        jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+        jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+        // Serial.println("Se elimino el registro de la maquina con exito");
+        Cashless.Set_Reintento_Registro(false);
+      }
+      else
+      {
+
+        Status = Delete_Registro_Machine();
+        delay(500); /* Espera Por respuesta de la maquina */
+
+        // unsigned long Timout_Break_Response1;
+        // int Stop_Transaccion_Amount_Response1 = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+        // Timout_Break_Response1 = millis();
+        // esp_task_wdt_init(1000000, true);
+        // esp_task_wdt_add(NULL);
+
+        // while ((millis() - Timout_Break_Response1 < Stop_Transaccion_Amount_Response1))
+        // {
+        //   esp_task_wdt_reset();
+        //   vTaskDelay(300);
+        //   // Serial.println("Esperando respuesta de maquina......");
+        // }
+
+        switch (Status)
+        {
+        case 1:
+
+          if (Buffer_Cashless.Delete_Key_Register_AFT(true))
+            Variables_globales.Set_Variable_Global(Status_AFT_Machine, false);
+          Cashless.Delete_Trans_ID();
+          jsonDocument["IsSuccess"] = true;
+          jsonDocument["Fecha_Hora"] = DataTime;
+          if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+          else
+            jsonDocument["Key"] = nullptr;
+          jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+          jsonDocument["Desc"] = "Registro Maquina AFT Cancelado con Exito!";
+          jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+          jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+          // Serial.println("Se elimino el registro de la maquina con exito");
+          Cashless.Set_Reintento_Registro(false);
+          break;
+        case 2:
+
+          // Serial.println("Maquina Registrada anteriormente");
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Fecha_Hora"] = DataTime;
+          if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
+            jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+          else
+            jsonDocument["Key"] = nullptr;
+          jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+          jsonDocument["Desc"] = "Registro no eliminado";
+          jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+          jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+          break;
+
+        default:
+          // Serial.println("Maquina no responde ");
+
+          if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+          {
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Fecha_Hora"] = DataTime;
+            if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
+              jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            else
+              jsonDocument["Key"] = nullptr;
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "No hay comunicacion con la maquina";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+          }
+          else
+          {
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Fecha_Hora"] = DataTime;
+            if (Variables_globales.Get_Variable_Global(Status_AFT_Machine))
+              jsonDocument["Key"] = Buffer_Cashless.Get_Key_Register_AFT_String();
+            else
+              jsonDocument["Key"] = nullptr;
+            jsonDocument["Trans_ID"] = Cashless.Get_Trans_ID_Int();
+            jsonDocument["Desc"] = "No hubo respuesta de la maquina";
+            jsonDocument["Estado"] = Variables_globales.Get_Variable_Global(Enable_Cashless);
+            jsonDocument["Cobro_Cashless"] = Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss);
+          }
+          break;
+        }
+      }
+    }
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     //Serial.println(Json);
@@ -1258,7 +1551,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   String Transfer_Limit = "0000000000";
   String Restricted_Expiration = "00000000";
   String Restricted_Pool_ID = "0000";
-  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+  if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
   {
 
     switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
@@ -1469,6 +1762,179 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     request->send(response);
   });
 
+  Server_API.on("/Borra_Transferencias_Pendientes", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (SPIFFS.exists("/transacciones.txt")) { 
+      SPIFFS.remove("/transacciones.txt"); // Elimina el archivo
+      request->send(200, "text/plain", "Archivo eliminado");
+    }else{
+      request->send(200, "text/plain", "El archivo no existe");
+    }
+    
+});
+
+
+Server_API.on("/Habilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
+
+  
+  StaticJsonDocument<200> jsonDocument;
+  jsonDocument.clear();
+  char Current_IP[4];
+  String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+  memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+  switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+  {
+  case 0:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+  case 1:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+  case 2:
+    jsonDocument["Tipo_Maq"] = "EFT";
+    break;
+  case 3:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+
+  case 4:
+    jsonDocument["Tipo_Maq"] = "IRT";
+    break;
+
+  case 5:
+    jsonDocument["Tipo_Maq"] = "Generica";
+    break;
+
+  default:
+    jsonDocument["Tipo_Maq"] = String(Configuracion.Get_Configuracion(Tipo_Maquina, 0));
+    break;
+  }
+
+  if (jsonDocument["Tipo_Maq"] == "AFT" || jsonDocument["Tipo_Maq"] == "EFT")
+  {
+
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+    {
+
+      bool Ignore_Reg_Maq;
+      NVS.begin("Config_ESP32", false);
+      NVS.putBool("Ignore_Reg_Maq", true);
+      Ignore_Reg_Maq = NVS.getBool("Ignore_Reg_Maq", false);
+      Variables_globales.Set_Variable_Global(Ignore_Register_Machie, Ignore_Reg_Maq);
+      NVS.end();
+
+      if (Variables_globales.Get_Variable_Global(Ignore_Register_Machie))
+      {
+        jsonDocument["IsSuccess"] = true;
+        jsonDocument["Message"] = "La interfaz no espera registro AFT";
+      }
+      else
+      {
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Message"] = "La interfaz espera registro AFT";
+      }
+    }
+    else
+    {
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "No hay comunicacion con la MET";
+    }
+  }
+  else
+  {
+    jsonDocument["IsSuccess"] = false;
+    jsonDocument["Message"] = "No compatible con el tipo de maquina";
+  }
+
+  String Output;
+  serializeJson(jsonDocument, Output); /* Serializa Data */
+  // Serial.println(Output);
+  request->send(200, "application/json", Output);
+});
+
+Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
+
+  
+  StaticJsonDocument<200> jsonDocument;
+  jsonDocument.clear();
+  char Current_IP[4];
+  String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+  memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+  switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
+  {
+  case 0:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+  case 1:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+  case 2:
+    jsonDocument["Tipo_Maq"] = "EFT";
+    break;
+  case 3:
+    jsonDocument["Tipo_Maq"] = "AFT";
+    break;
+
+  case 4:
+    jsonDocument["Tipo_Maq"] = "IRT";
+    break;
+
+  case 5:
+    jsonDocument["Tipo_Maq"] = "Generica";
+    break;
+
+  default:
+    jsonDocument["Tipo_Maq"] = String(Configuracion.Get_Configuracion(Tipo_Maquina, 0));
+    break;
+  }
+
+  if (jsonDocument["Tipo_Maq"] == "AFT" || jsonDocument["Tipo_Maq"] == "EFT")
+  {
+
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+    {
+
+      bool Ignore_Reg_Maq;
+      NVS.begin("Config_ESP32", false);
+      NVS.putBool("Ignore_Reg_Maq", false);
+      Ignore_Reg_Maq = NVS.getBool("Ignore_Reg_Maq", false);
+      Variables_globales.Set_Variable_Global(Ignore_Register_Machie, Ignore_Reg_Maq);
+      NVS.end();
+
+      if (!Variables_globales.Get_Variable_Global(Ignore_Register_Machie))
+      {
+        jsonDocument["IsSuccess"] = true;
+        jsonDocument["Message"] = "La interfaz espera registro AFT";
+      }
+      else
+      {
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Message"] = "La interfaz no espera registro AFT";
+      }
+    }
+    else
+    {
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "No hay comunicacion con la MET";
+    }
+  }
+  else
+  {
+    jsonDocument["IsSuccess"] = false;
+    jsonDocument["Message"] = "No compatible con el tipo de maquina";
+  }
+
+  String Output;
+  serializeJson(jsonDocument, Output); /* Serializa Data */
+  // Serial.println(Output);
+  request->send(200, "application/json", Output);
+});
+
+
+// bool Ignore_Reg_Maq=NVS.getBool("Ignore_Reg_Maq",false);
+
+
   Server_API.on("/Solicitud_Contadores_Cashless",HTTP_GET, [](AsyncWebServerRequest *request)
   {
 
@@ -1492,6 +1958,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         break;
     case 3:
         jsonDocument["Tipo_Maq"] = "AFT";
+        break;
+
+    case 17:
+        jsonDocument["Tipo_Maq"] = "EFT";
         break;
     
     default:
@@ -1807,7 +2277,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     
     
 
-    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4)
+    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
     {
       StaticJsonDocument<500> jsonDocument;
       jsonDocument.clear();
@@ -2069,10 +2539,6 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
   if(!Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
   {
-
-    
-
-    
 
     String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
@@ -2595,28 +3061,30 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
 
  
-  //   Server_API.on("/Encuesta_Transaccion_Pendiente",HTTP_GET, [](AsyncWebServerRequest *request){
-  //   StaticJsonDocument<200> jsonDocument;
-  //   jsonDocument.clear();
+    Server_API.on("/Encuesta_Transaccion_Pendiente",HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
 
-  //   if(Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
-  //   {
-  //     /* Consulta carga */
-  //   }
-  //   else if(!Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending)&& Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
-  //   {
-  //     /* Carga Pendiente */
-  //   }
-  //   App=true;
+    App=true;
+
+    if(Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
+    {
+      /* Consulta carga */
+    }
+    else if(!Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending)&& Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
+    {
+      /* Carga Pendiente */
+    }
+   
     
 
-  //   jsonDocument["IsSuccess"] = true;
-  //   jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
-  //   String Json;
-  //   serializeJson(jsonDocument, Json); /* Serializa Data */
-  //   request->send(200, "application/json", Json);
-  //   delay(1000);
-  // });
+    jsonDocument["IsSuccess"] = true;
+    jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    delay(1000);
+  });
 
 
   /* En pruebas nuevo desarrollo ---->*/
@@ -2974,7 +3442,6 @@ bool Transsaccion_Cashless::Init_API_Server(void)
           //Serial.println(Token_Valido);
           if (Token_Valido != "")
           {
-
             /* Inicializa URL para descarga */
             UpdateOTA.Init_AutoUpdate(Version_Programa, URL_Generic, Api_Version, Api_Bin, Api_Res, Token_Valido, Version_Firmware_);
             
@@ -3652,7 +4119,6 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   //   }
   // });
 
-
   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Actualiza_Contadores_Mecanicos",[](AsyncWebServerRequest*request,JsonVariant& json)
   {
 
@@ -3830,12 +4296,136 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   }));
 
 
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Sincro_TFT_Display",[](AsyncWebServerRequest*request,JsonVariant& json)
+  {
+
+    StaticJsonDocument<800> jsonDocument;
+    jsonDocument.clear();
   
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesagge"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else{
+
+      auto&& data = json.as<JsonObject>();
+
+      if(data.containsKey("MAC_Device"))
+      {
+
+        String MAC=data["MAC_Device"].as<String>();
+        uint8_t Mac[6];
+        uint8_t MacRead[6];
+        bool IsSuccess = false;
+
+        if( sscanf(MAC.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", 
+        &Mac[0], &Mac[1], &Mac[2], &Mac[3], &Mac[4], &Mac[5])==6)
+        {
+          NVS.begin("Config_ESP32", false);
+          NVS.putBytes("Address_TFT", Mac, sizeof(Mac));
+          delay(1);
+          NVS.getBytes("Address_TFT", MacRead, sizeof(MacRead));
+          NVS.end();
+
+          IsSuccess=true;
+          for (int i = 0; i < 6; i++)
+          {
+            if (Mac[i] != MacRead[i])
+            {
+              IsSuccess = false;
+              break;
+            }
+          }
+          jsonDocument["IsSuccess"] = IsSuccess;
+          if(IsSuccess)
+            jsonDocument["Mesagge"] = "Guardado con exito!";
+          else
+            jsonDocument["Mesagge"] = "No se guardo";
+        }else
+        {
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Mesagge"] = "Error de conversion";
+        }
+       
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+
+        if(IsSuccess)
+        {
+          delay(500);
+          ESP.restart();
+        }
+          
+
+      }else{
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "No exite informacion de la MAC";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+      }
+    }
+
+  }));
+
+  Server_API.on("/Backup", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/Buckup_Contadores.log"))
+    {
+      request->send(404, "text/plain", "Archivo no encontrado");
+      return;
+    }
+    AsyncWebServerResponse *response = request->beginResponse(SD, "/Buckup_Contadores.log", "text/plain", true);
+    response->addHeader("log", "/Buckup_Contadores.log");
+    request->send(response); 
+  });
+
+  Server_API.on("/Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
+                {
+
+    if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/LogESP.txt"))
+    {
+      request->send(404, "text/plain", "Archivo no encontrado");
+      return;
+    }
+    
+    AsyncWebServerResponse *response = request->beginResponse(SD, "/LogESP.txt", "text/plain", true);
+    response->addHeader("log", "/LogESP.txt");
+    request->send(response); 
+  });
+
+   Server_API.on("/Borra_Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
+                {
+
+    if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/LogESP.txt"))
+    {
+      request->send(404, "text/plain", "Archivo no encontrado");
+      return;
+    }else
+    {
+     
+      if(SD.remove("/LogESP.txt"))
+      {
+        request->send(200, "text/plain", "Archivo log Borrado");
+        return;
+      }else{
+        request->send(200, "text/plain", "No se Borro el");
+      }
+    }});
+
+  
+
   Server_API.begin();
   return true;
 }
-
-
 
 bool Transsaccion_Cashless::Set_Credit_To_Load(char res[])
 {
@@ -3941,6 +4531,49 @@ void integerToBCD(int number, char bcdDigits[])
   }
 }
 
+uint32_t Transsaccion_Cashless::FBCDtoUint32(char Credit_To_Load[], int Select)
+{
+
+  char str[9]; // 8 caracteres + terminador nulo
+  uint32_t Credit_Cashables = 0;
+
+  switch (Select)
+  {
+  case CASHABLES:
+    for (int i = 0; i < 4; i++)
+    {
+      str[i * 2] = (Credit_To_Load[i] >> 4) + '0';
+      str[i * 2 + 1] = (Credit_To_Load[i] & 0x0F) + '0';
+    }
+    str[8] = '\0'; // Asegurar terminación de cadena
+    sscanf(str, "%u", &Credit_Cashables);
+    return Credit_Cashables;
+
+  case RESTRICTED:
+    for (int i = 0; i < 4; i++)
+    {
+      str[i * 2] = (Credit_To_Load[4 + i] >> 4) + '0';
+      str[i * 2 + 1] = (Credit_To_Load[4 + i] & 0x0F) + '0';
+    }
+    str[8] = '\0'; // Asegurar terminación de cadena
+    sscanf(str, "%u", &Credit_Cashables);
+    return Credit_Cashables;
+
+  case NON_RESTRICTED:
+    for (int i = 0; i < 4; i++)
+    {
+      str[i * 2] = (Credit_To_Load[8 + i] >> 4) + '0';
+      str[i * 2 + 1] = (Credit_To_Load[8 + i] & 0x0F) + '0';
+    }
+    str[8] = '\0'; // Asegurar terminación de cadena
+    sscanf(str, "%u", &Credit_Cashables);
+    return Credit_Cashables;
+
+  default:
+    return Credit_Cashables;
+  }
+}
+
 uint32_t Transsaccion_Cashless::BCDtoUint32(char Credit_To_Load[], int Select)
 {
   char str[11];
@@ -3997,7 +4630,7 @@ uint32_t Transsaccion_Cashless::BCDtoUint32_Pos(char Credit_To_Load[], int Selec
   uint32_t Credit_Cashables=0;
 
   switch (Select)
-  {
+  { 
   case CASHABLES:
     
     for (int i = 0; i < 5; i++)
@@ -4041,6 +4674,8 @@ uint32_t Transsaccion_Cashless::BCDtoUint32_Pos(char Credit_To_Load[], int Selec
   }
 }
 
+
+/* Metodo para convertir saldos  de entero a protocolo AFT/EFT */
 bool Transsaccion_Cashless::Set_Amount_To_Load(uint32_t Credit_Cashables, uint32_t Credit_Restringidos, uint32_t Credit_No_Restringidos)
 {
 
@@ -4052,39 +4687,88 @@ bool Transsaccion_Cashless::Set_Amount_To_Load(uint32_t Credit_Cashables, uint32
     Credit_To_Load[i] = 0;
   }
 
-  // Convertir el número a cadena con 10 caracteres, rellenando con ceros a la izquierda si es necesario
-  char str[11];
-  char str2[11];
-  char str3[11];
-  sprintf(str, "%010d", Credit_Cashables);
-  sprintf(str2, "%010d", Credit_Restringidos);
-  sprintf(str3, "%010d", Credit_No_Restringidos);
-  
-  // Convertir cada par de caracteres a un byte BCD Cashables
-  for(int i = 0; i < 5; i++) {
-    Credit_To_Load[i] = ((str[i*2] - '0') << 4) | (str[i*2 + 1] - '0');
-  }
-
-  // Convertir cada par de caracteres a un byte BCD Restricted
-  for (int i = 0; i < 5; i++)
+  /* Protocolo EFT */
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
   {
-    Credit_To_Load[5 + i] = ((str2[i * 2] - '0') << 4) | (str2[i * 2 + 1] - '0');
-  }
 
-  // Convertir cada par de caracteres a un byte BCD non restricted
-  for (int i = 0; i < 5; i++)
-  {
-    Credit_To_Load[10 + i] = ((str3[i * 2] - '0') << 4) | (str3[i * 2 + 1] - '0');
-  }
+    char str[9], str2[9], str3[9]; // 8 dígitos + terminador nulo
 
-  // Serial.println(BCDtoUint32(Credit_To_Load,CASHABLES));
-  // Serial.println(BCDtoUint32(Credit_To_Load,RESTRICTED));
-  // Serial.println(BCDtoUint32(Credit_To_Load,NON_RESTRICTED));
-  
-  if(BCDtoUint32(Credit_To_Load,CASHABLES)==Credit_Cashables && BCDtoUint32(Credit_To_Load,RESTRICTED)==Credit_Restringidos &&BCDtoUint32(Credit_To_Load,NON_RESTRICTED)==Credit_No_Restringidos)  
-    return true;
+    // Formatear los números a 8 dígitos con ceros a la izquierda
+    sprintf(str, "%08d", Credit_Cashables);
+    sprintf(str2, "%08d", Credit_Restringidos);
+    sprintf(str3, "%08d", Credit_No_Restringidos);
+
+    // Convertir cada par de caracteres a un byte BCD para Cashables
+    for (int i = 0; i < 4; i++) {
+        Credit_To_Load[i] = ((str[i * 2] - '0') << 4) | (str[i * 2 + 1] - '0');
+    }
+
+    // Convertir cada par de caracteres a un byte BCD para Restricted
+    for (int i = 0; i < 4; i++) {
+        Credit_To_Load[4 + i] = ((str2[i * 2] - '0') << 4) | (str2[i * 2 + 1] - '0');
+    }
+
+    // Convertir cada par de caracteres a un byte BCD para Non-Restricted
+    for (int i = 0; i < 4; i++) {
+        Credit_To_Load[8 + i] = ((str3[i * 2] - '0') << 4) | (str3[i * 2 + 1] - '0');
+    }
+
+    // for (int i = 0; i < 4; i++)
+    // {
+    //   Serial.println(Credit_To_Load[i],HEX);
+    // }
+
+    // Serial.println(BCDtoUint32(Credit_To_Load,CASHABLES));
+    // Serial.println(BCDtoUint32(Credit_To_Load,RESTRICTED));
+    // Serial.println(BCDtoUint32(Credit_To_Load,NON_RESTRICTED));
+
+    /* Realiza operacion contraria para verificar la igualdad de los datos y validar la conversion exitosa de los saldos */
+
+    if (FBCDtoUint32(Credit_To_Load, CASHABLES) == Credit_Cashables && FBCDtoUint32(Credit_To_Load, RESTRICTED) == Credit_Restringidos && FBCDtoUint32(Credit_To_Load, NON_RESTRICTED) == Credit_No_Restringidos)
+      return true;
+    else
+      return false;
+  }
   else
-    return false;
+  {
+
+    /* Protocolo AFT */
+
+    // Convertir el número a cadena con 10 caracteres, rellenando con ceros a la izquierda si es necesario
+    char str[11];
+    char str2[11];
+    char str3[11];
+    sprintf(str, "%010d", Credit_Cashables);
+    sprintf(str2, "%010d", Credit_Restringidos);
+    sprintf(str3, "%010d", Credit_No_Restringidos);
+
+    // Convertir cada par de caracteres a un byte BCD Cashables
+    for (int i = 0; i < 5; i++)
+    {
+      Credit_To_Load[i] = ((str[i * 2] - '0') << 4) | (str[i * 2 + 1] - '0');
+    }
+
+    // Convertir cada par de caracteres a un byte BCD Restricted
+    for (int i = 0; i < 5; i++)
+    {
+      Credit_To_Load[5 + i] = ((str2[i * 2] - '0') << 4) | (str2[i * 2 + 1] - '0');
+    }
+
+    // Convertir cada par de caracteres a un byte BCD non restricted
+    for (int i = 0; i < 5; i++)
+    {
+      Credit_To_Load[10 + i] = ((str3[i * 2] - '0') << 4) | (str3[i * 2 + 1] - '0');
+    }
+
+    // Serial.println(BCDtoUint32(Credit_To_Load,CASHABLES));
+    // Serial.println(BCDtoUint32(Credit_To_Load,RESTRICTED));
+    // Serial.println(BCDtoUint32(Credit_To_Load,NON_RESTRICTED));
+
+    if (BCDtoUint32(Credit_To_Load, CASHABLES) == Credit_Cashables && BCDtoUint32(Credit_To_Load, RESTRICTED) == Credit_Restringidos && BCDtoUint32(Credit_To_Load, NON_RESTRICTED) == Credit_No_Restringidos)
+      return true;
+    else
+      return false;
+  }
 }
 
 uint32_t Transsaccion_Cashless::Get_Credit_Number(int Type)
@@ -4132,7 +4816,6 @@ uint32_t Transsaccion_Cashless::Get_Credit_Number(int Type)
     break;
   }
 }
-
 
 /*
 CASHABLES    [0-4]
@@ -4450,8 +5133,6 @@ bool Buffer_RX_AFT::Init_Buffer_Transfer_EFT(bool Boolean)
 }
 
 
-
-
 bool Buffer_RX_AFT::Init_Buffer_TITO(void)
 {
 
@@ -4465,7 +5146,6 @@ bool Buffer_RX_AFT::Init_Buffer_TITO(void)
   else
     return false;
 }
-
 
 
 bool Buffer_RX_AFT::Set_Buffer_TITO_7B(char Buffer_Machine[])
@@ -4496,8 +5176,6 @@ bool Buffer_RX_AFT::Init_Buffer_TITO_7B(void)
   else
     return false;
 }
-
-
 
 
 void Buffer_RX_AFT::Set_Buffer_TITO_Data(char Buffer_Transfer[])
@@ -4674,8 +5352,66 @@ char Buffer_RX_AFT::Get_Buffer_TITO_3D_3E(void)
 }
 
 
+void Buffer_RX_AFT::Set_Buffer_Reg_AFT(char Buffer[])
+{
+  memcpy(Buffer_Reg_Rev,Buffer, sizeof(Buffer) / sizeof(Buffer[0]));
+}
+
+char* Buffer_RX_AFT::Get_Buffer_Reg_AFT(void)
+{
+  return Buffer_Reg_Rev;
+}
+
+void Buffer_RX_AFT::Init_Buffer_Reg()
+{
+  for(int i=0; i<128; i++)
+  {
+    Buffer_Reg_Rev[i]=0xAA;
+  }
+}
 
 
+
+void Buffer_RX_AFT::Set_Status_Reg(int New_Status)
+{
+  Status_Reg =New_Status;
+}
+
+int  Buffer_RX_AFT::Get_Status_Reg()
+{
+  return Status_Reg;
+}
+
+
+bool Buffer_RX_AFT::Set_Buffer_Lock_Status_74(char Buffer[])
+{
+
+  memcpy(Buffer_Rx_Lock_Status, Buffer, sizeof(Buffer_Rx_Lock_Status) / sizeof(Buffer_Rx_Lock_Status[0]));
+
+  if (Buffer[0] == Buffer_Rx_Lock_Status[0])
+    return true;
+  else
+    return false;
+}
+
+
+char* Buffer_RX_AFT::Get_Buffer_Lock_Status_74(void)
+{
+  return Buffer_Rx_Lock_Status;
+}
+
+bool Buffer_RX_AFT::Init_Buffer_Lock_Status_74(void)
+{
+  for (int i = 0; i < 128; i++)
+  {
+    Buffer_Rx_Lock_Status[i] = 0xAA;
+  }
+
+  if (Buffer_Rx_Lock_Status[0] == 0xAA)
+    return true;
+  else
+    return false;
+}
 
 bool Buffer_RX_AFT::Init_Buffer_TITO_7C(void)
 {

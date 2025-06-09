@@ -137,6 +137,9 @@ public:
   bool Close_ID_Operador(void);
   bool Set_Operador_ID_RFID(char Operador[]);
 
+  int Get_Operador_ID_Int_Op(void);
+  
+
   bool Set_Client_ID(byte Cliente[]);
   byte* Get_Client_ID(void);
   bool Close_ID_Client(void);
@@ -176,7 +179,8 @@ public:
  bool Set_Client_ID_Transaccion(byte Client[]);
  byte* Get_Client_ID_Transaccion(void);
  bool Close_ID_Client_Transaccion(void);
-  
+int Get_Client_ID_Int(void);
+
 
   /* Bonus*/
   bool Set_Meter_Legacy_Bonus_Awards(char res[]);

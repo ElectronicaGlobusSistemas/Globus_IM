@@ -35,6 +35,8 @@ unsigned long count2 = 0;
 #include "ESP32FtpServer.h"
 #include "nvs_flash.h"
 #include <esp_task_wdt.h>
+#include <Persistenca_Info.h>
+
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
 
@@ -45,6 +47,8 @@ FtpServer ftpSrv;           //  Objeto servidor FTP
 TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
 int Contador_Escrituras=0;
 int Contador_Dias=0;
+
+Persistenca_Info Backup;
 
 char Archivo_CSV_Contadores_copy[200];
 char Archivo_CSV_Eventos_copy[200];
@@ -96,24 +100,26 @@ int Intento_Connect_SD = 0; // Variable Contadora de Intentos de Conexión SD.
 extern Configuracion_ESP32 Configuracion;
 
 //--------------------------------------> Bus SPI <-----------------------------------------------------
-extern SPIClass spiRFID;
-
+//extern SPIClass spiRFID;
 /**********************************************************************************/
 /*                              Inicializa Modulo SD                              */
 /**********************************************************************************/
 void Init_SD(void)
 {
   
-  spiRFID.begin(18,19,23,SD_ChipSelect);
- // spiRFID.setClockDivider(SPI_CLOCK_DIV128); /*10000000*/
-  spiRFID.setFrequency(500000);
-  if(SD.begin( SD_ChipSelect, spiRFID, 500000))
+//   spiRFID.begin(18,19,23,SD_ChipSelect);
+//  // spiRFID.setClockDivider(SPI_CLOCK_DIV128); /*10000000*/
+//   spiRFID.setFrequency(500000);
+
+  
+
+  if(/*SD.begin( SD_ChipSelect, spiRFID, 500000)*/ SD.begin(SD_ChipSelect,SPI))
   {
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
     digitalWrite(SD_Status,HIGH);
 
-
+    //Backup.Init_Archive_Backup();
     // File root = SD.open("/");
     // while (File file = root.openNextFile())
     // {
@@ -622,7 +628,7 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
 
 void Erro_Log(String Datos, String archivo)
 {
-  if(Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+  if(Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
                        
     myFile = SD.open(archivo, FILE_APPEND);
@@ -962,6 +968,8 @@ bool Libera_Memoria(int Total_Memoria_MB, int Espacio_Usado_MB)
             String Name_Archivo_LOG = "Log-" + String(Contador_Dias) + String(Eliminar_Mes) + String(Eliminar_year) + ".TXT";
             String Name_Archivo_Premios="Premios_Maquina-"+String(Contador_Dias)+ String(Eliminar_Mes)+String(Eliminar_year)+".CSV";
             String Name_Archivo_Sesiones="Sesiones_RFID-"+ String(Contador_Dias)+String(Eliminar_Mes)+String(Eliminar_year)+".CSV";
+
+            String Log_Pulsos="Log-Pulsos"+ String(Contador_Dias)+String(Eliminar_Mes)+String(Eliminar_year)+".CSV";
 
             strcpy(Archivo_CSV_Contadores_copy, Name_Archivo_Contadores.c_str());
             strcpy(Archivo_CSV_Eventos_copy, Name_Archivo_Eventos.c_str());

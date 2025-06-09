@@ -59,7 +59,27 @@
 #define TYPE_MACHINE_NOT_MACTH        (0x36)
 
 #define NOT_RED                       (0x37)
+#define AUTHENTICATION_ERROR          (0x38)
+#define READ_ERROR                    (0x39)
+#define TARJETA_NO_IDENTIFICADA       (0x40)
+#define CLOSE_PLAYER_TRACKING         (0x41)
+#define READER_KO                     (0x42)
+#define READER_OK                     (0x43)
+#define RSET_IP                       (0x44)
+#define TERMINA_SESION_CREDITOS       (0x45)
+#define TERMINA_SESION_MANUAL         (0x46)
+#define TERMINA_SESION_DESDE_SERVER   (0x47)
+#define TERMINA_SESION_POR_TARJETA_OPERADOR   (0x48)
 
+#define DESCARGA_POR_PERADOR          (0x50)
+#define ERROR_NOT_IDENTIFY            (0x49)
+
+#define TRANSFER_PENDING              (0x51)
+#define MAQUINA_EN_JUEGO              (0x52)
+#define INVALIDE_CLIENT               (0x53)
+
+#define DESCARGA_USUARIO              (0x54)
+#define DESCARGA_AUTOMATICO           (0x55)
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -78,9 +98,21 @@ void Reset_Timeout_Player_Tracking(void);
 int  Convert_Char_To_Int4(char buffer[]);
 bool  Close_Sesion_Player_Tracking(void);
 void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactividad);
+void Reset_Down_Mode(void);
+void check_Status_Reader_Polling(void);
+
+void Report_Http_Code(int Code_Http, String Msg="", bool Status=false);
+
 
 
 std::string IP_toString_(char IP_Char[]);
+
+
+enum EstadoTransfer {
+    TRANSFER_IDLE,
+    TRANSFER_IN_PROGRESS,
+    TRANSFER_DONE
+};
 
 
 class Cashless_API
@@ -108,15 +140,15 @@ private:
     unsigned long TimeOut_Token_Final;
     int TimeOut_Ejecuta=15000;
     bool Reset_Time=false;
+    EstadoTransfer estado_transfer = TRANSFER_IDLE;  // Variable miembro
     
-
 
 public:
 
     int Info_Client(byte Id_Client[], ESP32Time ,String Type_Transaction=LOAD_TRANSACTION, uint32_t Transaction_ID=0);
-    int Info_Client_Download(byte Id_Client[], ESP32Time RTC, String Type_Transaction, uint32_t Transaction_ID);
+    int Info_Client_Download(byte Id_Client[], ESP32Time RTC, String Type_Transaction, uint32_t Transaction_ID,int ClientID,int Operacion=DESCARGA_USUARIO);
     bool Status_Transfer(int Code,char Buffer_Transfer[],ESP32Time);
-    bool Status_Transfer_Download(int Code,char Buffer_Transfer[],ESP32Time RTC);
+    bool Status_Transfer_Download(int Code,char Buffer_Transfer[],ESP32Time RTC,int Id_Client);
     void Reporting_Pending_Transfers(unsigned long TimeOut);
     String Get_Current_Status_Transfer(void);
     String Get_Current_Status_Transfer_Download(void);
@@ -133,7 +165,7 @@ public:
 
     bool enviarTransaccion(const String &json);
 
-    void Log(ESP32Time RTC,String Msg,String Data);
+    void Log(ESP32Time RTC,String Msg,String Data="");
     void guardarTransacciones();
     void intentarEnviarTransacciones();
     void nuevaTransferencia(const String& json);
@@ -194,9 +226,14 @@ public:
 
 
     bool Await_Conexion(char ID_Temp[8],char Type_Client,int Timeout=15000);
+
+    void Set_Status_Transfer(EstadoTransfer nuevo_estado);
+    EstadoTransfer Get_Status_Transfer() const;
+    Cashless_API();
+    
 };
 void New_Token(void*arg);
-
+void Resurrect_reader(void);
 void Break_Cashless_Pending(void*arg);
 
 #endif // RFID_H
