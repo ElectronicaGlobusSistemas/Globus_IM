@@ -132,8 +132,8 @@ using namespace std;
 #define Conexion_TFT_Display                108
 #define Status_Device_TFT_Display           109
 #define Status_Games_Machine                110
-
-
+#define Hand_pay_is_pending                 111
+#define Flag_Log                            112
 
 
 class Variables_Globales
@@ -244,6 +244,8 @@ private:
     bool Conexion_TFT_Display_;
     bool Status_Device_TFT_Display_;
     bool Status_Games_Machine_;
+    bool Hand_pay_is_pending_;
+    bool Flag_Log_;
     
 
 public:

@@ -54,6 +54,7 @@ void Prueba_LOG(char *ARCHIVO,bool Enable,String Datos);
 void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje);
 void Erro_Log(String Datos, String archivo);
 bool VerificaArchivo(const char* archivo, String DataTime);
+void FtpFast(void);
 //------------------------------------------------------------------------------------------
 
 

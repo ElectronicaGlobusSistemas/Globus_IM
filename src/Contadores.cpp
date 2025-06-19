@@ -1312,6 +1312,21 @@ int Contadores_SAS::Get_Client_ID_Int(void)
   return Client_Id_Int;
 }
 
+int Contadores_SAS::Get_Client_ID_Int_(byte Info_Card[])
+{
+
+  char clientIDString[9]; // 8 caracteres + 1 para '\0'
+
+  for (int i = 0; i < 8; i++)
+  {
+    clientIDString[i] = static_cast<char>(Info_Card[i]); // Convertir byte a char
+  }
+  clientIDString[8] = '\0'; // Asegurar terminación nula
+
+  int Cliente = atoi(clientIDString);
+
+  return Cliente;
+}
 
 int Contadores_SAS::Get_Operador_ID_Int_Op(void)
 {

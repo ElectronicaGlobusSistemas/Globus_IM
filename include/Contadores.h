@@ -176,11 +176,11 @@ public:
   
   /* Cashless*/
 
- bool Set_Client_ID_Transaccion(byte Client[]);
- byte* Get_Client_ID_Transaccion(void);
- bool Close_ID_Client_Transaccion(void);
-int Get_Client_ID_Int(void);
-
+  bool Set_Client_ID_Transaccion(byte Client[]);
+  byte *Get_Client_ID_Transaccion(void);
+  bool Close_ID_Client_Transaccion(void);
+  int Get_Client_ID_Int_(byte InfoBuffer[]);
+  int Get_Client_ID_Int(void);
 
   /* Bonus*/
   bool Set_Meter_Legacy_Bonus_Awards(char res[]);

@@ -117,6 +117,7 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Desconectado", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","Desconectado");
         break;
 
 
@@ -124,6 +125,7 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: No se encontro ningun SSID ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","No_se_encontro_ningun_SSID");
         break;
         
         case WL_CONNECT_FAILED:
@@ -131,6 +133,7 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Fallo en conexion WIFI ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","Fallo_intento_conexion_WIFI");
         break;
 
         case WL_CONNECTED:
@@ -138,11 +141,12 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Wifi conectado ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","CONEXION_ESTABLECIDA");
         break;
 
         case WL_CONNECTION_LOST:
             Selector_Modo_SD();
-            log_e("Estado WIFI: Se perdio la conexion Wifi ", 103);
+            log_e("Estado WIFI: Se_perdio_la_conexion_Wifi ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
         break;
 
@@ -256,6 +260,8 @@ void WIFI_VERIFY(int Intentos_Conexion)
   {
     if (Intentos_Conexion > MAX_INTENT_CONEXION_WIFI && !Variables_globales.Get_Variable_Global(Excepcion_WIFI))
     {
+
+      Info_Cashless.Log(RTC,"REINICIO_DE_INTERFAZ","MAXIMO_DE_INTENTOS_DE_CONEXION_SUPERADO");
       NVS.begin("Config_ESP32", false);
       int Reinicios = NVS.getUInt("Connect_W", 0);
       Reinicios = Reinicios + 1;
@@ -440,6 +446,7 @@ void RECONECT_WIFI_ESP()
       Serial.print("\nNo se puede conectar a... ");
       Serial.println(SSID_Wifi);
       digitalWrite(WIFI_Status, LOW);
+      
     }
   }
 }
@@ -802,8 +809,9 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
             Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
             memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
             IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+            Info_Cashless.Log(RTC, "CAMBIO_DE_DIRECCION_IP_SERVER", serverIP.toString());
           }
-          #ifdef RX_Data_Server
+#ifdef RX_Data_Server
           Serial.println("CRC de datos entrante OK");
           #endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);

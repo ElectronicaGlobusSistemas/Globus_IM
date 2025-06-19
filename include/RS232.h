@@ -1936,7 +1936,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           // Guarda Evento En Memoria SD.
           int Evento = eventos.Get_evento();
 
+          Info_Cashless.Bloquea_Descarga_EFT(Evento,Configuracion.Get_Configuracion(Tipo_Maquina, 0),contadores.Get_Client_ID_Transaccion_Int(),Variables_globales.Get_Variable_Global(Flag_Sesion_RFID));
 
+          
           if (Evento == 0x7E)
           {
             Variables_globales.Set_Variable_Global(Status_Games_Machine, true);
@@ -5891,13 +5893,13 @@ void Transmite_Reset_Handpay(void)
 
   void Selector_Modo_SD(void)
   {
-    if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false || Variables_globales.Get_Variable_Global(Falla_MicroSD)|| Variables_globales.Get_Variable_Global(Updating_System))
+    if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false || Variables_globales.Get_Variable_Global(Falla_MicroSD) || Variables_globales.Get_Variable_Global(Updating_System) || Variables_globales.Get_Variable_Global(Flag_Log))
     {
       Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita  Guardado SD.
     }
     else
     {
-      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false && Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == false && Variables_globales.Get_Variable_Global(SD_INSERT) == true && Variables_globales.Get_Variable_Global(Flag_Archivos_OK) == true && !Variables_globales.Get_Variable_Global(Falla_MicroSD) && !Variables_globales.Get_Variable_Global(Updating_System))
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) == true && Variables_globales.Get_Variable_Global(Ftp_Mode) == false && Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == false && Variables_globales.Get_Variable_Global(SD_INSERT) == true && Variables_globales.Get_Variable_Global(Flag_Archivos_OK) == true && !Variables_globales.Get_Variable_Global(Falla_MicroSD) && !Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Flag_Log))
       {
         Variables_globales.Set_Variable_Global(Enable_Storage, true);
       }

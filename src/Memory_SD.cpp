@@ -39,7 +39,7 @@ unsigned long count2 = 0;
 
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
-
+SemaphoreHandle_t sd_mutex;
 File myFile;                //  Manejo de Archivos.
 File file;                  //  Manejo de Archivos En Ftp Mode.
 TaskHandle_t SD_CHECK;      //  Manejador de tareas
@@ -106,13 +106,9 @@ extern Configuracion_ESP32 Configuracion;
 /**********************************************************************************/
 void Init_SD(void)
 {
-  
 //   spiRFID.begin(18,19,23,SD_ChipSelect);
 //  // spiRFID.setClockDivider(SPI_CLOCK_DIV128); /*10000000*/
 //   spiRFID.setFrequency(500000);
-
-  
-
   if(/*SD.begin( SD_ChipSelect, spiRFID, 500000)*/ SD.begin(SD_ChipSelect,SPI))
   {
     Serial.println("Memoria SD Inicializada...");
@@ -171,15 +167,42 @@ void Rum_FTP_Server(void)
         digitalWrite(SD_Status, SD_State);
       }
     }
-    ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+
+    if(xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+    {
+      ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+      xSemaphoreGive(sd_mutex);
+    }
+      
     esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
     vTaskDelay(10);
+}
+
+void FtpFast(void)
+{
+
+  if (Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+    esp_task_wdt_reset();
+
+    if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+    {
+      ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+      xSemaphoreGive(sd_mutex);
+    }
+    esp_task_wdt_reset();
+  }
 }
 
 void Ftp_handle(void)
 {
   esp_task_wdt_reset(); /* Reset Timer Lista Larga de archivos*/
-  ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+  if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+  {
+    ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
+    xSemaphoreGive(sd_mutex);
+  }
+  esp_task_wdt_reset();
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -328,8 +351,8 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
 {
   if (!SD.exists("/"+String(ARCHIVO))) // Pregunta si el archivo Existe.
   {
-    myFile = SD.open("/"+String(ARCHIVO), FILE_WRITE); // Si no Existe lo abre
-    if (!myFile)
+    File myFile___ = SD.open("/"+String(ARCHIVO), FILE_WRITE); // Si no Existe lo abre
+    if (!myFile___)
     {
       #ifdef Debug_Status_SD
       Serial.println("No se pudo Crear Archivo LOG");
@@ -342,8 +365,8 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
       Serial.println("Archivo LOG Creado: " + String(ARCHIVO));
       #endif
 
-      myFile.flush();
-      myFile.close();
+      myFile___.flush();
+      myFile___.close();
       Variables_globales.Set_Variable_Global(Fallo_Archivo_LOG,false);
       Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
       Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
@@ -363,45 +386,13 @@ void Create_ARCHIVE_Txt(char *ARCHIVO)
 //-----------------------------> Función Para guardar Eventos En SD <-----------------------------------
 void Write_Data_File_Txt(String Datos, char *ARCHIVO)
 {
-  if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
+  if (Variables_globales.Get_Variable_Global(SD_INSERT))
   {
-    myFile = SD.open("/"+String(ARCHIVO), FILE_APPEND);
-    if (!myFile)
+
+    if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
     {
-      #ifdef Debug_Escritura
-      Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
-      #endif
-      Contador_Escrituras = 0;
-    }
-    else
-    {
-      myFile.println(Datos);
-      myFile.flush();
-      myFile.close();
-      #ifdef Debug_Escritura
-      Serial.println("Evento Guardado en SD");
-      #endif
-      Contador_Escrituras++;
-    }
-  }
-}
-
-
-
-
-void LOG_ESP(char *ARCHIVO,bool Enable)
-{
-
-
-  if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
-  {
-    if (Enable == true)
-    {
-
-      
-      File myFile2;
-      myFile2 = SD.open("/"+String(ARCHIVO), FILE_APPEND);
-      if (!myFile2)
+      File myFile_txt = SD.open("/" + String(ARCHIVO), FILE_APPEND);
+      if (!myFile_txt)
       {
         #ifdef Debug_Escritura
         Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
@@ -410,57 +401,93 @@ void LOG_ESP(char *ARCHIVO,bool Enable)
       }
       else
       {
-        String Datos = String(Fallo);
-        myFile2.println(RTC.getTime() + " Error: " + Datos);
-        myFile.flush();
-        myFile2.close();
+        myFile_txt.println(Datos);
+        myFile_txt.flush();
+        myFile_txt.close();
         #ifdef Debug_Escritura
-        Serial.println("LOG Guardado");
+        Serial.println("Evento Guardado en SD");
         #endif
         Contador_Escrituras++;
       }
-      
-    }
-    else
-    {
-      #ifdef Debug_Escritura
-      Serial.println("Guardado Deshabilitado");
-      #endif
+      xSemaphoreGive(sd_mutex);
     }
   }
 }
 
+void LOG_ESP(char *ARCHIVO, bool Enable)
+{
+
+  if (Variables_globales.Get_Variable_Global(SD_INSERT))
+  {
+    if (Enable == true)
+    {
+
+      if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+      {
+        File myFile2;
+        myFile2 = SD.open("/" + String(ARCHIVO), FILE_APPEND);
+        if (!myFile2)
+        {
+#ifdef Debug_Escritura
+          Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+#endif
+          Contador_Escrituras = 0;
+        }
+        else
+        {
+          String Datos = String(Fallo);
+          myFile2.println(RTC.getTime() + " Error: " + Datos);
+          myFile.flush();
+          myFile2.close();
+#ifdef Debug_Escritura
+          Serial.println("LOG Guardado");
+#endif
+          Contador_Escrituras++;
+        }
+        xSemaphoreGive(sd_mutex);
+      }
+    }
+    else
+    {
+#ifdef Debug_Escritura
+      Serial.println("Guardado Deshabilitado");
+#endif
+    }
+  }
+}
 
 void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje)
 {
 
 
-  if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
+  if(Variables_globales.Get_Variable_Global(SD_INSERT))
   {
     if (Enable == true)
     {
 
-      
-      File myFile2;
-      myFile2 = SD.open("/"+String(ARCHIVO), FILE_APPEND);
-      if (!myFile2)
+      if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
       {
-        #ifdef Debug_Escritura
-        Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
-        #endif
-        Contador_Escrituras = 0;
+        File myFile2;
+        myFile2 = SD.open("/" + String(ARCHIVO), FILE_APPEND);
+        if (!myFile2)
+        {
+#ifdef Debug_Escritura
+          Serial.println("Error al Escribir en Archivo: " + (String)ARCHIVO);
+#endif
+          Contador_Escrituras = 0;
+        }
+        else
+        {
+          myFile2.println(RTC.getTime() + " Error: " + Mensaje);
+          myFile.flush();
+          myFile2.close();
+#ifdef Debug_Escritura
+          Serial.println("LOG Guardado");
+#endif
+          Contador_Escrituras++;
+        }
+        xSemaphoreGive(sd_mutex);
       }
-      else
-      {
-        myFile2.println(RTC.getTime() + " Error: " + Mensaje);
-        myFile.flush();
-        myFile2.close();
-        #ifdef Debug_Escritura
-        Serial.println("LOG Guardado");
-        #endif
-        Contador_Escrituras++;
-      }
-      
     }
     else
     {
@@ -474,39 +501,39 @@ void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje)
 //-----------------------> Función Para Crear archivo de contadores con encabezado <---------------------
 void Create_ARCHIVE_Excel(char *ARCHIVO, String Encabezado)
 {
-  
-  if (!SD.exists("/"+String(ARCHIVO))) // Si el archivo no existe lo Crea con encabezado para Excel!!
-  {
-    myFile = SD.open("/"+String(ARCHIVO), FILE_WRITE);
 
-    if (!myFile)
+  if (!SD.exists("/" + String(ARCHIVO))) // Si el archivo no existe lo Crea con encabezado para Excel!!
+  {
+    File myFile_ = SD.open("/" + String(ARCHIVO), FILE_WRITE);
+
+    if (!myFile_)
     {
-      #ifdef Debug_Escritura
+#ifdef Debug_Escritura
       Serial.println("No Fue Posible Crear el Archivo");
-      #endif
-    //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,true);
+#endif
+      //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,true);
     }
     else
     {
-      myFile.println(Encabezado);
-      myFile.flush();
-      myFile.close();
-      #ifdef Debug_Escritura
+      myFile_.println(Encabezado);
+      myFile_.flush();
+      myFile_.close();
+#ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
-      #endif
-    //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
-    //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+#endif
+      //  Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
+      //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
       Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
     }
   }
-  else if (SD.exists("/"+String(ARCHIVO)))
+  else if (SD.exists("/" + String(ARCHIVO)))
   {
-    //#ifdef Debug_Escritura
+    // #ifdef Debug_Escritura
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO);
-   // #endif
-   // Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
-   // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
-   Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
+    // #endif
+    // Variables_globales.Set_Variable_Global(Fallo_Archivo_COM,false);
+    // Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
+    Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
   }
 }
 //-----------------------> Funcion para Crear Archivo de eventos con encabezado <------------------------
@@ -514,9 +541,9 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
 {
   if (!SD.exists("/"+String(ARCHIVO))) // Si el archivo no existe lo Crea con encabezado para Excel!!
   {
-    myFile = SD.open("/"+String(ARCHIVO), FILE_WRITE);
+   File myFile__ = SD.open("/"+String(ARCHIVO), FILE_WRITE);
 
-    if (!myFile)
+    if (!myFile__)
     {
       #ifdef Debug_Escritura
       Serial.println("No Fue Posible Crear el Archivo");
@@ -525,9 +552,9 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
     }
     else
     {
-      myFile.println(Encabezado);
-      myFile.flush();
-      myFile.close();
+      myFile__.println(Encabezado);
+      myFile__.flush();
+      myFile__.close();
       #ifdef Debug_Escritura
       Serial.println("Archivo: " + (String)ARCHIVO + " Creado con Encabezado");
       #endif
@@ -537,9 +564,9 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
   }
   else if (SD.exists("/"+String(ARCHIVO)))
   {
-    #ifdef Debug_Escritura
+    //#ifdef Debug_Escritura
     Serial.println("El Archivo Existia.. Continua Guardando en: " + (String)ARCHIVO + ".csv");
-    #endif
+    //endif
   //  Variables_globales.Set_Variable_Global(Fallo_Archivo_EVEN,false);
   //  Variables_globales.Set_Variable_Global(Archivo_CSV_OK, true);
   }
@@ -548,42 +575,42 @@ void Create_ARCHIVE_Excel_Eventos(char *ARCHIVO, String Encabezado)
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
 void Write_Data_File(String Datos, char *ARCHIVO, bool select)
 {
-  myFile = SD.open("/"+String(ARCHIVO), FILE_WRITE);
+  File myFile_ = SD.open("/" + String(ARCHIVO), FILE_WRITE);
   if (select == false)
   {
-    if (!myFile)
+    if (!myFile_)
     {
-      #ifdef Debug_Escritura
+#ifdef Debug_Escritura
       Serial.println("Error al escribir en SD");
-      #endif
+#endif
     }
     else
     {
-      myFile.print(Datos);
-      myFile.print(",");
-      #ifdef Debug_Escritura
+      myFile_.print(Datos);
+      myFile_.print(",");
+#ifdef Debug_Escritura
       Serial.println("Dato: " + Datos + " Guardado en SD");
-      #endif
-      myFile.flush();
-      myFile.close();
+#endif
+      myFile_.flush();
+      myFile_.close();
     }
   }
   else
   {
-    if (!myFile)
+    if (!myFile_)
     {
-      #ifdef Debug_Escritura
+#ifdef Debug_Escritura
       Serial.println("Error al escribir en SD");
-      #endif
+#endif
     }
     else
     {
-      myFile.println(Datos);
-      #ifdef Debug_Escritura
+      myFile_.println(Datos);
+#ifdef Debug_Escritura
       Serial.println("Dato: " + Datos + " Guardado en SD");
-      #endif
-      myFile.flush();
-      myFile.close();
+#endif
+      myFile_.flush();
+      myFile_.close();
     }
   }
 }
@@ -591,62 +618,87 @@ void Write_Data_File(String Datos, char *ARCHIVO, bool select)
 //---------------------------> Función para Escribir En Archivos CSV <------------------------------------
 
 int Cuenta_Fallos=0;
+
 void Write_Data_File2(String Datos, String archivo, bool select, String Encabezado)
 {
-  if(Variables_globales.Get_Variable_Global(SD_INSERT)==1)
+  if (Variables_globales.Get_Variable_Global(SD_INSERT))
   {
-                       
-    myFile = SD.open("/"+archivo, FILE_APPEND);
-    if (!myFile)
+    if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(100)))
     {
-      Cuenta_Fallos++;
-      if(Cuenta_Fallos>=2)
+      File myFileLocal = SD.open("/" + archivo, FILE_APPEND);
+      if (!myFileLocal)
       {
-        Variables_globales.Set_Variable_Global(Falla_MicroSD,true);
-        Cuenta_Fallos=0;
+        Cuenta_Fallos++;
+        if (Cuenta_Fallos >= 2)
+        {
+          Variables_globales.Set_Variable_Global(Falla_MicroSD, true);
+          Cuenta_Fallos = 0;
+        }
+        // #ifdef Debug_Escritura
+        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+        // #endif
+        Contador_Escrituras = 0;
       }
-      #ifdef Debug_Escritura
-      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
-      #endif
-      Contador_Escrituras = 0;
+      else if (myFileLocal) //  else por else if
+      {
+        digitalWrite(SD_Status, LOW);
+        myFileLocal.println(Datos);
+        myFileLocal.flush();
+        myFileLocal.close();
+        #ifdef Debug_Escritura
+        Serial.println("Contadores Guardados en SD");
+        #endif
+        Contador_Escrituras++;
+        digitalWrite(SD_Status, HIGH);
+      }
+
+      xSemaphoreGive(sd_mutex);
     }
-    else if (myFile) //  else por else if
+    else
     {
-      digitalWrite(SD_Status,LOW);
-      myFile.println(Datos);
-      myFile.flush();
-      myFile.close();
       #ifdef Debug_Escritura
-      Serial.println("Contadores Guardados en SD");
+      Serial.println("Recurso SD OCUPADO");
       #endif
-      Contador_Escrituras++;
-      digitalWrite(SD_Status,HIGH);
     }
-    
   }
 }
 
 void Erro_Log(String Datos, String archivo)
 {
-  if(Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
+  if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
-                       
-    myFile = SD.open(archivo, FILE_APPEND);
-    if (!myFile)
+
+    Variables_globales.Set_Variable_Global(Flag_Log, true);
+
+    if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(100)))
+    {
+
+      File myFileLocal = SD.open(archivo, FILE_APPEND);
+      if (!myFileLocal)
+      {
+        #ifdef Debug_Escritura
+        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+        #endif
+      }
+      else //  else por else if
+      {
+        myFileLocal.println(Datos);
+        myFileLocal.flush();
+        myFileLocal.close();
+        #ifdef Debug_Escritura
+        Serial.println("Log Capturado");
+        #endif
+      }
+      xSemaphoreGive(sd_mutex); // Libera el acceso
+    }
+    else
     {
       #ifdef Debug_Escritura
-      Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+      Serial.println("Recurso SD OCUPADO");
       #endif
     }
-    else //  else por else if
-    {
-      myFile.println(Datos);
-      myFile.flush();
-      myFile.close();
-      #ifdef Debug_Escritura
-      Serial.println("Log Capturado");
-      #endif
-    }
+
+    Variables_globales.Set_Variable_Global(Flag_Log, false);
   }
 }
 
@@ -683,51 +735,56 @@ void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer)
   String Datos2;
   if (Enable)
   {
-    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    if (Variables_globales.Get_Variable_Global(SD_INSERT))
     {
-      myFile = SD.open("/" + archivo, FILE_APPEND);
-      if (!myFile)
+
+      if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
       {
-#ifdef Debug_Escritura
-        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
-#endif
-        Contador_Escrituras = 0;
-      }
-      else if (myFile) //  else por else if
-      {
-
-        /* Fecha */
-        Estructura_CSV_Premios[0] = RTC.getTime() + ",";
-        /* Operador */
-        int BT11 = (int)Buffer[0] - 48;
-        int BT22 = (int)Buffer[1] - 48;
-        int BT33 = (int)Buffer[2] - 48;
-        int BT44 = (int)Buffer[3] - 48;
-        int BT55 = (int)Buffer[4] - 48;
-        int BT66 = (int)Buffer[5] - 48;
-        int BT77 = (int)Buffer[6] - 48;
-        int BT88 = (int)Buffer[7] - 48;
-        Estructura_CSV_Premios[1] = String(BT11) + String(BT22) + String(BT33) + String(BT44) + String(BT55) + String(BT66) + String(BT77) + String(BT88);
-
-        /* Almacena estructura en archivo CSV*/
-        Datos2 = Estructura_CSV_Premios[0] + Estructura_CSV_Premios[1];
-        myFile.println(Datos2);
-        myFile.flush();
-        myFile.close();
-
-        for (int i = 0; i <= Datos2.length(); i++)
+        File myFileOp = SD.open("/" + archivo, FILE_APPEND);
+        if (!myFileOp)
         {
-          Datos2.remove(i);
+#ifdef Debug_Escritura
+          Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+#endif
+          Contador_Escrituras = 0;
         }
-        for (int i = 0; i < 2; i++)
+        else if (myFileOp) //  else por else if
         {
-          Estructura_CSV_Premios[i] = "N/A";
-        }
+
+          /* Fecha */
+          Estructura_CSV_Premios[0] = RTC.getTime() + ",";
+          /* Operador */
+          int BT11 = (int)Buffer[0] - 48;
+          int BT22 = (int)Buffer[1] - 48;
+          int BT33 = (int)Buffer[2] - 48;
+          int BT44 = (int)Buffer[3] - 48;
+          int BT55 = (int)Buffer[4] - 48;
+          int BT66 = (int)Buffer[5] - 48;
+          int BT77 = (int)Buffer[6] - 48;
+          int BT88 = (int)Buffer[7] - 48;
+          Estructura_CSV_Premios[1] = String(BT11) + String(BT22) + String(BT33) + String(BT44) + String(BT55) + String(BT66) + String(BT77) + String(BT88);
+
+          /* Almacena estructura en archivo CSV*/
+          Datos2 = Estructura_CSV_Premios[0] + Estructura_CSV_Premios[1];
+          myFileOp.println(Datos2);
+          myFileOp.flush();
+          myFileOp.close();
+
+          for (int i = 0; i <= Datos2.length(); i++)
+          {
+            Datos2.remove(i);
+          }
+          for (int i = 0; i < 2; i++)
+          {
+            Estructura_CSV_Premios[i] = "N/A";
+          }
 
 #ifdef Debug_Escritura
-        Serial.println("Premio Guardado en SD");
+          Serial.println("Premio Guardado en SD");
 #endif
-        Contador_Escrituras++;
+          Contador_Escrituras++;
+        }
+        xSemaphoreGive(sd_mutex);
       }
     }
   }else{
@@ -752,66 +809,75 @@ void Storage_Premios_OP(String archivo, bool Enable, byte *Buffer)
   }
 }
 //---------------------------> Funcion para guardar inicios de sesion clientes <--------------------------
-void Storage_Cliente(String archivo, bool Enable,byte *Buffer)
+void Storage_Cliente(String archivo, bool Enable, byte *Buffer)
 {
   String Datos;
   if (Enable)
   {
-    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    if (Variables_globales.Get_Variable_Global(SD_INSERT))
     {
-      
-      myFile = SD.open("/" + archivo, FILE_APPEND);
-      if (!myFile)
+
+      if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
       {
+
+        File myFile_ = SD.open("/" + archivo, FILE_APPEND);
+        if (!myFile_)
+        {
 #ifdef Debug_Escritura
-        Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+          Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
 #endif
-        Contador_Escrituras = 0;
-      }
-      else if (myFile) //  else por else if
-      {
-
-        /* Fecha y Cliente */
-        Estructura_CSV_Sesiones[0] = RTC.getTime() + ",";
-
-        int BT1=(int)Buffer[0]-48;
-        int BT2=(int)Buffer[1]-48;
-        int BT3=(int)Buffer[2]-48;
-        int BT4=(int)Buffer[3]-48;
-        int BT5=(int)Buffer[4]-48;
-        int BT6=(int)Buffer[5]-48;
-        int BT7=(int)Buffer[6]-48;
-        int BT8=(int)Buffer[7]-48;
-
-        Estructura_CSV_Sesiones[1] = String(BT1)+String(BT2)+String(BT3)+String(BT4)+String(BT5)+String(BT6)+String(BT7)+String(BT8);
-        Datos=Estructura_CSV_Sesiones[0]+Estructura_CSV_Sesiones[1];
-        myFile.println(Datos);
-        myFile.flush();
-        myFile.close();
-
-        for (int i = 0; i <= Datos.length(); i++)
-        {
-          Datos.remove(i);
+          Contador_Escrituras = 0;
         }
-        for (int i = 0; i < 2; i++)
+        else if (myFile_) //  else por else if
         {
-          if(i==1)
+
+          /* Fecha y Cliente */
+          Estructura_CSV_Sesiones[0] = RTC.getTime() + ",";
+
+          int BT1 = (int)Buffer[0] - 48;
+          int BT2 = (int)Buffer[1] - 48;
+          int BT3 = (int)Buffer[2] - 48;
+          int BT4 = (int)Buffer[3] - 48;
+          int BT5 = (int)Buffer[4] - 48;
+          int BT6 = (int)Buffer[5] - 48;
+          int BT7 = (int)Buffer[6] - 48;
+          int BT8 = (int)Buffer[7] - 48;
+
+          Estructura_CSV_Sesiones[1] = String(BT1) + String(BT2) + String(BT3) + String(BT4) + String(BT5) + String(BT6) + String(BT7) + String(BT8);
+          Datos = Estructura_CSV_Sesiones[0] + Estructura_CSV_Sesiones[1];
+          myFile_.println(Datos);
+          myFile_.flush();
+          myFile_.close();
+
+          for (int i = 0; i <= Datos.length(); i++)
           {
-               Estructura_CSV_Sesiones[i] = "N/A";
-          }else{
-               Estructura_CSV_Sesiones[i] = "N/A,";
+            Datos.remove(i);
           }
-        }
+          for (int i = 0; i < 2; i++)
+          {
+            if (i == 1)
+            {
+              Estructura_CSV_Sesiones[i] = "N/A";
+            }
+            else
+            {
+              Estructura_CSV_Sesiones[i] = "N/A,";
+            }
+          }
 
 #ifdef Debug_Escritura
-        Serial.println("Cliente Guardado en SD");
+          Serial.println("Cliente Guardado en SD");
 #endif
-        Contador_Escrituras++;
+          Contador_Escrituras++;
+        }
+        xSemaphoreGive(sd_mutex);
       }
     }
-  }else{
+  }
+  else
+  {
 
-    if (Variables_globales.Get_Variable_Global(SD_INSERT) == 1)
+    if (Variables_globales.Get_Variable_Global(SD_INSERT))
     {
       for (int i = 0; i <= Datos.length(); i++)
       {

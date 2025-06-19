@@ -80,6 +80,8 @@
 
 #define DESCARGA_USUARIO              (0x54)
 #define DESCARGA_AUTOMATICO           (0x55)
+#define DESCARGA_EFT_BLOQUEADA        (0x56)
+#define FECHA_ELIMINA_LOG             (0x57)
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -165,7 +167,7 @@ public:
 
     bool enviarTransaccion(const String &json);
 
-    void Log(ESP32Time RTC,String Msg,String Data="");
+    void Log(ESP32Time RTC,String Msg,String Data="",const char *Txt="/LogESP.txt");
     void guardarTransacciones();
     void intentarEnviarTransacciones();
     void nuevaTransferencia(const String& json);
@@ -225,12 +227,16 @@ public:
     void Break_Timer_Transfer_Pending(void);
 
 
-    bool Await_Conexion(char ID_Temp[8],char Type_Client,int Timeout=15000);
+    bool Await_Conexion(int ClienteID,char Type_Client,int Timeout=15000);
 
     void Set_Status_Transfer(EstadoTransfer nuevo_estado);
     EstadoTransfer Get_Status_Transfer() const;
     Cashless_API();
-    
+    bool Bloquea_Descarga_EFT(int Evento,int Tipo_Maq, int ClientID=0,bool Flag_Sesion=false);
+    bool Get_Status_Handpay_EFT(void);
+    bool CreaLog(const char *Archivo,bool Minutes_Days=false,uint32_t Min_Day=15);
+    bool Verifica_Log(const char *Archivo, bool Minutes_Days=false,uint32_t Min_Day=15);
+    bool Guarda_Tiempo_Log(bool Minutes_Days, uint32_t Min_Day);
 };
 void New_Token(void*arg);
 void Resurrect_reader(void);

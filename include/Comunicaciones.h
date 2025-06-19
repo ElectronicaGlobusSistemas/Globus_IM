@@ -157,6 +157,9 @@ extern bool Condicion_Cumpl;
 extern int Tiempo_Transmision_En_Juego;
 extern int Tiempo_Transmision_No_Juego;
 /*Timer Counter*/
+extern const char* archivo;
+
+extern TaskHandle_t Check_Comunication_Maq;
 
 int Ejecuta=1;
 bool Detec=false;
@@ -272,7 +275,7 @@ void init_Comunicaciones()
 /********************************* TRANSMITE A SERVIDOR **********************************/
 /*****************************************************************************************/
 
-void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
+void Transmite_A_Servidor(char buffer[], int len, int Channel = 1,bool Debug=false)
 {
 
     if (WiFi.status() == WL_CONNECTED)
@@ -288,7 +291,12 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
             //    Serial.println(buffer);
             int length_ = 0;
             if (Configuracion.Get_Configuracion(Tipo_Conexion))
+            {
                 length_ = clientTCP.write(buffer, len);
+                if(Debug)
+                    Info_Cashless.Log(RTC, "BUFFER_TCP_CH1", "OK");
+            }
+
             else
             {
                 memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
@@ -298,6 +306,8 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
                 clientUDP.beginPacket(serverIP, serverPort);
                 length_ = clientUDP.write((const uint8_t *)buffer, len);
                 clientUDP.endPacket();
+                if(Debug)
+                    Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK");
             }
 #ifdef Debug_Mensajes_Server
             Serial.print("Bytes enviados: ");
@@ -315,7 +325,11 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
             //    Serial.println(buffer);
             int length_2 = 0;
             if (Configuracion.Get_Configuracion(Tipo_Conexion))
+            {
                 length_2 = clientTCP.write(buffer, len);
+                if(Debug)
+                    Info_Cashless.Log(RTC, "BUFFER_TCP_CH2", "OK");
+            }
             else
             {
                 memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
@@ -325,6 +339,8 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
                 clientUDP2.beginPacket(serverIP2, serverPort2);
                 length_2 = clientUDP2.write((const uint8_t *)buffer, len);
                 clientUDP2.endPacket();
+                if(Debug)
+                    Info_Cashless.Log(RTC, "BUFFER_UDP_CH2", "OK");
             }
 #ifdef Debug_Mensajes_Server
             Serial.print("Bytes enviados: ");
@@ -335,6 +351,48 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1)
     }
     else
     {
+        String Error = "";
+
+        switch (WiFi.status())
+        {
+        case WL_NO_SHIELD:
+            Error = "Módulo WiFi no detectado";
+            break;
+
+        case WL_IDLE_STATUS:
+            Error = "Módulo WiFi inactivo (idle)";
+            break;
+
+        case WL_NO_SSID_AVAIL:
+            Error = "SSID no disponible o fuera de alcance";
+            break;
+
+        case WL_SCAN_COMPLETED:
+            Error = "Búsqueda de redes completada";
+            break;
+
+        case WL_CONNECTED:
+            Error = "Conectado correctamente a la red";
+            break;
+
+        case WL_CONNECT_FAILED:
+            Error = "Fallo al conectar (credenciales inválidas)";
+            break;
+
+        case WL_CONNECTION_LOST:
+            Error = "Conexión perdida inesperadamente";
+            break;
+
+        case WL_DISCONNECTED:
+            Error = "Desconectado de la red";
+            break;
+
+        default:
+            Error = "Estado WiFi desconocido";
+            break;
+        }
+
+        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error);
 #ifdef Debug_Mensajes_Server
         Serial.println("No se puede enviar mensaje, no conexion a WIFI");
 #endif
@@ -1060,7 +1118,6 @@ void Trasmite_Contadores_Accounting_API_Gmaster(bool Selector)
 
 void Transmite_Contadores_Accounting()
 {
-
     if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
     {
        
@@ -1088,7 +1145,12 @@ void Transmite_Contadores_Accounting()
         {
             if (Variables_globales.Get_Variable_Global(Serializacion_Serie_Trama))
             {
-                contadores.Incrementa_Serie_Trama();
+                bool Serie=false;
+                Serie=contadores.Incrementa_Serie_Trama();
+                if(Serie)
+                    Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","True");
+                else
+                    Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","False");
             }
             char res[258] = {};
             bzero(res, 258); // Pone el buffer en 0
@@ -1097,10 +1159,15 @@ void Transmite_Contadores_Accounting()
             Serial.println("Set buffer general OK");
 #endif
             int len = sizeof(res);
-            Transmite_A_Servidor(res, len);
+            int Channel=1;
+            Transmite_A_Servidor(res, len,Channel,true);
         }
         else
+        {
             Serial.println("Set buffer general ERROR");
+            Info_Cashless.Log(RTC,"ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES");
+        }
+            
     }
 }
 
@@ -1216,7 +1283,6 @@ void Transmite_Info_Procesador_ESP32(void)
 /******************************* SINCRONIZA RELOJ RTC ************************************/
 /*****************************************************************************************/
 
-
 bool Sincroniza_Reloj_RTC(char res[])
 {
     int hour, minutes, seconds, day, month, year;
@@ -1233,26 +1299,24 @@ bool Sincroniza_Reloj_RTC(char res[])
 
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
-        #ifdef Debug_Mensajes_Server
+#ifdef Debug_Mensajes_Server
         Serial.println("RTC sincronizado con exito!");
-        #endif
+#endif
         /*---------------------------> Crea archivos------- <------------------------------------------ */
-        
-       // if(!Variables_globales.Get_Variable_Global(Flag_Archivos_OK))
 
+        // if(!Variables_globales.Get_Variable_Global(Flag_Archivos_OK))
 
         string_Fecha = "Contadores-" + String(day) + String(month) + String(year) + ".CSV";
         string_Fecha_LOG = "Log-" + String(day) + String(month) + String(year) + ".TXT";
         string_Fecha_Eventos = "Eventos-" + String(day) + String(month) + String(year) + ".CSV";
-        string_Fecha_Sesiones="Sesiones_RFID-"+String(day)+ String(month)+String(year)+".CSV";
-        string_Fecha_Premios="Premios_Maquina-"+String(day)+String(month)+String(year)+".CSV";
+        string_Fecha_Sesiones = "Sesiones_RFID-" + String(day) + String(month) + String(year) + ".CSV";
+        string_Fecha_Premios = "Premios_Maquina-" + String(day) + String(month) + String(year) + ".CSV";
         /*Convierte nombre de archivos en char*/
-        strncpy(Archivo_CSV_Contadores, string_Fecha.c_str(),sizeof(Archivo_CSV_Contadores));
-        strncpy(Archivo_LOG, string_Fecha_LOG.c_str(),sizeof(Archivo_LOG));
-        strncpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str(),sizeof(Archivo_CSV_Eventos));
-        strncpy(Archivo_CSV_Sesiones, string_Fecha_Sesiones.c_str(),sizeof(Archivo_CSV_Sesiones));
-        strncpy(Archivo_CSV_Premios, string_Fecha_Premios.c_str(),sizeof(Archivo_CSV_Premios));
-
+        strncpy(Archivo_CSV_Contadores, string_Fecha.c_str(), sizeof(Archivo_CSV_Contadores));
+        strncpy(Archivo_LOG, string_Fecha_LOG.c_str(), sizeof(Archivo_LOG));
+        strncpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str(), sizeof(Archivo_CSV_Eventos));
+        strncpy(Archivo_CSV_Sesiones, string_Fecha_Sesiones.c_str(), sizeof(Archivo_CSV_Sesiones));
+        strncpy(Archivo_CSV_Premios, string_Fecha_Premios.c_str(), sizeof(Archivo_CSV_Premios));
 
         // String LogFilePath = String("/")+String(day) + String(month) + String(year) + ".txt";
         // LogFile=LogFilePath;
@@ -1262,12 +1326,14 @@ bool Sincroniza_Reloj_RTC(char res[])
         month_copy = month;
         year_copy = year;
         Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, true);
+
+        
         return true;
     }
 
     return false;
 }
-    
+
 /*****************************************************************************************/
 /************************** TRANSMITE INFORMACION MAQUINA ********************************/
 /*****************************************************************************************/
@@ -1495,7 +1561,6 @@ void Transmite_Info_Lector(void)
 
 void Transmite_Eco_Broadcast(int Channel = 1)
 {
-
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
     if (Channel == 1)
@@ -2539,14 +2604,23 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
 {
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
-
+    if(Variables_globales.Get_Variable_Global(Ftp_Mode))
+        return true;
     Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita Guardado de Datos.
     if (!Variables_globales.Get_Variable_Global(Enable_Storage))
     {
+        Info_Cashless.Log(RTC, "MODO_FTP_INICIADO", "COMANDO_315_RECIBIDO");
         Variables_globales.Set_Variable_Global(Ftp_Mode, true); // Activa ftp
+        
         if (Variables_globales.Get_Variable_Global(Ftp_Mode))
         {
-            Transmite_Confirmacion('T', 'P');
+            
+            //vTaskSuspend(Encuestas);
+            //vTaskSuspend(RecepcionRS232);
+           
+            vTaskDelete(Check_Comunication_Maq);
+            Variables_globales.Set_Variable_Global(Comunicacion_Maq,false);
+            
             return true;
         }
         else
@@ -2899,7 +2973,7 @@ void Mensajes_RFID(void)
                         // Variables_globales.Set_Variable_Global(Trama_Pendiente,true);
                         Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
 
-                        if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE)
+                        if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE && !Info_Cashless.Get_Status_Handpay_EFT())
                         {
                             int ClientID=contadores.Get_Client_ID_Transaccion_Int();
                             switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(),ClientID))
@@ -2918,6 +2992,10 @@ void Mensajes_RFID(void)
                         }
                         else
                         {
+
+                            if(Info_Cashless.Get_Status_Handpay_EFT())
+                                Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Maquina en condicion de pago no puede realizar descarga EFT por Operador :");
+
                             if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
                             {
                                 Transmite_Contadores_Accounting();
@@ -3256,6 +3334,7 @@ void Task_Procesa_Comandos(void *parameter)
                 else
                 {
                     Transmite_Confirmacion('A', '0');
+                    Info_Cashless.Log(RTC, "PERDIDA_DE_COMUNICACION_CON_LA_MET", "A0");
                 }
             break;
             case 4:
@@ -3489,7 +3568,11 @@ void Task_Procesa_Comandos(void *parameter)
                 #endif
                 if (Variables_globales.Get_Variable_Global(SD_INSERT) == true)
                 {
-                    Enable_Disable_modo_Ftp_server(true);
+
+                   if(Enable_Disable_modo_Ftp_server(true))
+                        Transmite_Confirmacion('T', 'P');
+                    else
+                        Transmite_Confirmacion('P', 'T');
                 }
                 else
                 {
@@ -3500,10 +3583,13 @@ void Task_Procesa_Comandos(void *parameter)
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud Close Server FTP  ");
                 #endif
-                if (!Enable_Disable_modo_Ftp_server(false))
-                {
-                    Transmite_Confirmacion('P', 'T');
-                }
+                // if (!Enable_Disable_modo_Ftp_server(false))
+                // {
+                //     Transmite_Confirmacion('P', 'T');
+                // }
+
+                
+                Transmite_Confirmacion('P', 'T');
                 delay(200);
                 ESP.restart();
                 break;
@@ -3587,6 +3673,7 @@ void Task_Procesa_Comandos(void *parameter)
                             {
                                 Report_Http_Code(TERMINA_SESION_DESDE_SERVER, "Sesion  terminada por servidor " , true);
                                 Transmite_Confirmacion('D', 'D');
+                                Info_Cashless.Log(RTC, "CIERRE_SESION_POR_SERVIDOR", "COMANDO_503_RECIBIDO");
                             }
                         }
                     }
@@ -4945,6 +5032,7 @@ void Transmision_Controlada_Contadores(void)
         {
             Contador_Transmision_Contadores = 0;
             Transmite_Confirmacion('A', '0');
+            Info_Cashless.Log(RTC, "PERDIDA_DE_COMUNICACION_CON_LA_MET", "A0");
         }
     }
 }

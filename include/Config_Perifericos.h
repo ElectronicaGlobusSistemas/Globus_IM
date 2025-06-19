@@ -82,6 +82,7 @@ int extern Inactividad_Usuario_Player_Tracking;
 int extern Tiempo_Transmision_En_Juego;
 int extern Tiempo_Transmision_No_Juego;
 int extern Tiempo_Inactividad_Maquina;
+uint32_t extern Dia_Guarda_Logs;
 //------------------------------------------------------------------
 //---------------------------> Version de programa <----------------
 
@@ -90,7 +91,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,4,8};
+uint8_t Version_Firmware_[]={2,1,5,0};
 uint8_t Address_Device_TFT_Display[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 void Fecha_Update(bool Enable);
@@ -193,8 +194,8 @@ unsigned long buttonHoldDuration = 0;
 bool Wifi_State_AP = LOW;
 unsigned long Ping_Counter=0;
 unsigned long TimerPing=0;
-#define MAX_PING_TEST_HIGH      15
-#define MAX_PING_TEST_MEDIUM    10
+#define MAX_PING_TEST_HIGH      5
+#define MAX_PING_TEST_MEDIUM    5
 #define MAX_PING_TEST_LOW       5
 
 void PuntoAcceso_On(int Reset_Pin)
@@ -268,7 +269,7 @@ void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
         if ((millis() - TimerPing) >= Timeout)
         {
             IPAddress gateway = WiFi.gatewayIP();
-
+            //Serial.println(gateway);
             if (Ping.ping((gateway)))
             {
                 Ping_Counter = 0;
@@ -276,19 +277,18 @@ void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
             else
                 Ping_Counter++;
 
-            unsigned Intentos = MAX_PING_TEST_HIGH;
+            // unsigned Intentos = MAX_PING_TEST_HIGH;
 
-            if (Sesion_Act)
-                Intentos = MAX_PING_TEST_LOW;
-            else if (Status_Maq)
-                Intentos = MAX_PING_TEST_MEDIUM;
-            else
-                Intentos = MAX_PING_TEST_HIGH;
+            // if (Sesion_Act)
+            //     Intentos = MAX_PING_TEST_LOW;
+            // else if (Status_Maq)
+            //     Intentos = MAX_PING_TEST_MEDIUM;
+            // else
+            //     Intentos = MAX_PING_TEST_HIGH;
 
-            if (Ping_Counter > Intentos)
+            if (Ping_Counter > 5)
             {
                 Ping_Counter = 0;
-                Serial.println("Error Ping");
                 WiFi.disconnect(true); /* Lanza tarea de reconexion WiFi */
             }
             TimerPing = millis();
@@ -347,6 +347,7 @@ static void ManagerTasks(void *parameter)
                 TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
                 RECONECT_WIFI_ESP(); /* Ejecuta reconexion WiFi*/
                 WL_DISCONNECT_OK=true;
+                Info_Cashless.Log(RTC,"PERDIDA_CONEXION_WIFI","TASK_RECUPERA_CONEXION");
             }
             if((TIMEOUT_WiFi_CONNECT-TIMEOUT_WiFi_CONNECT_2)>=Interval_Connect)
             {
@@ -472,7 +473,9 @@ static void ManagerTasks(void *parameter)
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
        
-        //Ping_Test(20000);
+        Ping_Test(2000,false,false);
+
+        //FtpFast();
         
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -1019,6 +1022,12 @@ void Init_Configuracion_Inicial(void)
     //     uint8_t Adress_TFT_Display[] = {0x34, 0x85, 0x18, 0x71, 0x0C, 0xCC};
     //     NVS.putBytes("Address_TFT", Adress_TFT_Display, sizeof(Adress_TFT_Display));
     // }
+    if (!NVS.isKey("TimeBackup"))
+    {
+        uint32_t time = 15;
+        NVS.getULong("TimeBackup", time);
+    }
+
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1714,6 +1723,9 @@ void Init_Configuracion_Inicial(void)
     //     }
     //     Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
     // }
+
+
+    Dia_Guarda_Logs=NVS.getULong("TimeBackup",15);
 
     Serial.println("\n");
     NVS.end();

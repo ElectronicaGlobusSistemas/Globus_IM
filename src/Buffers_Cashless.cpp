@@ -22,7 +22,7 @@
 #include "AutoUpdate.h"
 
 #include "SD.h"
-
+#include "Pantalla_TFT.h"
 
 #define Unlock_Machine  26
 extern Configuracion_ESP32 Configuracion;
@@ -2055,7 +2055,7 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
   // });
 
 
-
+  
 
   // Server_API.on("/log", HTTP_GET, [](AsyncWebServerRequest *request)
   //           {
@@ -3058,9 +3058,6 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
     ESP.restart();
   });
 
-
-
- 
     Server_API.on("/Encuesta_Transaccion_Pendiente",HTTP_GET, [](AsyncWebServerRequest *request){
     StaticJsonDocument<200> jsonDocument;
     jsonDocument.clear();
@@ -3085,7 +3082,6 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
     request->send(200, "application/json", Json);
     delay(1000);
   });
-
 
   /* En pruebas nuevo desarrollo ---->*/
   /* Configuración de datos */
@@ -4389,20 +4385,21 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
   });
 
   Server_API.on("/Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
-                {
+  {
 
-    if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/LogESP.txt"))
-    {
-      request->send(404, "text/plain", "Archivo no encontrado");
-      return;
+    // Verifica que la tarjeta SD esté montada y que el archivo exista
+    if (!Variables_globales.Get_Variable_Global(SD_INSERT) || !SD.exists("/LogESP.txt")) {
+        request->send(404, "text/plain", "Archivo no encontrado o SD no montada");
+        return;
     }
-    
-    AsyncWebServerResponse *response = request->beginResponse(SD, "/LogESP.txt", "text/plain", true);
-    response->addHeader("log", "/LogESP.txt");
-    request->send(response); 
+
+    // Servir el archivo como descarga sin bloquear
+    AsyncWebServerResponse *response = request->beginResponse(SD, "/LogESP.txt", "application/octet-stream", true);
+    response->addHeader("Content-Disposition", "attachment; filename=LogESP.txt");
+    request->send(response);
   });
 
-   Server_API.on("/Borra_Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
+  Server_API.on("/Borra_Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
                 {
 
     if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/LogESP.txt"))
@@ -4411,15 +4408,138 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
       return;
     }else
     {
-     
-      if(SD.remove("/LogESP.txt"))
+
+      if (SD.remove("/LogESP.txt"))
       {
+
+        /* Crea archivo con fecha nuevamente */
+        File f = SD.open("/LogESP.txt", FILE_WRITE);
+        if (f)
+        {
+          /* Fecha creacion de archivo log */
+          NVS.begin("Config_ESP32", false);
+          NVS.putULong("Fecha_log", RTC.getEpoch());
+          NVS.end();
+          f.close();
+        }
+
         request->send(200, "text/plain", "Archivo log Borrado");
+
         return;
-      }else{
+      }
+      else
+      {
         request->send(200, "text/plain", "No se Borro el");
       }
-    }});
+    } });
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Update_TFT", [](AsyncWebServerRequest* request, JsonVariant& json) {
+    
+
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+
+
+    if (!json.is<JsonObject>()) {
+
+
+      jsonDocument["IsSuccess"] = false;
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      return;
+    }
+
+    if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
+    {
+
+      auto &&data = json.as<JsonObject>();
+
+      String Usuario = data["Nombre"].as<String>();
+      int Total_Fide = data["Total_Fide"].as<int>();
+      int Total_Bole = data["Total_Bole"].as<int>();
+      int Nivel_Usuario = data["Nivel_Usuario"].as<int>();
+
+      int Actual_Fide = data["Actual_Fide"].as<int>();
+      int Actual_Bole = data["Actual_Bole"].as<int>();
+
+      if (Init_Player_TFT(Usuario, Total_Fide, Total_Bole, Nivel_Usuario, 0, 0, 0, Actual_Fide, Actual_Bole))
+      {
+        jsonDocument["IsSuccess"] = true;
+      }
+      else
+      {
+        jsonDocument["IsSuccess"] = false;
+      }
+    }
+    else
+    {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesage"] = "Dispositivo no tiene una sesion activa";
+    }
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    
+
+  }));
+
+
+
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Tiempo_Elimina_Log", [](AsyncWebServerRequest* request, JsonVariant& json) {
+    
+
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+
+
+    if (!json.is<JsonObject>()) {
+
+
+      jsonDocument["IsSuccess"] = false;
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      return;
+    }
+
+    auto &&data = json.as<JsonObject>();
+
+    if (!data.containsKey("Tiempo") || !data.containsKey("Unidades"))
+    {
+      jsonDocument["IsSuccess"] = false;
+    }
+    else
+    {
+      uint32_t tiempo = data["Tiempo"].as<uint32_t>();
+      
+      
+      if (tiempo == 0)
+      {
+        tiempo = 15;
+        
+      }
+
+      if (Info_Cashless.Guarda_Tiempo_Log(false, tiempo))
+        jsonDocument["IsSuccess"] = true;
+      else
+        jsonDocument["IsSuccess"] = false;
+    }
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    
+
+  }));
+ 
 
   
 

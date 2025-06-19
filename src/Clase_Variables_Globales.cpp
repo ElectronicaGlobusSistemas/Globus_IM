@@ -348,6 +348,14 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Status_Games_Machine:
         return Status_Games_Machine_;
         break;
+
+    case Hand_pay_is_pending:
+        return Hand_pay_is_pending_;
+        break;
+    
+    case Flag_Log:
+        return Flag_Log_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -695,6 +703,13 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Status_Games_Machine:
         Status_Games_Machine_=Change_estado;
         break;
+    case Hand_pay_is_pending:
+        Hand_pay_is_pending_=Change_estado;
+        break;
+
+    case Flag_Log:
+        Flag_Log_=Change_estado;
+        break;
     }
 }
 
@@ -815,6 +830,8 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Conexion_TFT_Display_=false;
     Status_Device_TFT_Display_=false;
     Status_Games_Machine_=false;
+    Hand_pay_is_pending_=false;
+    Flag_Log_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

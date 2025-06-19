@@ -16,6 +16,7 @@
 #define UPDATE_POINTS         2
 #define PING                  3
 #define RETURN_SESION         4
+#define LECTURA_TARJETA       5
 
 
 extern std::string IP_toString_(char IP_Char[]);
@@ -147,7 +148,7 @@ void Prueba_TFT(void)
     if(ComInicial-Compu>=100 && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
         int Nivel = random(0, 3);
-        Init_Player_TFT("Jose Manuel Ordonez ", cont_puntos, cont_Puntos_Boletas, 0,5000,50000,100000);
+        Init_Player_TFT("Jose Manuel Ordonez ", 10000, 50000, 0,5000,50000,100000,cont_puntos,cont_Puntos_Boletas);
         Compu=ComInicial;
         Serial.println("Ejecuto UUpdate display");
         cont_puntos++;
@@ -177,24 +178,32 @@ String formatearComoMoneda(uint32_t numero)
     return "$ "+resultado;
 }
 
-bool Init_Player_TFT(String User_Name, int Playertracking_Points, int Points_Tickets, int User_Level,uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion,uint32_t Saldo_No_Canjeable)
+bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Total_Points_Tickets, int User_Level,uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion,uint32_t Saldo_No_Canjeable,int Current_Playertracking_Points,int Current_Points_Tickets)
 {
-    StaticJsonDocument<200> doc;
+    StaticJsonDocument<1024> doc;
     doc.clear();
     String Payload = "";
     int Intentos_Conexion = 3;
-    doc["User_Name"] = User_Name;
-    doc["Playertracking_Points"] = Playertracking_Points;
-    doc["Points_Tickets"] = Points_Tickets;
+
+
+    doc["Nombre"] = User_Name;
+    doc["Total_Fide"] = Total_Playertracking_Points;
+    doc["Total_Bole"] = Total_Points_Tickets;
+    
+    doc["Actual_Bole"] = Current_Points_Tickets;
+    doc["Actual_Fide"] = Current_Playertracking_Points;
+   
     doc["User_Level"] = User_Level;
 
-    doc["Saldo_Canjeable"]=formatearComoMoneda(Saldo_Canjeable);
-    doc["Saldo_Sin_Restriccion"]=formatearComoMoneda(Saldo_Sin_Restriccion);
-    doc["Saldo_No_Canjeable"]=formatearComoMoneda(Saldo_No_Canjeable);
+    doc["Saldo_Canje"]=formatearComoMoneda(Saldo_Canjeable);
+    doc["Saldo_Sin_Restri"]=formatearComoMoneda(Saldo_Sin_Restriccion);
+    doc["Saldo_No_Canje"]=formatearComoMoneda(Saldo_No_Canjeable);
     doc["Opcion"] = UPDATE_POINTS;
 
-    serializeJson(doc, Payload);
 
+   
+    serializeJson(doc, Payload);
+     
     for (int i = 0; i < Intentos_Conexion; i++)
     {
         if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
@@ -276,8 +285,6 @@ void Ping_Response(void)
     }
 }
 
-
-
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
 {
 
@@ -297,9 +304,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
 
     if (!error)
     {
+
         bool Issucess = doc["IsSuccess"];
         int Option = doc["Opcion"];
-
+        int Id_Cliente = doc["Id_Cliente"];
 
         switch (Option)
         {
@@ -318,7 +326,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
                 Flag_Status_Close_Player_TFT=true;
             break;
             
-
         case RETURN_SESION:
             Get_Status_Sesion_Player();
             break;

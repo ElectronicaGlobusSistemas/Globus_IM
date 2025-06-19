@@ -5,7 +5,7 @@
 #include "Buffer_Cashless.h"
 #include "Json_Datos.h"
 #include "Web_Config.h"
-
+#include "RFID.h"
 /*-------------------------------->Debug Buffer<----------------------------*/
 //#define Debug_Buffer
 
@@ -43,8 +43,14 @@ unsigned char New_Serial_Cashless_Centenas;
 unsigned char New_Serial_Cashless_Decenas;
 unsigned char New_Serial_Cashless_Unidades;
 
-
+extern Cashless_API Info_Cashless;
 extern Web_Config Web_Info_Config;
+
+
+
+extern const char* archivo_Fide;
+extern char* archivo_Cashless;
+extern char* archivo_Acounting;
 
 /**********************************************************************************/
 /*                              BUFFERS DE ACK                                    */
@@ -1042,6 +1048,12 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
 
     memcpy(buffer_contadores_ACC, req, 258);
 
+    
+
+    
+
+
+
     // char res[9] = {};
     // bzero(res, 9);
     // memcpy(res, contadores.Get_Contadores_Char(Total_Drop), sizeof(res) / sizeof(res[0]));
@@ -1057,6 +1069,14 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     {
         if (Set_buffer_contadores_ACC_CRC())
         {
+            String Contadores_ = "";
+            for (int i = 4; i < 258; i++)
+            {
+                Contadores_ += buffer_contadores_ACC[i];
+            }
+
+            if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                Info_Cashless.Log(RTC, "ENVIA_CONTADORES", Contadores_);
             return true;
         }
         return false;

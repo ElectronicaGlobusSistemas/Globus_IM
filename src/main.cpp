@@ -169,6 +169,9 @@ unsigned long lastButtonClickTime = 0;
 const char* archivo = "/LogESP.txt";
 
 
+const char* archivo_Fide = "/LogFide.txt";
+const char* archivo_Cashless= "/LogCashless.txt";
+const char* archivo_Acounting= "/LogAcounting.txt";
 
 
 extern MFRC522 mfrc522;   // Create MFRC522 instance.
@@ -179,6 +182,11 @@ int Timeout_Transfer=50000;
 bool condicion_transfer =false;
 
 extern DynamicJsonDocument Objeto_Transfer_Download;
+uint32_t Dia_Guarda_Logs=15;
+TaskHandle_t Check_Comunication_Maq;
+
+
+extern SemaphoreHandle_t sd_mutex;
 
 
 void setup()
@@ -196,7 +204,7 @@ void setup()
         6000,/*8000*/
         NULL,
         configMAX_PRIORITIES - 15,
-        NULL,
+        &Check_Comunication_Maq,
         1); // Core donde se ejecutara la tarea
   }
 
@@ -255,8 +263,7 @@ void setup()
   Cashless.Set_Amount_To_Load(0,0,0); /* Setea Valores de carga en 0 */
   Info_Cashless.Init_Timer_Lector();
   //Info_Cashless.Log(RTC,"INICIO_OPERACION_DISPOSITIVO_GLOBUS_IM_ESP32");
-  
-
+  sd_mutex = xSemaphoreCreateMutex();
 }
 unsigned long INT1=0;
 int Muestreo=500;
@@ -356,6 +363,7 @@ void loop()
   // }
 
   //Backup.Task_Info();
+  FtpFast();
 }
 
 /* Verifica comunicacion maquina */
@@ -777,8 +785,9 @@ void TimeOut_Player_Tracking_Sesion(void)
           /* Maquina Cashless */
           if (Variables_globales.Get_Variable_Global(Enable_Cashless))
           {
+
             /* Cashless  habilitado */
-            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE)
+            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE && !Info_Cashless.Get_Status_Handpay_EFT())
             {
 
               Info_Cashless.Lock_Reader();
@@ -817,6 +826,12 @@ void TimeOut_Player_Tracking_Sesion(void)
             else
             {
 
+              if (Info_Cashless.Get_Status_Handpay_EFT())
+              {
+                if (Info_Cashless.Get_Status_Handpay_EFT())
+                  Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Maquina en condicion de pago no puede realizar descarga EFT:");
+              }
+
               if (Info_Cashless.Type_Sesion() == !PLAYER_CASHLESS_SESION)
               {
 
@@ -827,7 +842,8 @@ void TimeOut_Player_Tracking_Sesion(void)
 
               if (transaccionesPendientes.empty())
                 Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente en maquina");
-              else
+                
+              if(Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending)||Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
               {
                 /* Pendiente por Reportar transaccion */
                 // String  transaccion = transaccionesPendientes.front(); /* Toma la primera transferencia */
@@ -847,6 +863,8 @@ void TimeOut_Player_Tracking_Sesion(void)
             Close_Sesion_Player_Tracking();
             Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion terminada por creditos: "+String(Creditos), true);
             // Info_Cashless.Unlock_Reader();
+
+            Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
           }
         }
       }
@@ -940,29 +958,37 @@ void check_SD(void)
         /*-----------------------> Agregar  Variables_globales.Get_Variable_Global(Comunicacion_Maq) */
         if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
         {
-          /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
-          String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+          
+          if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+          {
+            
+            Info_Cashless.CreaLog(archivo, false, Dia_Guarda_Logs);
+            /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
+            String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
-          VerificaArchivo(archivo, DataTime);
-          delay(10);
-          Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-          delay(10);
-          Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-          delay(10);
-          Create_ARCHIVE_Txt(Archivo_LOG);
-          delay(10);
-          Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
-          delay(10);
-          Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
-          Serial.println("OK Archivos Listos..");
-          // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
-          Total_SD = SD.totalBytes() / (1024 * 1024);
-          Usado_SD = SD.usedBytes() / (1024 * 1024);
-          Libre_SD = Total_SD - Usado_SD;
-          Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
-          Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
-          Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
-          Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
+            VerificaArchivo(archivo, DataTime);
+            delay(10);
+            Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+            delay(10);
+            Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+            delay(10);
+            Create_ARCHIVE_Txt(Archivo_LOG);
+            delay(10);
+            Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
+            delay(10);
+            Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
+            Serial.println("OK Archivos Listos..");
+            // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
+            Total_SD = SD.totalBytes() / (1024 * 1024);
+            Usado_SD = SD.usedBytes() / (1024 * 1024);
+            Libre_SD = Total_SD - Usado_SD;
+            Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
+            Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
+            Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
+            Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
+
+            xSemaphoreGive(sd_mutex);
+          }
 
           /*--------------------------------------------------------------------------------------------*/
         }
