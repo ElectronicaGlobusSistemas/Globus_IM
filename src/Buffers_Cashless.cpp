@@ -23,6 +23,9 @@
 
 #include "SD.h"
 #include "Pantalla_TFT.h"
+#include "freertos/semphr.h"
+#include "Memory_SD.h"
+
 
 #define Unlock_Machine  26
 extern Configuracion_ESP32 Configuracion;
@@ -42,7 +45,9 @@ extern ESP32Time RTC; // Objeto contiene hora y fecha
 unsigned long TimeOut_Reg=0;
 unsigned long TimeOut_Regf=0;
 unsigned long Timout=30000;
-
+extern bool Formateo;
+extern int Result_Formatt;
+bool Consulta_Result_Formatt=true;
 
 extern bool App;
 extern const char* LogError;
@@ -68,6 +73,24 @@ bool Flag_Change_Counters_Break=false;
 bool Variable_Solicitud_Operador_Id=false;
 bool Solicitud_Expiracion_Ticket=false;
 
+SemaphoreHandle_t MaquinaSemaphore = xSemaphoreCreateMutex();
+
+bool Request_Inactiva=false;
+bool Request_Activa=false;
+bool Ack_Maq_Inactiva=false;
+bool Ack_Maq_Activa=false;
+
+bool Flag_Handle_Inactiva=false;
+bool Flag_Handle_Activa=false;
+
+
+bool Flag_Recv_Inactiva=false;
+bool Flag_Recv_Activa=false;
+
+extern bool Inactiva_Maquina(void);
+extern bool Activa_Maquina(void);
+
+
 
 #include "Buffers.h"
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
@@ -78,6 +101,12 @@ extern bool Actualiza_Tarjeta_Mecanica(char res[]);
 extern bool Creditos_Machine(void);
 extern bool Encuesta_Creditos_Premio(void);
 extern int Convert_Char_To_Int10(char buffer[]);
+extern TaskHandle_t Check_Comunication_Maq;
+extern TaskHandle_t Mensajes_Server;
+extern WiFiUDP clientUDP;    // Declara un objeto para cliente UDP
+extern TaskHandle_t RecepcionRS232;
+extern TaskHandle_t Encuestas;
+extern  TaskHandle_t CommandProcess;
 std::string IP_toString_A(char IP_Char[])
 {
     std::stringstream ss;
@@ -1770,10 +1799,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       request->send(200, "text/plain", "El archivo no existe");
     }
     
-});
+  });
 
-
-Server_API.on("/Habilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
+  Server_API.on("/Habilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
 
   
   StaticJsonDocument<200> jsonDocument;
@@ -1850,9 +1878,9 @@ Server_API.on("/Habilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReque
   serializeJson(jsonDocument, Output); /* Serializa Data */
   // Serial.println(Output);
   request->send(200, "application/json", Output);
-});
+  });
 
-Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
+  Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerRequest *request){
 
   
   StaticJsonDocument<200> jsonDocument;
@@ -1929,12 +1957,8 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
   serializeJson(jsonDocument, Output); /* Serializa Data */
   // Serial.println(Output);
   request->send(200, "application/json", Output);
-});
-
-
+  });
 // bool Ignore_Reg_Maq=NVS.getBool("Ignore_Reg_Maq",false);
-
-
   Server_API.on("/Solicitud_Contadores_Cashless",HTTP_GET, [](AsyncWebServerRequest *request)
   {
 
@@ -3561,6 +3585,8 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
 
   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Solicitud_Reset_Handpay", [](AsyncWebServerRequest* request, JsonVariant& json) {
 
+     IPAddress ipCliente = request->client()->remoteIP();
+
     char Current_IP[4];
     String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
     memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
@@ -3577,6 +3603,8 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
       String Json;
       serializeJson(jsonDocument, Json); /* Serializa Data */
       request->send(200, "application/json", Json);
+      Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
+      
       return;
 
     }else
@@ -3596,6 +3624,7 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
         String Json;
         serializeJson(jsonDocument, Json); /* Serializa Data */
         request->send(200, "application/json", Json);
+        Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "NO_EXISTE_ID_OPERADOR");
         return; 
       }else
       {
@@ -3662,6 +3691,7 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
 
       if (Variables_globales.Get_Variable_Global(Reset_Handpay_in_Process))
       {
+        Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "RESET_HANDPAY_EN_PROCESO");
         return;
       }
       else
@@ -4291,112 +4321,82 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
 
   }));
 
-
-
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Sincro_TFT_Display",[](AsyncWebServerRequest*request,JsonVariant& json)
+  Server_API.on("/Solicitud_SERVER_FTP_OPEN", HTTP_GET, [](AsyncWebServerRequest *request)
   {
-
-    StaticJsonDocument<800> jsonDocument;
+    StaticJsonDocument<500> jsonDocument;
     jsonDocument.clear();
-  
-    if (!json.is<JsonObject>()) {
+    String Msg="";
+    bool IsSuccess=false;
 
-      jsonDocument["IsSuccess"] = false;
-      jsonDocument["Mesagge"] = "Tipo de dato no identificado JSON";
-      String Json;
-      serializeJson(jsonDocument, Json); /* Serializa Data */
-      request->send(200, "application/json", Json);
+    if (!Variables_globales.Get_Variable_Global(Ftp_Mode))
+    {
 
-      return;
-    }else{
-
-      auto&& data = json.as<JsonObject>();
-
-      if(data.containsKey("MAC_Device"))
+      if (Variables_globales.Get_Variable_Global(SD_INSERT))
       {
 
-        String MAC=data["MAC_Device"].as<String>();
-        uint8_t Mac[6];
-        uint8_t MacRead[6];
-        bool IsSuccess = false;
+        Variables_globales.Set_Variable_Global(Comunicacion_Maq, false);
+        Variables_globales.Set_Variable_Global(Ftp_Mode, true);
 
-        if( sscanf(MAC.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", 
-        &Mac[0], &Mac[1], &Mac[2], &Mac[3], &Mac[4], &Mac[5])==6)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode))
         {
-          NVS.begin("Config_ESP32", false);
-          NVS.putBytes("Address_TFT", Mac, sizeof(Mac));
-          delay(1);
-          NVS.getBytes("Address_TFT", MacRead, sizeof(MacRead));
-          NVS.end();
 
-          IsSuccess=true;
-          for (int i = 0; i < 6; i++)
-          {
-            if (Mac[i] != MacRead[i])
-            {
-              IsSuccess = false;
-              break;
-            }
-          }
-          jsonDocument["IsSuccess"] = IsSuccess;
-          if(IsSuccess)
-            jsonDocument["Mesagge"] = "Guardado con exito!";
-          else
-            jsonDocument["Mesagge"] = "No se guardo";
-        }else
-        {
-          jsonDocument["IsSuccess"] = false;
-          jsonDocument["Mesagge"] = "Error de conversion";
-        }
-       
-        String Json;
-        serializeJson(jsonDocument, Json); /* Serializa Data */
-        request->send(200, "application/json", Json);
-
-        if(IsSuccess)
-        {
-          delay(500);
-          ESP.restart();
-        }
+          vTaskDelete(Check_Comunication_Maq);
+          vTaskDelete(Mensajes_Server);
+          vTaskDelete(RecepcionRS232);
+          vTaskDelete(Encuestas);
+          vTaskDelete(CommandProcess);
+          clientUDP.stop();
+          IsSuccess = true;
+          Msg = "Modo FTP Iniciado con Exito!";
+          Info_Cashless.Log(RTC,"COMANDO_INICIO_MODO_FTP_RECIBIDO","INICIADO_CON_EXITO");
           
-
-      }else{
-        jsonDocument["IsSuccess"] = false;
-        jsonDocument["Mesagge"] = "No exite informacion de la MAC";
-        String Json;
-        serializeJson(jsonDocument, Json); /* Serializa Data */
-        request->send(200, "application/json", Json);
+        }
+        else
+        {
+          IsSuccess = false;
+          Msg = "Error Iniciando modo FTP";
+          Info_Cashless.Log(RTC,"COMANDO_INICIO_MODO_FTP_RECIBIDO","ERROR_INICIANDO_FTP");
+        }
+      }
+      else
+      {
+        IsSuccess = false;
+        Msg = "Memoria SD no inicializada o no insertada";
+        Info_Cashless.Log(RTC,"COMANDO_INICIO_MODO_FTP_RECIBIDO","MEMORIA_SD_NO_INICIALIZADA_O_NO_INSERTADA");
       }
     }
-
-  }));
-
-  Server_API.on("/Backup", HTTP_GET, [](AsyncWebServerRequest *request)
-  {
-
-    if(!Variables_globales.Get_Variable_Global(SD_INSERT)||!SD.exists("/Buckup_Contadores.log"))
+    else
     {
-      request->send(404, "text/plain", "Archivo no encontrado");
-      return;
+      IsSuccess = true;
+      Msg = "Ya Existe una instancia del modo FTP";
+      Info_Cashless.Log(RTC,"COMANDO_INICIO_MODO_FTP_RECIBIDO","YA_EXISTE_UN_");
     }
-    AsyncWebServerResponse *response = request->beginResponse(SD, "/Buckup_Contadores.log", "text/plain", true);
-    response->addHeader("log", "/Buckup_Contadores.log");
-    request->send(response); 
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+  
   });
 
-  Server_API.on("/Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
+  Server_API.on("/Solicitud_SERVER_FTP_CLOSE", HTTP_GET, [](AsyncWebServerRequest *request)
   {
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+    String Msg="Reiniciando Dispositivo!";
+    bool IsSuccess=true;
 
-    // Verifica que la tarjeta SD esté montada y que el archivo exista
-    if (!Variables_globales.Get_Variable_Global(SD_INSERT) || !SD.exists("/LogESP.txt")) {
-        request->send(404, "text/plain", "Archivo no encontrado o SD no montada");
-        return;
-    }
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
 
-    // Servir el archivo como descarga sin bloquear
-    AsyncWebServerResponse *response = request->beginResponse(SD, "/LogESP.txt", "application/octet-stream", true);
-    response->addHeader("Content-Disposition", "attachment; filename=LogESP.txt");
-    request->send(response);
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    delay(1000);
+      ESP.restart(); 
+
   });
 
   Server_API.on("/Borra_Log_Transacciones", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -4433,7 +4433,356 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
       }
     } });
 
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Update_TFT", [](AsyncWebServerRequest* request, JsonVariant& json) {
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Tiempo_Elimina_Log", [](AsyncWebServerRequest* request, JsonVariant& json) {
+    
+
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+
+
+    if (!json.is<JsonObject>()) {
+
+
+      jsonDocument["IsSuccess"] = false;
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      return;
+    }
+
+    auto &&data = json.as<JsonObject>();
+
+    if (!data.containsKey("Tiempo") || !data.containsKey("Unidades"))
+    {
+      jsonDocument["IsSuccess"] = false;
+    }
+    else
+    {
+      uint32_t tiempo = data["Tiempo"].as<uint32_t>();
+      
+      
+      if (tiempo == 0)
+      {
+        tiempo = 15;
+        
+      }
+
+      if (Info_Cashless.Guarda_Tiempo_Log(false, tiempo))
+        jsonDocument["IsSuccess"] = true;
+      else
+        jsonDocument["IsSuccess"] = false;
+    }
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    
+
+  }));
+
+  /* ------------------------> Metodos  Control Maquina <----------------------------------------------- */
+  Server_API.on("/Inactiva_Maquina", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    IPAddress ipCliente = request->client()->remoteIP();
+
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
+    //jsonDocument.clear();
+
+    bool IsSuccess = false;
+    String Msg = "";
+    String Log="";
+
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+    {
+      if (xSemaphoreTake(MaquinaSemaphore, (TickType_t)0) == pdTRUE)
+      {
+        
+        Flag_Recv_Inactiva = false;
+        Ack_Maq_Inactiva = false;
+        Request_Inactiva = true;
+        delay(1);
+        Flag_Handle_Inactiva = true;
+
+        unsigned long Timout_Break_Response1;
+        int Stop_Transaccion_Amount_Response1 = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+        Timout_Break_Response1 = millis();
+
+        while (!Ack_Maq_Inactiva && (millis() - Timout_Break_Response1 < Stop_Transaccion_Amount_Response1))
+        {
+          esp_task_wdt_reset(); // Alimenta el WDT
+          // Serial.println("Esperando respuesta Activa.....");
+
+          if ((millis() - Timout_Break_Response1) >= Stop_Transaccion_Amount_Response1)
+          {
+            // Serial.println("Tiempo agotado, saliendo del while con break.");
+            break;
+          }
+          vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        if (Ack_Maq_Inactiva && Flag_Recv_Inactiva)
+        {
+          IsSuccess = true;
+          Msg = "Máquina inactivada con éxito.";
+          Log="MAQUINA_INACTIVADA_CON_EXITO";
+          Variables_globales.Set_Variable_Global(Flag_Premio_Mistery,true);
+        }
+        else
+        {
+          IsSuccess = false;
+          Msg = "Fallo al inactivar la máquina.";
+          Log="FALLO_INACTIVANDO_MAQUINA";
+        }
+
+        Ack_Maq_Inactiva = false;
+        Request_Inactiva = false;
+        Flag_Handle_Inactiva = false;
+        Flag_Recv_Inactiva = false;
+        xSemaphoreGive(MaquinaSemaphore);
+      }
+      else
+      {
+        IsSuccess = false;
+        Msg = "Máquina ya está en proceso.";
+        Log="YA_EXISTE_UNA_SOLICITUD";
+      }
+    }
+    else
+    {
+      IsSuccess = false;
+      Msg = "No Hay Comunicacion Con la MET";
+      Log="NO_HAY_COMUNICACION_CON_LA_MET";
+    }
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Fecha_Hora"] = DataTime;
+
+    String Json;
+    serializeJson(jsonDocument, Json);
+    request->send(200, "application/json", Json);
+
+    Info_Cashless.Log(RTC,"SOLICITUD_INACTIVA_MAQUINA_API_RECIBIDA "+ipCliente.toString(),Log);
+  });
+
+  Server_API.on("/Activa_Maquina", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
+
+    bool IsSuccess = false;
+    String Msg = "";
+    String Log="";
+
+  if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+  {
+    if (xSemaphoreTake(MaquinaSemaphore, (TickType_t)0) == pdTRUE)
+    {
+
+      Flag_Recv_Activa = false;
+      Ack_Maq_Activa = false;
+      Request_Activa = true;
+      delay(1);
+      Flag_Handle_Activa = true;
+
+      unsigned long Timout_Break_Response1;
+      int Stop_Transaccion_Amount_Response1 = 5000; // Tiempo de espera en milisegundos (2 Seg MAX)
+      Timout_Break_Response1 = millis();
+
+      while (!Ack_Maq_Activa && (millis() - Timout_Break_Response1 < Stop_Transaccion_Amount_Response1))
+      {
+
+        esp_task_wdt_reset(); // Alimenta el WDT
+        // Serial.println("Esperando respuesta Activa.....");
+
+        if ((millis() - Timout_Break_Response1) >= Stop_Transaccion_Amount_Response1)
+        {
+          // Serial.println("Tiempo agotado, saliendo del while con break.");
+          break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
+
+      if (Ack_Maq_Activa && Flag_Recv_Activa)
+      {
+        IsSuccess = true;
+        Msg = "Máquina Activada con éxito.";
+        Log="MAQUINA_ACTIVADA_CON_EXITO";
+      }
+      else
+      {
+        IsSuccess = false;
+        Msg = "Fallo al activar la máquina.";
+        Log="FALLA_ACTIVANDO_MAQUINA";
+      }
+
+      Ack_Maq_Activa = false;
+      Request_Activa = false;
+      Flag_Handle_Activa = false;
+      Flag_Recv_Activa = false;
+      xSemaphoreGive(MaquinaSemaphore);
+    }
+    else
+    {
+      IsSuccess = false;
+      Msg = "Máquina ya está en proceso.";
+      Log="YA_EXISTE_UNA_SOLICITUD";
+    }
+  }
+  else
+  {
+    IsSuccess = false;
+    Msg = "No Hay Comunicacion Con la MET";
+    Log="NO_HAY_COMUNICACION_CON_LA_MET";
+  }
+
+  jsonDocument["IsSuccess"] = IsSuccess;
+  jsonDocument["Message"] = Msg;
+  jsonDocument["Fecha_Hora"] = DataTime;
+
+  String Json;
+  serializeJson(jsonDocument, Json);
+  request->send(200, "application/json", Json);
+
+  Info_Cashless.Log(RTC,"SOLICITUD_ACTIVA_MAQUINA_API_RECIBIDA "+ipCliente.toString(),Log);
+  });
+  /*-----------------------------------------------------------------------------------------------------*/
+
+  /* ----------------------------------> Pantalla TFT <---------------------------------------------------*/
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Sincro_TFT_Display",[](AsyncWebServerRequest*request,JsonVariant& json)
+  {
+
+    StaticJsonDocument<800> jsonDocument;
+    jsonDocument.clear();
+    IPAddress ipCliente = request->client()->remoteIP();
+
+
+    String Error="";
+  
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Mesagge"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      Error="JSON_NO_ES_UN_OBJETO_VALIDO";
+      Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO"+ipCliente.toString(), Error);
+      return;
+    }else{
+
+      auto&& data = json.as<JsonObject>();
+
+      if(data.containsKey("MAC_Device"))
+      {
+
+        String MAC = data["MAC_Device"].as<String>();
+        if (esMacValida(MAC))
+        {
+          uint8_t Mac_TFT[6];
+          uint8_t MacRead[6];
+          bool IsSuccess = false;
+
+          if (sscanf(MAC.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+                     &Mac_TFT[0], &Mac_TFT[1], &Mac_TFT[2], &Mac_TFT[3], &Mac_TFT[4], &Mac_TFT[5]) == 6)
+          {
+
+            StaticJsonDocument<200> doc;
+
+            String Payload = "";
+            int Intentos_Conexion = 3;
+            doc["IsSuccess"] = true;
+            doc["Opcion"] = SINCRO;
+            doc["Mac_T"] = MAC;               /* Mac TFT Sincro */
+            doc["Mac_G"] = WiFi.macAddress(); /* Mac Globus IM ESP32 */
+            serializeJson(doc, Payload);
+
+            if (Send_TFT(Mac_TFT, (uint8_t *)Payload.c_str(), Payload.length()))
+            {
+              if (/*Await_ms(, 1000)*/ true)
+                IsSuccess = true; /* Sincro OK*/
+              else
+              {
+                IsSuccess = false; /* Falla Sincro */
+                jsonDocument["Mesagge"] = "No se recibio respuesto de la pantalla TFT";
+                Error="No_se_recibio_respuesta_de_la_pantalla_TFT "+MAC;
+                Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO "+ipCliente.toString(), Error);
+              }
+            }
+            else
+            {
+              IsSuccess = false;
+              jsonDocument["Mesagge"] = "Mensaje de sincronizacion no enviado";
+
+              Error="Mensaje_de_sincronizacion_no_enviado "+MAC;
+              Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO "+ipCliente.toString(), Error);
+            }
+
+            // NVS.begin("Config_ESP32", false);
+            // NVS.putBytes("Address_TFT", Mac, sizeof(Mac));
+            // delay(1);
+            // NVS.getBytes("Address_TFT", MacRead, sizeof(MacRead));
+            // NVS.end();
+
+            // IsSuccess=true;
+            // for (int i = 0; i < 6; i++)
+            // {
+            //   if (Mac[i] != MacRead[i])
+            //   {
+            //     IsSuccess = false;
+            //     break;
+            //   }
+            // }
+          }
+          else
+          {
+            jsonDocument["IsSuccess"] = false;
+            jsonDocument["Mesagge"] = "Error de conversion String-uint8_t";
+            Error="Error_de_conversion_String-uint8_t";
+            Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO "+ipCliente.toString(), Error);
+          }
+
+          String Json;
+          serializeJson(jsonDocument, Json); /* Serializa Data */
+          request->send(200, "application/json", Json);
+
+          if (IsSuccess)
+          {
+            Error="DISPOSITIVO_PANTALLA_TFT_SINCRONIZADA_CON_EXITO";
+            Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", Error);
+            delay(500);
+            ESP.restart();
+          }
+        }else{
+          jsonDocument["IsSuccess"] = false;
+          jsonDocument["Mesagge"] = "Error Formato de MAC debe ser XX:XX:XX:XX:XX:XX";
+          String Json;
+          serializeJson(jsonDocument, Json); /* Serializa Data */
+          request->send(200, "application/json", Json);
+
+          Error="Error_Formato_de_MAC_debe_ser_XX:XX:XX:XX:XX:XX";
+          Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO", Error);
+        }
+      }else{
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Mesagge"] = "No exite informacion de la MAC";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+
+        Error="NO_EXISTE_INFORMACION_DE_LA_MAC";
+        Info_Cashless.Log(RTC, "COMANDO_SINCRONIZAR_PANTALLA_RECIBIDO", Error);
+      }
+    }
+
+  }));
+
+   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Update_TFT", [](AsyncWebServerRequest* request, JsonVariant& json) {
     
 
 
@@ -4487,63 +4836,417 @@ Server_API.on("/Inhabilita_Bandera_Registro_Maq", HTTP_GET, [](AsyncWebServerReq
     
 
   }));
+  /*------------------------------------------------------------------------------------------------------*/
 
+  /* ------------------------------------> CONFIGURA <---------------------------------------------------*/
+  /* COMANDO SOCKET-API */
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configurar_Transmision", [](AsyncWebServerRequest* request, JsonVariant& json) {
 
-
-
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Tiempo_Elimina_Log", [](AsyncWebServerRequest* request, JsonVariant& json) {
+    IPAddress ipCliente = request->client()->remoteIP();
     
-
-
     StaticJsonDocument<500> jsonDocument;
     jsonDocument.clear();
+    bool IsSuccess=false;
 
+    #define SOCKET 0
+    #define API    1
 
-    if (!json.is<JsonObject>()) {
-
-
+    if (!json.is<JsonObject>())
+    {
       jsonDocument["IsSuccess"] = false;
-
       String Json;
       serializeJson(jsonDocument, Json); /* Serializa Data */
       request->send(200, "application/json", Json);
+      Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
+
+      #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+      Serial.println("Json no es un objeto valido");
+      #endif
       return;
     }
 
     auto &&data = json.as<JsonObject>();
 
-    if (!data.containsKey("Tiempo") || !data.containsKey("Unidades"))
+    if(data.containsKey("Modo_Transmision"))
     {
-      jsonDocument["IsSuccess"] = false;
+      int Modo_Transmision = data["Modo_Transmision"].as<int>();
+  
+      NVS.begin("Config_ESP32", false);
+      switch (Modo_Transmision)
+      {
+      case SOCKET:
+        NVS.putBool("TYPE_TM", false);
+        if (!NVS.getBool("TYPE_TM"))
+        {
+          IsSuccess = true;
+          jsonDocument["Message"] = "Metodo de transmision socket configurado con exito";
+          Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "METODO_SOCKET_CONFIGURADO");
+          #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("Modo Socket Configurado Con Exito");
+          #endif
+        }
+        else
+        {
+          IsSuccess = false;
+          jsonDocument["Message"] = "Metodo de transmision socket no configurado";
+          Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "METODO_SOCKET_NO_CONFIGURADO");
+          #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("Modo Socket Configurado no configurado");
+          #endif
+        }
+        break;
+
+      case API:
+        NVS.putBool("TYPE_TM",true);
+        if(NVS.getBool("TYPE_TM"))
+        {
+          IsSuccess=true;
+          jsonDocument["Message"] = "Metodo de transmision API configurado con exito";
+          Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "METODO_API_CONFIGURADO");
+          #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("Modo API Configurado Con Exito");
+          #endif
+        }
+        else
+        {
+          IsSuccess=false;
+          jsonDocument["Message"] = "Metodo de transmision API no configurado";
+          Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "METODO_API_NO_CONFIGURADO");
+          #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("Modo API No Configurado");
+          #endif
+        }
+        break;
+      
+      default:
+        IsSuccess=false;
+        jsonDocument["Message"] = "Metodo de transmision no identificado: "+ String(Modo_Transmision);
+        Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "METODO_TRANSMISION_NO_IDENTIFICADO");
+        #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+        Serial.println("Modo De Transmision no identificado");
+        #endif
+        break;
+      }
+        NVS.end();
+
+    }else
+    {
+      IsSuccess=false;
+      jsonDocument["Message"] = "Metodo de transmision no recibido";
+      String Key="Modo_Transmision";
+      Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_TRANSMISION "+ipCliente.toString(), "NO_EXISTE_LLAVE:"+Key);
+      #ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+      Serial.println("No existe la  llave en el objeto de modo tranmision");
+      #endif
+    }
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+
+    if (IsSuccess)
+    {
+      Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO "+ipCliente.toString(), "CONFIGURACION_MODO_TRANMISION");
+      Serial.println("Configuracion modo de transmision aplicada.. Reiniciando...");
+      delay(2000);
+      ESP.restart();
+    }
+  
+  }));
+  /* COMANDO URL MODO API */
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Configurar_URL_API", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+    bool IsSuccess=false;
+    String Msg;
+
+    if (!json.is<JsonObject>())
+    {
+      Msg= "No es un  objeto json valido";
+      jsonDocument["IsSuccess"] = IsSuccess;
+      jsonDocument["Fecha_Hora"] = DataTime;
+      jsonDocument["Message"] = Msg;
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_URL_API_RECIBIDO "+ipCliente.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
+      return;
+    }
+
+    auto &&data = json.as<JsonObject>();
+
+    if (!data.containsKey("Controlador") && !data.containsKey("Metodo_Contadores")&&!data.containsKey("Metodo_Eventos")  && !data.containsKey("Metodo_RTC") && !data.containsKey("Metodo_Token"))
+    {
+      String Json;
+
+      Msg="No existen las llaves en el objeto json";
+      jsonDocument["IsSuccess"] = IsSuccess;
+      jsonDocument["Fecha_Hora"] = DataTime;
+      jsonDocument["Message"] = Msg;
+
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+      Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_URL_API_RECIBIDO "+ipCliente.toString(), "NO_EXISTE_INFORMACION_CONFIGURACION");
+      return;
     }
     else
     {
-      uint32_t tiempo = data["Tiempo"].as<uint32_t>();
-      
-      
-      if (tiempo == 0)
+
+      NVS.begin("Config_ESP32", false);
+
+      String Controlador_Principal_Actual = Configuracion.Get_Configuracion_ES(Controlador_P, "Controlador_Principal");
+      String Metodo_RTC__Actual = Configuracion.Get_Configuracion_ES(Metodo_Sincro_RTC, "Metodo_SincroRTC");
+      String Metodo_Contadores__Actual = Configuracion.Get_Configuracion_ES(Metodo_Conta, "Metodo_Contadores");
+      String Metodo_Eventos__Actual = Configuracion.Get_Configuracion_ES(Metodo_Event, "Metodo_Eventos");
+      String Metodo_Token__Actual = Configuracion.Get_Configuracion_ES(Metodo_Access_T, "Metodo_Token");
+
+      String Config = "";
+
+      String Controlador_Principal_Update; 
+      String Metodo_Contadores_Update;
+
+      String Metodo_RTC_Update; 
+      String Metodo_Eventos_Update;
+      String Metodo_Token_Update; 
+
+      if (!data.containsKey("Controlador"))
       {
-        tiempo = 15;
+        Controlador_Principal_Update=Controlador_Principal_Actual;
+        Config = Controlador_Principal_Update;
+      }
+      else
+      {
+        Controlador_Principal_Update=data["Controlador"].as<String>();
+        if(Controlador_Principal_Update=="")
+          Controlador_Principal_Update=Controlador_Principal_Actual;
+        Config = Controlador_Principal_Update;
+      }
         
+      Config += "|";
+
+      if(!data.containsKey("Metodo_RTC"))
+      {
+        Metodo_RTC_Update=Metodo_RTC__Actual;
+        Config+=Metodo_RTC_Update;
+      }else
+      {
+        Metodo_RTC_Update=data["Metodo_RTC"].as<String>();
+        Config+=Metodo_RTC_Update;
+      }
+      
+      Config += "|";
+      if (!data.containsKey("Metodo_Contadores"))
+      {
+        Metodo_Contadores_Update=Metodo_Contadores__Actual;
+        Config += Metodo_Contadores_Update;
+      }
+      else
+      {
+        Metodo_Contadores_Update=data["Metodo_Contadores"].as<String>();
+        Config += Metodo_Contadores_Update;
+      }
+        
+      Config += "|";
+
+      if (!data.containsKey("Metodo_Eventos"))
+      {
+        Metodo_Eventos_Update=Metodo_Eventos__Actual;
+        Config += Metodo_Eventos_Update;
+      }
+      else
+      {
+        Metodo_Eventos_Update=data["Metodo_Eventos"].as<String>();
+        Config += Metodo_Eventos_Update;
+      }
+        
+      Config += "|";
+
+      if (!data.containsKey("Metodo_Token"))
+      {
+        Metodo_Token_Update=Metodo_Token__Actual;
+        Config += Metodo_Token_Update;
+      }
+      else
+      {
+        Metodo_Token_Update=data["Metodo_Token"].as<String>();
+        Config += Metodo_Token_Update;
+      }
+        
+      //Serial.println(Config);
+
+      NVS.putString("Param_API", Config);
+
+      String savedString = NVS.getString("Param_API", "");
+      String ParametersAp[5];
+
+      int pos = 0;
+      int startPos = 0;
+      for (int i = 0; i < savedString.length(); i++)
+      {
+        if (savedString.charAt(i) == '|')
+        {
+          ParametersAp[pos++] = savedString.substring(startPos, i);
+          startPos = i + 1;
+        }
+      }
+      // Agrega el último elemento
+      ParametersAp[pos] = savedString.substring(startPos);
+
+      Configuracion.Set_Configuracion_ESP32_ES(Controlador_P, ParametersAp);
+      Configuracion.Set_Configuracion_ESP32_ES(Metodo_Conta, ParametersAp);
+      Configuracion.Set_Configuracion_ESP32_ES(Metodo_Event, ParametersAp);
+      Configuracion.Set_Configuracion_ESP32_ES(Metodo_Sincro_RTC, ParametersAp);
+      Configuracion.Set_Configuracion_ESP32_ES(Metodo_Access_T, ParametersAp);
+
+      NVS.end();
+
+      if (Configuracion.Get_Configuracion_ES(Controlador_P, "Controlador_Principal") == Controlador_Principal_Update && Configuracion.Get_Configuracion_ES(Metodo_Conta, "Metodo_Contadores") == Metodo_Contadores_Update &&Configuracion.Get_Configuracion_ES(Metodo_Event,"Metodo_Eventos")==Metodo_Eventos_Update && Configuracion.Get_Configuracion_ES(Metodo_Sincro_RTC,"Metodo_SincroRTC")==Metodo_RTC_Update &&Configuracion.Get_Configuracion_ES(Metodo_Access_T,"Metodo_Token")==Metodo_Token_Update)
+      {
+        IsSuccess = true;
+        Msg="Configuracion Realizada con exito";
+        Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_URL_API_RECIBIDO "+ipCliente.toString(), "CONFIGURACION_EXITOSA: "+Config);
+      }
+        
+      else
+      {
+        IsSuccess = false;
+        Msg="No fue posible guardar la configuracion";
+        Info_Cashless.Log(RTC, "COMANDO_CONFIGURAR_URL_API_RECIBIDO "+ipCliente.toString(), "NO_FUE_POSIBLE_GUARDAR_LA_CONFIGURACION: "+Config);
+      }
+        
+    }
+    jsonDocument["IsSuccess"]=IsSuccess;
+    jsonDocument["Fecha_Hora"] = DataTime;
+    jsonDocument["Message"]=Msg;
+
+  
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+
+    delay(1000);
+    if(IsSuccess)
+      ESP.restart();
+  }));
+  /*-------------------------------------------------------------------------------------------------------*/
+
+  Server_API.on("/SD_Formato_FAT32", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    bool IsSuccess=false;
+    String Msg="";
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
+
+    // Verifica que la tarjeta SD esté montada y que el archivo exista
+    if (!Variables_globales.Get_Variable_Global(SD_INSERT))
+    {
+      IsSuccess = false;
+      Msg = "Memoria SD no insertada o no inicializada";
+    }
+    else
+    {
+
+      if (!Formateo && Result_Formatt==0 && Consulta_Result_Formatt)
+      {
+        IsSuccess = true;
+        Msg = "Solicitud Formateo SDFAT32 recibida ";
+        Formateo=true;
+        Consulta_Result_Formatt=false;
+      }else
+      {
+        IsSuccess = false;
+        Msg = "Proceso de formateo actualmente en curso!";
       }
 
-      if (Info_Cashless.Guarda_Tiempo_Log(false, tiempo))
-        jsonDocument["IsSuccess"] = true;
-      else
-        jsonDocument["IsSuccess"] = false;
     }
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Fecha_Hora"] = DataTime;
 
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
     request->send(200, "application/json", Json);
-    
 
-  }));
- 
+    });
 
-  
+  Server_API.on("/Resultado_Formateo_SDFAT32", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    bool IsSuccess=false;
+    String Msg="";
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
+
+    // Verifica que la tarjeta SD esté montada y que el archivo exista
+    if (!Variables_globales.Get_Variable_Global(SD_INSERT))
+    {
+      IsSuccess = false;
+      Msg = "Memoria SD no insertada o no inicializada";
+    }
+    else
+    {
+
+      switch (Result_Formatt)
+      {
+      case FORMAT_NOT_STARTED:
+        IsSuccess = false;
+        Msg = "No existe proceso de formateo Iniciado";
+        break;
+
+      case FORMAT_IN_PROGRESS:
+        IsSuccess = false;
+        Msg = "Formateando tarjeta SD....";
+
+        break;
+
+      case FORMAT_SUCCESS:
+        IsSuccess = true;
+        Msg = "Tarjeta formateada con exito!";
+        Result_Formatt=0;
+        break;
+
+      case FORMAT_FAILED:
+        IsSuccess = false;
+        Msg = "Falla  formateando tarjeta SD";
+        Result_Formatt=0;
+        break;
+
+      default:
+
+        IsSuccess = false;
+        Msg = "Falla  formateando tarjeta SD";
+        Result_Formatt=0;
+        break;
+      }
+
+    }
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Fecha_Hora"] = DataTime;
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    Consulta_Result_Formatt=true;
+    });
 
   Server_API.begin();
+
+      
   return true;
 }
 
@@ -5561,4 +6264,19 @@ bool Buffer_RX_AFT::Set_Buffer_TITO_7C(char Buffer[])
 char *Buffer_RX_AFT::Get_Buffer_TITO_7C(void)
 {
   return Buffer_Rx_TITO_7C;
+}
+
+bool esMacValida(String mac) {
+  if (mac.length() != 17) return false;
+
+  for (int i = 0; i < mac.length(); i++) {
+    if (i % 3 == 2) {
+      if (mac.charAt(i) != ':') return false;
+    } else {
+      char c = mac.charAt(i);
+      if (!isHexadecimalDigit(c)) return false;
+    }
+  }
+
+  return true;
 }

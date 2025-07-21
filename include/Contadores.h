@@ -199,7 +199,7 @@ public:
   int Get_Type_Sesion();
   bool Verify_Tarjeta(byte Buffer_Tarjeta[]);
 
-
+  bool Starts_Tracking_Unknown_Player(void);
   bool ID_Consulta_INFO_Client(char Client[]);
 
 

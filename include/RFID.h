@@ -108,7 +108,7 @@ void Report_Http_Code(int Code_Http, String Msg="", bool Status=false);
 
 
 std::string IP_toString_(char IP_Char[]);
-
+String IP_toString_String(char IP_Char[]);
 
 enum EstadoTransfer {
     TRANSFER_IDLE,
@@ -173,12 +173,13 @@ public:
     void nuevaTransferencia(const String& json);
     bool Valida_Transmision(void);
 
-
+    bool Estado_Juego_Maquina(int Evento);
     int Recovery_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion,bool Handle_Cashless);
     void Saves_Current_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion);
     void Remove_Currrent_Player_Sesion(void);
 
-
+    void Count_Player_Sesions(bool Billete_In=false);
+    
     bool Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion);
     String Get_Current_Pending_Ack_Load(void);
     String Get_Current_Pending_Ack_Download(void);

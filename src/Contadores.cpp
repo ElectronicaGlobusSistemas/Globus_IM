@@ -1214,6 +1214,33 @@ bool Contadores_SAS::Set_Client_ID(byte Cliente[])
   return true;
 }
 
+/* Marca trama sin tarjeta (usuario desconocido)  con el id de usuario 0000000S*/
+bool Contadores_SAS::Starts_Tracking_Unknown_Player(void)
+{
+  int contador=0;
+  for (int i = 0; i < 8; i++)
+  {
+    if (i <= 6)
+      ID_Client[i] = '0';
+    else
+      ID_Client[i] = 'S';
+  }
+
+  for (int i = 0; i < 8; i++)
+  {
+
+    if(ID_Client[i]=='0'||ID_Client[i]=='S')
+      contador++;
+  }
+
+
+  if(contador>=8)
+    return true;
+  else
+
+    return false;
+}
+
 
 int Contadores_SAS::Get_Client_ID_Transaccion_Int(void)
 {

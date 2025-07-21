@@ -189,6 +189,10 @@ TaskHandle_t Check_Comunication_Maq;
 extern SemaphoreHandle_t sd_mutex;
 
 
+bool Formateo=false;
+int Result_Formatt=0;
+
+
 void setup()
 {
   
@@ -364,6 +368,10 @@ void loop()
 
   //Backup.Task_Info();
   FtpFast();
+
+
+  //Info_Cashless.Count_Player_Sesions();
+
 }
 
 /* Verifica comunicacion maquina */
@@ -384,7 +392,7 @@ static void Check_Comunicacion_Maq(void *parameter)
         if (Comunica_ == false)
         {
           condicionCumplida = false;
-          Contador_Transmision_Contadores = 0;
+          //Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
           Datos_OK = false;
@@ -401,7 +409,7 @@ static void Check_Comunicacion_Maq(void *parameter)
           Serial.println("No  Hay Comunicación con la maquina");
 #endif
           condicionCumplida = false;
-          Contador_Transmision_Contadores = 0;
+          //Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
           Datos_OK = false;
@@ -513,7 +521,7 @@ static void Check_Comunicacion_Maq(void *parameter)
         if (Comunica_ == false)
         {
           condicionCumplida = false;
-          Contador_Transmision_Contadores = 0;
+          //Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
           Datos_OK = false;
@@ -530,7 +538,7 @@ static void Check_Comunicacion_Maq(void *parameter)
           Serial.println("No  Hay Comunicación con la maquina");
 #endif
           condicionCumplida = false;
-          Contador_Transmision_Contadores = 0;
+          //Contador_Transmision_Contadores = 0;
           Contador_Maquina_En_Juego = 0;
           Fallo_Comunicacion = true; /*SI FALLO LA CONMUNICACIÓN*/
           Datos_OK = false;
@@ -779,6 +787,7 @@ void TimeOut_Player_Tracking_Sesion(void)
           Transmite_Contadores_Accounting();
           Close_Sesion_Player_Tracking();
           Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion terminada por creditos: "+String(Creditos), true);
+          Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
         }
         else
         {
@@ -829,7 +838,10 @@ void TimeOut_Player_Tracking_Sesion(void)
               if (Info_Cashless.Get_Status_Handpay_EFT())
               {
                 if (Info_Cashless.Get_Status_Handpay_EFT())
+                {
                   Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Maquina en condicion de pago no puede realizar descarga EFT:");
+                  Info_Cashless.Log(RTC,"MAQUINA_EFT_EN_CONDICION_DE_PAGO","NO_PUEDE_REALIZAR_DESCARGA_AUTOMATICA");
+                }
               }
 
               if (Info_Cashless.Type_Sesion() == !PLAYER_CASHLESS_SESION)
@@ -838,6 +850,8 @@ void TimeOut_Player_Tracking_Sesion(void)
                 Transmite_Contadores_Accounting();
                 Close_Sesion_Player_Tracking();
                 Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion fidelizacion terminada por creditos: " + String(Creditos), true);
+                Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS","CASHLESS HABILITADO");
+                
               }
 
               if (transaccionesPendientes.empty())
@@ -868,7 +882,7 @@ void TimeOut_Player_Tracking_Sesion(void)
           }
         }
       }
-      Contador_Transmision_Contadores = 0;
+      //Contador_Transmision_Contadores = 0;
       New_Timer_Final = New_Timmer_Inicial;
       startTime = currentTime;
       condicionCumplida = false;
@@ -932,8 +946,15 @@ void check_SD(void)
     }
     else
     {
+
+      Queue_SD();
+
+      Evento_Formateo_SD();
+
       if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
       {
+
+       // printOpenSockets();
 
         //  Envio_Contadores.Transmite_Eventos_API(0x11);
         FreeSpace_SD();
@@ -958,10 +979,10 @@ void check_SD(void)
         /*-----------------------> Agregar  Variables_globales.Get_Variable_Global(Comunicacion_Maq) */
         if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
         {
-          
+
           if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
           {
-            
+
             Info_Cashless.CreaLog(archivo, false, Dia_Guarda_Logs);
             /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
             String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());

@@ -6,8 +6,7 @@
 #include <HTTPClient.h>
 #include "Configuracion.h"
 #include "Pantalla_TFT.h"
-
-
+#include "RFID.h"
 
 
 
@@ -30,7 +29,8 @@ bool Flag_Conexion_TFT=false;
 bool Flag_Status_Init_Player_TFT=false;
 bool Flag_Status_Close_Player_TFT=false;
 
-
+char Tipo_Tarjeta_RFID_TFT='R';
+int Id_Cliente_TFT_Display=0;
 
 typedef struct struct_message
 {
@@ -40,7 +40,9 @@ typedef struct struct_message
 struct_message incomingData;
 
 /* MAC Destino */
-uint8_t broadcastAddress[] = {0x34, 0x85, 0x18, 0x71, 0x0C, 0xCC};
+
+
+uint8_t broadcastAddress[] = {0xB0, 0x81, 0x84, 0x96, 0x33, 0x68};
 
 extern uint8_t Address_Device_TFT_Display[];
 
@@ -75,6 +77,8 @@ void Init_TFT_Display(void)
 {
 
     /* Pregunta si existe un dispositivo sincronizado */
+
+    Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
     if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
     {
         if (esp_now_init() != ESP_OK)
@@ -119,7 +123,8 @@ void Init_TFT_Display(void)
 
                 Send_TFT(broadcastAddress, (uint8_t *)Payload.c_str(), Payload.length());
                 /* Conexion de pantalla OK */
-
+                
+                
                 if (Await_ms(get_Flag_Conexion_TFT, 1000))
                 {
                     Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
@@ -308,7 +313,8 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
         bool Issucess = doc["IsSuccess"];
         int Option = doc["Opcion"];
         int Id_Cliente = doc["Id_Cliente"];
-
+        String Tipo_Tarjeta=doc["Tipo_Tarjeta"];
+        int i=0;
         switch (Option)
         {
         case PING: /* Conexion de pantalla TFT */
@@ -328,6 +334,28 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
             
         case RETURN_SESION:
             Get_Status_Sesion_Player();
+            break;
+        
+        case LECTURA_TARJETA:
+            if(Issucess)
+            {
+
+                if (Tipo_Tarjeta == "C")
+                {
+
+                    Tipo_Tarjeta_RFID_TFT = 'C';
+                }
+                else if (Tipo_Tarjeta == "O")
+                {
+                    Tipo_Tarjeta_RFID_TFT = 'O';
+                }
+                else
+                {
+                    Tipo_Tarjeta_RFID_TFT = 'R';
+                }
+                Id_Cliente_TFT_Display=Id_Cliente;
+                Variables_globales.Set_Variable_Global(Lectura_RFD_TFT_Display,true);
+            }
             break;
         
         default:

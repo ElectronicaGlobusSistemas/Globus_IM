@@ -91,9 +91,17 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,5,0};
+uint8_t Version_Firmware_[]={2,1,5,4};
 uint8_t Address_Device_TFT_Display[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
+
+
+unsigned long tiempoDesconexionFTP = 0;
+const unsigned long TIMEOUT_FTP_MS = 30000;  // 30 segundos
+
+unsigned long tiempoSDDesconectada = 0;
+const unsigned long TIMEOUT_SD_MS = 15000;  // 15 segundos sin SD para reiniciar
+
 void Fecha_Update(bool Enable);
 
 
@@ -194,6 +202,7 @@ unsigned long buttonHoldDuration = 0;
 bool Wifi_State_AP = LOW;
 unsigned long Ping_Counter=0;
 unsigned long TimerPing=0;
+int Ping_Max=8;
 #define MAX_PING_TEST_HIGH      5
 #define MAX_PING_TEST_MEDIUM    5
 #define MAX_PING_TEST_LOW       5
@@ -269,7 +278,7 @@ void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
         if ((millis() - TimerPing) >= Timeout)
         {
             IPAddress gateway = WiFi.gatewayIP();
-            //Serial.println(gateway);
+            // Serial.println(gateway);
             if (Ping.ping((gateway)))
             {
                 Ping_Counter = 0;
@@ -286,8 +295,9 @@ void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
             // else
             //     Intentos = MAX_PING_TEST_HIGH;
 
-            if (Ping_Counter > 5)
+            if (Ping_Counter > Ping_Max)
             {
+                Info_Cashless.Log(RTC, "FALLA_PING", "Maximo_Intentos_Ping_Superado: " + gateway.toString());
                 Ping_Counter = 0;
                 WiFi.disconnect(true); /* Lanza tarea de reconexion WiFi */
             }
@@ -313,6 +323,8 @@ static void ManagerTasks(void *parameter)
 
     for (;;)
     {
+
+
         TIMEOUT_WiFi_CONNECT=millis();
         //---------------------------------> Config via Serial <-----------------------------------------
         // if (Serial.available() > 0)
@@ -403,14 +415,7 @@ static void ManagerTasks(void *parameter)
         // }
         //-------------------------------------------------------------------------------------------------------
          //--------------------------------------> Verifica Status SD en modo FTP <-------------------------------
-        if (Variables_globales.Get_Variable_Global(SD_INSERT) == false && Variables_globales.Get_Variable_Global(Ftp_Mode) == true)
-        {
-            #ifdef Debug_Task
-            Serial.println("Memoria SD Desconectada..");
-            Serial.println("Desconecta Modo FTP");
-            #endif
-            Variables_globales.Set_Variable_Global(Ftp_Mode, false);
-        }
+       
         //------------------------------------------------------------------------------------------------------
          //---------------------------------> Verifica Timeout inactividad Bootloader <--------------------------
         // if(Termina_Bootlader_Timeout)
@@ -425,9 +430,38 @@ static void ManagerTasks(void *parameter)
         //-------------------------------------------------------------------------------------------------------
 
          //----------------------------------> Verifica Modo FTP <------------------------------------------------
-        if(Variables_globales.Get_Variable_Global(Ftp_Mode) == true && WiFi.status() != WL_CONNECTED)
+        if (Variables_globales.Get_Variable_Global(Ftp_Mode))
         {
-            Variables_globales.Set_Variable_Global(Ftp_Mode, false);
+
+            if (WiFi.status() != WL_CONNECTED)
+            {
+                if (tiempoDesconexionFTP == 0)
+                    tiempoDesconexionFTP = millis();
+
+                if (millis() - tiempoDesconexionFTP > TIMEOUT_FTP_MS)
+                {
+                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "TIMEOUT_ALCANZADO_FTP_OFFLINE");
+                    delay(100);
+                    ESP.restart();
+                }
+            }
+            else
+                tiempoDesconexionFTP = 0;
+
+            if (!Variables_globales.Get_Variable_Global(SD_INSERT))
+            {
+                if (tiempoSDDesconectada == 0)
+                    tiempoSDDesconectada = millis();
+
+                if (millis() - tiempoSDDesconectada > TIMEOUT_SD_MS)
+                {
+                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "SD_REMOVIDA_EN_MODO_FTP_TIMEOUT");
+                    delay(100);
+                    ESP.restart();
+                }
+            }
+            else
+                tiempoSDDesconectada = 0;
         }
         //-------------------------------------------------------------------------------------------------------
 
@@ -473,7 +507,7 @@ static void ManagerTasks(void *parameter)
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
        
-        Ping_Test(2000,false,false);
+        Ping_Test(20000,false,false);
 
         //FtpFast();
         
@@ -1346,6 +1380,7 @@ void Init_Configuracion_Inicial(void)
     }
     
 
+    
     Serial.print("Tiempo de Transmision En Juego: ");
     Tiempo_Transmision_En_Juego=NVS.getUInt("T_En_Juego",30);
      switch (Tiempo_Transmision_En_Juego)

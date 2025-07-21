@@ -134,6 +134,8 @@ using namespace std;
 #define Status_Games_Machine                110
 #define Hand_pay_is_pending                 111
 #define Flag_Log                            112
+#define Flag_Premio_Mistery                 113
+#define Lectura_RFD_TFT_Display             114
 
 
 class Variables_Globales
@@ -246,6 +248,8 @@ private:
     bool Status_Games_Machine_;
     bool Hand_pay_is_pending_;
     bool Flag_Log_;
+    bool Flag_Premio_Mistery_;
+    bool Lectura_RFD_TFT_Display_;
     
 
 public:

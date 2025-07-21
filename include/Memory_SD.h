@@ -24,6 +24,16 @@
 #define CLK  18                      // Señal de reloj
 //-----------------------------------------------------------------------------------------
 //----------------------------> Prototipo de Funciones <-----------------------------------
+
+#define FORMAT_NOT_STARTED     0   // No existe proceso de formateo Iniciado
+#define FORMAT_IN_PROGRESS     1   // Formateando tarjeta SD...
+#define FORMAT_SUCCESS         2   // Tarjeta formateada con éxito
+#define FORMAT_FAILED          3   // Falla formateando tarjeta SD
+
+
+
+void Erro_Log_Write(String Datos, String archivo);
+void Queue_SD(void);
 void Init_SD(void);
 static void Task_Verifica_Conexion_SD(void *parameter);
 void Create_ARCHIVE_Txt( char* ARCHIVO);
@@ -35,7 +45,7 @@ void Write_Data_File3(String Datos,char *archivo,bool select, String Encabezado)
 void Read_File(const char* ARCHIVO);
 bool Remove_Archive(char* ARCHIVO);
 void Nueva_Carpeta(char* Carpeta);
-void Init_FTP_SERVER();
+bool Init_FTP_SERVER(void);
 void RESET_SD(void);
 static void Rum_FTP_SERVER(void *parameter);
 void SD_Status_Rum(void);
@@ -55,6 +65,8 @@ void LOG_ESP_Descrip(char *ARCHIVO,bool Enable,String Mensaje);
 void Erro_Log(String Datos, String archivo);
 bool VerificaArchivo(const char* archivo, String DataTime);
 void FtpFast(void);
+bool formatearSD(void);
+void Evento_Formateo_SD(void);
 //------------------------------------------------------------------------------------------
 
 

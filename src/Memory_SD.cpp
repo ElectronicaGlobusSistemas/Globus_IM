@@ -36,7 +36,14 @@ unsigned long count2 = 0;
 #include "nvs_flash.h"
 #include <esp_task_wdt.h>
 #include <Persistenca_Info.h>
+#include <SdFat.h>
 
+
+SdFat sd;
+SdCardFactory cardFactory;
+SdCard* m_card = nullptr;
+uint32_t cardSectorCount = 0;
+uint8_t sectorBuffer[512];
 //------------------------------------------------------------------------------------------------------
 //--------------------------------------------> Objetos Locales <-----------------------------------------------
 SemaphoreHandle_t sd_mutex;
@@ -47,6 +54,19 @@ FtpServer ftpSrv;           //  Objeto servidor FTP
 TaskHandle_t Ftp_SERVER;    //  Manejador de tareas
 int Contador_Escrituras=0;
 int Contador_Dias=0;
+
+
+#define SD_CS_PIN 5  // Cambia este pin según tu conexión
+#define SPI_CLOCK SD_SCK_MHZ(10)
+#define MAX_LOG_LEN      350
+#define MAX_FILENAME_LEN 64
+
+typedef struct {
+  char mensaje[MAX_LOG_LEN];
+  char archivo[MAX_FILENAME_LEN];
+} MensajeLog;
+
+QueueHandle_t cola_logs;
 
 Persistenca_Info Backup;
 
@@ -91,6 +111,9 @@ extern ESP32Time RTC;
 extern char Fallo[64];
 extern int month_copy;
 extern int year_copy;
+
+extern bool Formateo;
+extern int Result_Formatt;
 //------------------------------------------------------------------------------------------------------
 extern Buffers Buffer;            // Objeto de buffer de mensajes servidor
 //---------------------------------------> Inicializa SD <----------------------------------------------
@@ -104,17 +127,52 @@ extern Configuracion_ESP32 Configuracion;
 /**********************************************************************************/
 /*                              Inicializa Modulo SD                              */
 /**********************************************************************************/
+bool formatearSD(void) {
+  // Inicializa la tarjeta SD
+  m_card = cardFactory.newCard(SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK));
+  if (!m_card || m_card->errorCode()) {
+    Serial.println("Error: no se pudo inicializar la tarjeta SD.");
+    return false;
+  }
+
+  // // Verifica tamaño
+  // cardSectorCount = m_card->sectorCount();
+  // if (!cardSectorCount) {
+  //   Serial.println("Error: no se pudo obtener el tamaño de la tarjeta.");
+  //   return false;
+  // }
+
+  // // Validar que tenga tamaño mínimo requerido para FAT32
+  // if (cardSectorCount <= 4194304) { // 2 GiB mínimo recomendado para FAT32
+  //   Serial.println("Error: la tarjeta es muy pequeña para FAT32.");
+  //   return false;
+  // }
+
+  Serial.println("Formateando en FAT32...");
+  FatFormatter fatFormatter;
+  if (!fatFormatter.format(m_card, sectorBuffer)) {
+    Serial.println("Error al formatear en FAT32.");
+    return false;
+  }
+
+  Serial.println("Formateo FAT32 completado correctamente.");
+  return true;
+}
+
 void Init_SD(void)
 {
 //   spiRFID.begin(18,19,23,SD_ChipSelect);
 //  // spiRFID.setClockDivider(SPI_CLOCK_DIV128); /*10000000*/
 //   spiRFID.setFrequency(500000);
+
+ // formatearSD();
+  
   if(/*SD.begin( SD_ChipSelect, spiRFID, 500000)*/ SD.begin(SD_ChipSelect,SPI))
   {
     Serial.println("Memoria SD Inicializada...");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
     digitalWrite(SD_Status,HIGH);
-
+    
     //Backup.Init_Archive_Backup();
     // File root = SD.open("/");
     // while (File file = root.openNextFile())
@@ -127,6 +185,10 @@ void Init_SD(void)
     // Serial.println("Todos los archivos han sido borrados.");
 
     // root.close();
+
+    
+
+    cola_logs = xQueueCreate(10, sizeof(MensajeLog));
   }else
   {
     Serial.println("Memoria SD no insertada...");
@@ -136,16 +198,34 @@ void Init_SD(void)
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------------> Inicializa Servidor FTP <------------------------------------
-void Init_FTP_SERVER()
+bool Init_FTP_SERVER()
 {
   if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
-    ftpSrv.begin("GlobusAmin", "Globussistemas23","SuperGlobusAdmin","SuperG2023");
+    ftpSrv.begin("GlobusAmin", "Globussistemas23", "SuperGlobusAdmin", "SuperG2023");
+    return true;
   }
+  else
+    return false;
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
+/* Cola de eventos SD Controla Escritura de logs en orden de llegada de las peticiones */
+void Queue_SD(void)
+{
+
+  if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+    MensajeLog msg;
+    while (xQueueReceive(cola_logs, &msg, 0) == pdTRUE)
+    {
+      String mensaje = String(msg.mensaje);
+      String archivo = String(msg.archivo);
+      Erro_Log_Write(mensaje, archivo); // o tu versión interna que accede a la SD
+    }
+  }
+}
 
 void Rum_FTP_Server(void)
 {
@@ -185,11 +265,11 @@ void FtpFast(void)
   {
     esp_task_wdt_reset();
 
-    if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
-    {
+    // if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+    // {
       ftpSrv.handleFTP(); // Verifica Mensajes y Transferencias FTP.
-      xSemaphoreGive(sd_mutex);
-    }
+    //   xSemaphoreGive(sd_mutex);
+    // }
     esp_task_wdt_reset();
   }
 }
@@ -665,6 +745,74 @@ void Write_Data_File2(String Datos, String archivo, bool select, String Encabeza
 
 void Erro_Log(String Datos, String archivo)
 {
+
+  if (Variables_globales.Get_Variable_Global(SD_INSERT)&&!Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+
+    // if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
+    // {
+
+    //   Variables_globales.Set_Variable_Global(Flag_Log, true);
+
+    //   if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(100)))
+    //   {
+
+    //     File myFileLocal = SD.open(archivo, FILE_APPEND);
+    //     if (!myFileLocal)
+    //     {
+    //       #ifdef Debug_Escritura
+    //       Serial.println("Error No se pudo Abrir el  Archivo: " + (String)archivo);
+    //       #endif
+    //     }
+    //     else //  else por else if
+    //     {
+    //       myFileLocal.println(Datos);
+    //       myFileLocal.flush();
+    //       myFileLocal.close();
+    //       #ifdef Debug_Escritura
+    //       Serial.println("Log Capturado");
+    //       #endif
+    //     }
+    //     xSemaphoreGive(sd_mutex); // Libera el acceso
+
+    //     delay(10);
+    //   }
+    //   else
+    //   {
+    //     #ifdef Debug_Escritura
+    //     Serial.println("Recurso SD OCUPADO");
+    //     #endif
+    //   }
+
+    //   Variables_globales.Set_Variable_Global(Flag_Log, false);
+    // }
+
+    MensajeLog log;
+
+    // Copiar los datos a buffers seguros
+    strncpy(log.mensaje, Datos.c_str(), MAX_LOG_LEN - 1);
+    log.mensaje[MAX_LOG_LEN - 1] = '\0'; // Asegura el fin de cadena
+
+    strncpy(log.archivo, archivo.c_str(), MAX_FILENAME_LEN - 1);
+    log.archivo[MAX_FILENAME_LEN - 1] = '\0';
+
+    if (xQueueSend(cola_logs, &log, 50) != pdTRUE)
+    {
+#ifdef Debug_Escritura
+      Serial.println("No se envio Log a la cola");
+#endif
+    }
+    else
+    {
+#ifdef Debug_Escritura
+      Serial.println("Agrega mensaje log a la cola");
+#endif
+    }
+  }
+}
+
+void Erro_Log_Write(String Datos, String archivo)
+{
   if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
 
@@ -690,6 +838,8 @@ void Erro_Log(String Datos, String archivo)
         #endif
       }
       xSemaphoreGive(sd_mutex); // Libera el acceso
+
+      delay(10);
     }
     else
     {
@@ -918,6 +1068,8 @@ void RESET_SD(void)
   SD.end();
   SD.begin(SD_ChipSelect); // Intento Conectar SD
 }
+
+
 //-----------------------------------> Funcion para inicio y reset <--------------------------------------
 void RESET_SD_2(bool Select)
 {
@@ -1125,4 +1277,21 @@ void FLASH_RESET(void)
         }
     }
     return;
+}
+
+void Evento_Formateo_SD(void)
+{
+  if (Formateo)
+  {
+    Result_Formatt = FORMAT_IN_PROGRESS;
+    if (formatearSD())
+    {
+      Result_Formatt = FORMAT_SUCCESS; /* Finalizado con Exito!*/
+    }
+    else
+    {
+      Result_Formatt = FORMAT_FAILED; /* Finalizado Con falla */
+    }
+    Formateo = false;
+  }
 }

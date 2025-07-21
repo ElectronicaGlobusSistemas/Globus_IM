@@ -33,6 +33,9 @@ using namespace std;
 #define COMMAND_RECEIVED 0x01
 #define REJECTED 0x81
 
+
+
+#define DEBUG_CONFIG_MODE_TRAMISIONS
 class Buffer_RX_AFT
 {
 
@@ -202,9 +205,9 @@ class Transsaccion_Cashless
     unsigned char Get_Trans_ID_EFT(void);
     bool Increase_Transaction_Number_ID_EFT(void);
 
-
+    void Await_Request_HTTP();
    
-
+    
     bool Set_Inicial_Trans_ID(uint32_t Trans_ID_Memory);
     bool Sincroniza_Transaction_Number_ID(uint32_t Trans_ID_Maq);
     bool Delete_Trans_ID(bool Status=true);
@@ -241,3 +244,4 @@ class Transsaccion_Cashless
     void Set_Status_AFT_Bonus(int );
 };  
 String Token_Generator_Update(String Url);
+bool esMacValida(String mac);

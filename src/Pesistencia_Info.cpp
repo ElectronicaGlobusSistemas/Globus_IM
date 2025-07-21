@@ -110,6 +110,70 @@ bool Persistenca_Info::Enviar_Info(const String &json,int Timeout)
     return Code;
 }
 
+// bool Persistenca_Info::Crea_Archivos_Backup_Maquina(String archivo)
+// {
+//     if (SD.exists(archivo))
+//     {
+//         Serial.println("El archivo Existe");
+//         return true;
+//     }
+//     else
+//     {
+
+//         File file = SD.open(archivo, FILE_WRITE);
+
+//         if (file)
+//         {
+
+//             file.close();
+//             Serial.println("Archivo Backup Creado: " + archivo);
+//             return true;
+//         }
+//         else
+//         {
+//             Serial.println("Archivo Backup Creado: " + archivo);
+//             return false;
+//         }
+//     }
+// }
+
+
+// #define BUFFER_VACIO     0
+// #define BUFFER_CON_DATOS 1
+// #define FALLA_EN_ARCHIVO 2
+// #define SD_NO_INSERTADA  3
+
+
+
+// int Persistenca_Info::Get_Status_Backup(String Archivo, int Intentos_Conexion_SD)
+// {
+
+//     if (Variables_globales.Get_Variable_Global(SD_INSERT))
+//     {
+//         bool Pending = false;
+
+//         for (int i = 1; i < Intentos_Conexion_SD; i++)
+//         {
+//             File file = SD.open(Archivo, FILE_READ);
+
+//             if (file)
+//             {
+//                 Pending = file && file.size() > 0;
+//                 if (Pending)
+//                     return BUFFER_CON_DATOS;
+//                 else
+//                     return BUFFER_VACIO;
+//             }
+//             delay(5);
+//         }
+
+//         return FALLA_EN_ARCHIVO;
+//     }
+//     else
+//         return SD_NO_INSERTADA;
+// }
+
+
 void Persistenca_Info::enviarInformacionMaquina(const String &json)
 {
 

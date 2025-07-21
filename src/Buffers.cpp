@@ -896,39 +896,50 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     
     memcpy(Firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
-    //    Serial.println(res[0], HEX);
+    // Serial.println(Firma[0], HEX);
+    // Serial.println(Firma[1], HEX);
+    char Fir4byte[5];
+    sprintf(Fir4byte, "%02X%02X", (uint8_t)Firma[0], (uint8_t)Firma[1]);
 
-    String string_dato = String(Firma[0], HEX);
 
+    req[203] = Fir4byte[0];
+    req[204] = Fir4byte[1];
+    req[205] = Fir4byte[2];
+    req[206] = Fir4byte[3];
+    // String string_dato = String(Firma[0], HEX);
 
+    // Serial.println(Fir4byte[0]);
+    // Serial.println(Fir4byte[1]);
+    // Serial.println(Fir4byte[2]);
+    // Serial.println(Fir4byte[3]);
 
-    if(string_dato.length() < 2)
-    {
-        string_dato = "0" + string_dato;
-    }
+    // if(string_dato.length() < 2)
+    // {
+    //     string_dato = "0" + string_dato;
+    // }
 
-    (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
-    (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
+    // (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
+    // (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
 
-    //    Serial.println(res[1], HEX);
+    // //    Serial.println(res[1], HEX);
 
-    String string_dato1 = String(Firma[1], HEX);
+    // String string_dato1 = String(Firma[1], HEX);
 
-    if(string_dato1.length() < 2)
-    {
-        string_dato1 = "0" + string_dato1;
-    }
+    // if(string_dato1.length() < 2)
+    // {
+    //     string_dato1 = "0" + string_dato1;
+    // }
 
-    (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
-    (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
+    // (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
+    // (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
 
-    if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
-    {
-        req[203] = '0';
-        req[204] = '0';
-        req[205] = '0';
-        req[206] = '0';
-    }
+    // if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+    // {
+    //     req[203] = '0';
+    //     req[204] = '0';
+    //     req[205] = '0';
+    //     req[206] = '0';
+    // }
 
     req[207] = '|'; // 207
     //--------------------------------------------------------------------------------------------------
@@ -1069,14 +1080,16 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
     {
         if (Set_buffer_contadores_ACC_CRC())
         {
-            String Contadores_ = "";
-            for (int i = 4; i < 258; i++)
-            {
-                Contadores_ += buffer_contadores_ACC[i];
-            }
+            // String Contadores_ = "";
+            // for (int i = 4; i < 258; i++)
+            // {
+            //     Contadores_ += buffer_contadores_ACC[i];
+            // }
 
-            if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-                Info_Cashless.Log(RTC, "ENVIA_CONTADORES", Contadores_);
+            // if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+            //     Info_Cashless.Log(RTC, "ENVIA_CONTADORES", Contadores_);
+
+            //Serial.println(Contadores_);
             return true;
         }
         return false;
@@ -1088,6 +1101,11 @@ bool Buffers::Set_buffer_contadores_ACC(int Com, Contadores_SAS contadores, ESP3
 char *Buffers::Get_buffer_contadores_ACC_NO(void)
 {
     return buffer_contadores_ACC_NO;
+}
+
+char*Buffers::Get_buffer_contadores_ACC_No_encriptado(void)
+{
+    return buffer_contadores_ACC;
 }
 
 bool Buffers::Set_buffer_contadores_ACC_NO(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales)
@@ -1488,50 +1506,59 @@ bool Buffers::Set_buffer_contadores_ACC_NO(int Com, Contadores_SAS contadores, E
     
     memcpy(Firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
+
+    char Fir4byte[5];
+    sprintf(Fir4byte, "%02X%02X", (uint8_t)Firma[0], (uint8_t)Firma[1]);
+
+    req[203] = Fir4byte[0];
+    req[204] = Fir4byte[1];
+    req[205] = Fir4byte[2];
+    req[206] = Fir4byte[3];
+
     //    Serial.println(res[0], HEX);
 
-    String string_dato = String(Firma[0], HEX);
+    // String string_dato = String(Firma[0], HEX);
 
-    if(string_dato.length() < 2)
-    {
-        string_dato = "0" + string_dato;
-    }
+    // if(string_dato.length() < 2)
+    // {
+    //     string_dato = "0" + string_dato;
+    // }
     
 
-    /*
+    // /*
     
-    /*
+    // /*
     
-    if(string_dato1.length() < 2)
-    {
-        string_dato1 = "0" + string_dato1;
-    }
-    */
+    // if(string_dato1.length() < 2)
+    // {
+    //     string_dato1 = "0" + string_dato1;
+    // }
+    // */
 
 
-    (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
-    (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
+    // (string_dato[0] > 96) ? req[203] = string_dato[0] - 32 : req[203] = string_dato[0];
+    // (string_dato[1] > 96) ? req[204] = string_dato[1] - 32 : req[204] = string_dato[1];
 
-    //    Serial.println(res[1], HEX);
+    // //    Serial.println(res[1], HEX);
 
-    String string_dato1 = String(Firma[1], HEX);
+    // String string_dato1 = String(Firma[1], HEX);
 
 
-    if(string_dato1.length() < 2)
-    {
-        string_dato1 = "0" + string_dato1;
-    }
+    // if(string_dato1.length() < 2)
+    // {
+    //     string_dato1 = "0" + string_dato1;
+    // }
 
-    (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
-    (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
+    // (string_dato1[0] > 96) ? req[205] = string_dato1[0] - 32 : req[205] = string_dato1[0];
+    // (string_dato1[1] > 96) ? req[206] = string_dato1[1] - 32 : req[206] = string_dato1[1];
 
-    if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
-    {
-        req[203] = '0';
-        req[204] = '0';
-        req[205] = '0';
-        req[206] = '0';
-    }
+    // if (req[203] == '3' && req[204] == '0' && req[205] == '3' && req[206] == '0' || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+    // {
+    //     req[203] = '0';
+    //     req[204] = '0';
+    //     req[205] = '0';
+    //     req[206] = '0';
+    // }
 
     req[207] = '|'; // 207
     //--------------------------------------------------------------------------------------------------
@@ -2814,45 +2841,59 @@ bool Buffers::Set_buffer_ROM_Singnature(int Com, Contadores_SAS contadores)
     Aux1 = ((Aux1 & 0xFF000000) >> 24);
     req[3] = Aux1;
 
-    memcpy(res, contadores.Get_Contadores_Char(ROM_Signature), 2);
+
+    // char firma[2];
+    // memcpy(firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
 
     //    Serial.println(res[0], HEX);
 
+    char Fir4byte[5];
+    sprintf(Fir4byte, "%02X%02X", (uint8_t)contadores.Get_Contadores_Char(ROM_Signature)[0], (uint8_t)contadores.Get_Contadores_Char(ROM_Signature)[1]);
 
-    
-    String string_dato = String(res[0], HEX);
-
-    if(string_dato.length() < 2)
-    {
-        string_dato = "0" + string_dato;
-    }
-
-
-    (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
-    (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
+    req[4] = Fir4byte[0];
+    req[5] = Fir4byte[1];
+    req[6] = Fir4byte[2];
+    req[7] = Fir4byte[3];
 
 
+    Serial.println(req[4]);
+    Serial.println(req[5]);
+    Serial.println(req[6]);
+    Serial.println(req[7]);
 
-    //    Serial.println(res[1], HEX);
-    String string_dato1 = String(res[1], HEX);
+    // String string_dato = String(res[0], HEX);
+
+    // if(string_dato.length() < 2)
+    // {
+    //     string_dato = "0" + string_dato;
+    // }
 
 
-    if(string_dato1.length() < 2)
-    {
-        string_dato1 = "0" + string_dato1;
-    }
-
-    (string_dato1[0] > 96) ? req[6] = string_dato1[0] - 32 : req[6] = string_dato1[0];
-    (string_dato1[1] > 96) ? req[7] = string_dato1[1] - 32 : req[7] = string_dato1[1];
+    // (string_dato[0] > 96) ? req[4] = string_dato[0] - 32 : req[4] = string_dato[0];
+    // (string_dato[1] > 96) ? req[5] = string_dato[1] - 32 : req[5] = string_dato[1];
 
 
-    if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==17)
-    {
-        req[4]='0';
-        req[5]='0';
-        req[6]='0';
-        req[7]='0';
-    }
+
+    // //    Serial.println(res[1], HEX);
+    // String string_dato1 = String(res[1], HEX);
+
+
+    // if(string_dato1.length() < 2)
+    // {
+    //     string_dato1 = "0" + string_dato1;
+    // }
+
+    // (string_dato1[0] > 96) ? req[6] = string_dato1[0] - 32 : req[6] = string_dato1[0];
+    // (string_dato1[1] > 96) ? req[7] = string_dato1[1] - 32 : req[7] = string_dato1[1];
+
+
+    // if(req[4]=='3' &&req[5]=='0'&&req[6]=='3'&&req[7]=='0'||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==17)
+    // {
+    //     req[4]='0';
+    //     req[5]='0';
+    //     req[6]='0';
+    //     req[7]='0';
+    // }
     req[8] = '|';
 
     for (int i = 9; i < 258; i++)

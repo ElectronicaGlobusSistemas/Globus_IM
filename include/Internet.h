@@ -11,7 +11,7 @@ unsigned long interval = 30000;
 
 WiFiClient clientTCP; // Declara un objeto cliente para conectarse al servidor
 WiFiUDP clientUDP;    // Declara un objeto para cliente UDP
-WiFiUDP clientUDP2;    // Declara un objeto para cliente UDP 2
+
 
 
 String buffer;
@@ -37,6 +37,9 @@ String Password_Wifi; // Contraseña de la red
 
 TaskHandle_t Status_WIFI;
 TaskHandle_t Status_SERVER;
+
+TaskHandle_t Mensajes_Server;
+
 bool Udp_activa=false;
 void Task_Verifica_Conexion_Wifi(void *parameter);
 void Task_Verifica_Conexion_Servidor(void *parameter);
@@ -85,8 +88,8 @@ void Init_Wifi()
       5000, //8000
       NULL,
       configMAX_PRIORITIES - 5,
-      NULL,
-      0); // Core donde se ejecutara la tarea
+      &Mensajes_Server,
+      0); 
 }
 
 
@@ -133,7 +136,7 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Fallo en conexion WIFI ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","Fallo_intento_conexion_WIFI");
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","Fallo_intento_conexion_WIFI: "+ SSID_Wifi+":"+Password_Wifi);
         break;
 
         case WL_CONNECTED:
@@ -141,13 +144,15 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Wifi conectado ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","CONEXION_ESTABLECIDA");
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","CONEXION_ESTABLECIDA_CON: "+SSID_Wifi);
+            
         break;
 
         case WL_CONNECTION_LOST:
             Selector_Modo_SD();
             log_e("Estado WIFI: Se_perdio_la_conexion_Wifi ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","PERDIDA_DE_CONEXION_WIFI: "+String(WiFi.RSSI()));
         break;
 
 
@@ -155,6 +160,7 @@ void Storage_Status_WIFI(void)
             Selector_Modo_SD();
             log_e("Estado WIFI: Wifi inactivo ", 103);
             LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+            Info_Cashless.Log(RTC,"ESTADO_WIFI","WIFI INACTIVO: "+String(WiFi.RSSI()));
         break;
 
         case WL_NO_SHIELD:
@@ -176,6 +182,8 @@ void Storage_Status_WIFI(void)
 
 void CONNECT_WIFI(void)
 {
+
+  WiFi.setHostname("Globus-IM");
   //-----------------------------------------------------------------------------------------------------------
   // Obtiene direccion IP guardada en Objeto Configuracion
   memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
@@ -198,6 +206,8 @@ void CONNECT_WIFI(void)
 
   memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
 
+  
+
   WiFi.mode(WIFI_MODE_STA);
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
@@ -207,6 +217,9 @@ void CONNECT_WIFI(void)
   IPAddress secondaryDNS(DNS_Secundario[0], DNS_Secundario[1], DNS_Secundario[2], DNS_Secundario[3]); //
    
   //  bool WiFiSTAClass::config(IPAddress local_ip, IPAddress gateway, IPAddress subnet, IPAddress dns1, IPAddress dns2);
+
+
+ 
   if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
   {
     Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
@@ -240,7 +253,7 @@ void CONNECT_WIFI(void)
     Serial.println(WiFi.RSSI());
     Serial.print("Canal WiFi: ");
     Serial.println(WiFi.channel());
-
+    Serial.println(WiFi.getHostname());
 
     Reset_Config_Intentos_WIFI();
   }
@@ -303,7 +316,7 @@ void Conec()
 
 
 
-
+    WiFi.setHostname("Globus-IM");
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -348,8 +361,6 @@ void RECONECT_WIFI_ESP()
     Serial.println(WiFi.macAddress());
     clientUDP.begin(serverPort);
     Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
-    clientUDP2.begin(serverPort2);
-    Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
     Serial.print("Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
     Selector_Modo_SD();
@@ -388,7 +399,7 @@ void RECONECT_WIFI_ESP()
 
     memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
     memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
-
+    WiFi.setHostname("Globus-IM");
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -403,6 +414,8 @@ void RECONECT_WIFI_ESP()
       log_e("Error Cargando datos en modo estacion", 104);
       LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
       Intentos_Conexion_WIFI++;
+
+      Info_Cashless.Log(RTC, "STA_Failed_to_configure");
     }
 
     WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
@@ -519,6 +532,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
 
       memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
       memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
+      WiFi.setHostname("Globus-IM");
 
       WiFi.mode(WIFI_MODE_STA);
       IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
@@ -624,8 +638,73 @@ void CONNECT_SERVER_TCP(void)
     {
       clientUDP.begin(serverPort);
       Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
-      // clientUDP2.begin(serverPort2);
-      // Serial.printf("Escuchando por la IP: %s, Puerto UDP2: %d\n", WiFi.localIP().toString().c_str(), serverPort2);
+      
+
+//       if (ClienteUDPA.listen(serverPort))
+//       {
+//         Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+
+//         ClienteUDPA.onPacket([](AsyncUDPPacket packet)
+//                              {
+//       const uint8_t* data = packet.data();
+//       size_t len = packet.length();
+
+//       if (len > 0) {
+//         char incomingPacket[len + 1];
+//         memcpy(incomingPacket, data, len);
+//         incomingPacket[len] = 0;  // Terminador nulo
+
+// //#ifdef RX_Data_Server
+//         Serial.printf("Recibido %d bytes de %s:%u\n", len,
+//                       packet.remoteIP().toString().c_str(),
+//                       packet.remotePort());
+// //#endif
+
+//         // Procesamiento de buffer
+//         if (Buffer.Set_buffer_recepcion_UDP(incomingPacket)) {
+//           IPAddress serverIP_Remote = packet.remoteIP();
+
+//           uint8_t IP_Server[4];
+//           memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server));
+
+//           if (serverIP_Remote[3] != IP_Server[3] ||
+//               serverIP_Remote[2] != IP_Server[2] ||
+//               serverIP_Remote[1] != IP_Server[1] ||
+//               serverIP_Remote[0] != IP_Server[0]) {
+
+//             NVS.begin("Config_ESP32", false);
+//             uint8_t ip_server_dest[] = {
+//               serverIP_Remote[0],
+//               serverIP_Remote[1],
+//               serverIP_Remote[2],
+//               serverIP_Remote[3]
+//             };
+//             NVS.putBytes("Dir_IP_Serv", ip_server_dest, sizeof(ip_server_dest));
+//             size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
+//             char IP_SERV[ip_serv_len];
+//             NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
+//             NVS.end();
+
+//             Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
+//             memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server));
+
+//             IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+//             Info_Cashless.Log(RTC, "CAMBIO_DE_DIRECCION_IP_SERVER", serverIP.toString());
+//           }
+
+// #ifdef RX_Data_Server
+//           Serial.println("CRC de datos entrante OK");
+// #endif
+//           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
+//           Variables_globales.Set_Variable_Global(Dato_Socket_Valido, true);
+//         } else {
+// #ifdef RX_Data_Server
+//           Serial.println("CRC de datos entrante ERROR");
+// #endif
+//           Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
+//         }
+//       } });
+//       }
     }
   }
 }
@@ -711,29 +790,30 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
 {
   for (;;)
   {
+
     if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
       // Mensajes Servidor TCP
       if (clientTCP.available())
       {
         buffer = clientTCP.readStringUntil('\n'); // Leer datos a nueva línea
-        #ifdef RX_Data_Server
+#ifdef RX_Data_Server
         Serial.println("Dato entrante...");
-        #endif
+#endif
 
         if (Buffer.Set_buffer_recepcion_TCP(buffer))
         {
-          #ifdef RX_Data_Server
+#ifdef RX_Data_Server
           Serial.println("CRC de datos entrante OK");
-          #endif
+#endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
-          Variables_globales.Set_Variable_Global(Dato_Socket_Valido,true);
+          Variables_globales.Set_Variable_Global(Dato_Socket_Valido, true);
         }
         else
         {
-          #ifdef RX_Data_Server
+#ifdef RX_Data_Server
           Serial.println("CRC de datos entrante ERROR");
-          #endif
+#endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
         }
         vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -749,22 +829,20 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
     {
       // Mensajes Servidor UDP
       int packetSize = clientUDP.parsePacket();
-      int packetSize2= clientUDP2.parsePacket();
       if (packetSize)
       {
-        // receive incoming UDP packets
-        #ifdef RX_Data_Server
+// receive incoming UDP packets
+#ifdef RX_Data_Server
         Serial.printf("Received %d bytes from %s, port %d\n", packetSize, clientUDP.remoteIP().toString().c_str(), clientUDP.remotePort());
-        #endif
+#endif
         int len = clientUDP.read(incomingPacket, sizeof(incomingPacket));
         if (len > 0)
         {
           incomingPacket[len] = 0;
-          
 
           /* Guarda dirección IP  respuesta */
-         //Serial.println(clientUDP.remoteIP());
-          
+          // Serial.println(clientUDP.remoteIP());
+
           // IP_Recepcion[0]=clientUDP.remoteIP()[0];
           // IP_Recepcion[1]=clientUDP.remoteIP()[1];
           // IP_Recepcion[2]=clientUDP.remoteIP()[2];
@@ -781,11 +859,10 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
           //   size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
           //   char IP_SERV[ip_serv_len];
           //   NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
-            
+
           //   NVS.end();
           //   Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
           // }
-        
         }
         //        Serial.printf("UDP packet contents: %s\n", incomingPacket);
 
@@ -813,91 +890,21 @@ void Task_Verifica_Mensajes_Servidor(void *parameter)
           }
 #ifdef RX_Data_Server
           Serial.println("CRC de datos entrante OK");
-          #endif
+#endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, true);
-          Variables_globales.Set_Variable_Global(Dato_Socket_Valido,true);
+          Variables_globales.Set_Variable_Global(Dato_Socket_Valido, true);
         }
         else
         {
-          #ifdef RX_Data_Server
+#ifdef RX_Data_Server
           Serial.println("CRC de datos entrante ERROR");
-          #endif
+#endif
           Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido, true);
         }
+
         vTaskDelay(50 / portTICK_PERIOD_MS);
         continue;
-      }
-      else if (packetSize2)
-      {
-        // receive incoming UDP packets
-        #ifdef RX_Data_Server
-        Serial.printf("Received %d bytes from %s, port %d\n", packetSize2, clientUDP2.remoteIP().toString().c_str(), clientUDP2.remotePort());
-        #endif
-        int len = clientUDP2.read(incomingPacket2, sizeof(incomingPacket2));
-        if (len > 0)
-        {
-          incomingPacket2[len] = 0;
-
-          /* Guarda dirección IP  respuesta */
-          // Serial.println(clientUDP.remoteIP());
-
-          // IP_Recepcion[0]=clientUDP.remoteIP()[0];
-          // IP_Recepcion[1]=clientUDP.remoteIP()[1];
-          // IP_Recepcion[2]=clientUDP.remoteIP()[2];
-          // IP_Recepcion[3]=clientUDP.remoteIP()[3];
-
-          // memcpy(IP_Storage, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
-
-          // if(IP_Recepcion[3]!=IP_Storage[3] &&IP_Recepcion[2]==IP_Storage[2]) /* Ip recepcion diferente a IP  guardada  y estan en el mismo segmento de red */
-          // {
-
-          //   NVS.begin("Config_ESP32", false);
-          //   uint8_t ip_server_dest[] = {IP_Recepcion[0], IP_Recepcion[1], IP_Storage[2], IP_Recepcion[3]};
-          //   NVS.putBytes("Dir_IP_Serv", ip_server_dest, sizeof(ip_server_dest));
-          //   size_t ip_serv_len = NVS.getBytesLength("Dir_IP_Serv");
-          //   char IP_SERV[ip_serv_len];
-          //   NVS.getBytes("Dir_IP_Serv", IP_SERV, ip_serv_len);
-
-          //   NVS.end();
-          //   Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server, IP_SERV);
-          // }
-        }
-        if (Buffer.Set_buffer_recepcion_UDP2(incomingPacket2))
-        {
-          
-          IPAddress serverIP_Remote2(clientUDP2.remoteIP()[0], clientUDP2.remoteIP()[1], clientUDP2.remoteIP()[2], clientUDP2.remoteIP()[3]);
-
-          memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
-
-          if (serverIP_Remote2[3] != IP_Server2[3] || serverIP_Remote2[2] != IP_Server2[2] || serverIP_Remote2[0] != IP_Server2[0] || serverIP_Remote2[1] != IP_Server2[1]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
-          {
-            NVS.begin("Config_ESP32", false);
-            uint8_t ip_server_dest2[] = {serverIP_Remote2[0], serverIP_Remote2[1], serverIP_Remote2[2], serverIP_Remote2[3]};
-            NVS.putBytes("Dir_IP_Serv2", ip_server_dest2, sizeof(ip_server_dest2));
-            size_t ip_serv_len2 = NVS.getBytesLength("Dir_IP_Serv2");
-            char IP_SERV2[ip_serv_len2];
-            NVS.getBytes("Dir_IP_Serv2", IP_SERV2, ip_serv_len2);
-
-            NVS.end();
-            Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server2, IP_SERV2);
-            memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
-            IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
-          }
-#ifdef RX_Data_Server
-          Serial.println("CRC de datos entrante OK");
-#endif
-          Variables_globales.Set_Variable_Global(Dato_Entrante_Valido_Socket2, true);
-          //Variables_globales.Set_Variable_Global(Dato_Socket_Valido, true);
-        }
-        else
-        {
-#ifdef RX_Data_Server
-          Serial.println("CRC de datos entrante ERROR");
-#endif
-          Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido_Socket2, true);
-        }
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        continue;
+        
       }
       else
       {

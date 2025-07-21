@@ -356,6 +356,15 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Log:
         return Flag_Log_;
         break;
+
+
+    case Flag_Premio_Mistery:
+        return Flag_Premio_Mistery_;
+        break;
+
+    case Lectura_RFD_TFT_Display:
+        return Lectura_RFD_TFT_Display_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -710,6 +719,15 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Log:
         Flag_Log_=Change_estado;
         break;
+
+
+    case Flag_Premio_Mistery:
+        Flag_Premio_Mistery_=Change_estado;
+        break;
+
+    case Lectura_RFD_TFT_Display:
+        Lectura_RFD_TFT_Display_=Change_estado;
+        break;
     }
 }
 
@@ -832,6 +850,8 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Status_Games_Machine_=false;
     Hand_pay_is_pending_=false;
     Flag_Log_=false;
+    Flag_Premio_Mistery_=false;
+    Lectura_RFD_TFT_Display_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

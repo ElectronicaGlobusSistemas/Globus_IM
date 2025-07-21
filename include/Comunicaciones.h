@@ -110,7 +110,7 @@ bool No_Comunica=false;
 int Valida_Creditos_Actuales=0;
 
 extern int Tiempo_Inactividad_Maquina;
-
+extern bool Actualizacion_datos_Ok;
 
 
 
@@ -263,7 +263,7 @@ void init_Comunicaciones()
         xTaskCreatePinnedToCore(
             Task_Verifica_Hopper,
             "Verifica en estado del Hopper - Poker",
-            10000,//10000
+            6000,//10000
             NULL,
             configMAX_PRIORITIES - 4,
             &Task_Poker_Hopper,
@@ -275,79 +275,46 @@ void init_Comunicaciones()
 /********************************* TRANSMITE A SERVIDOR **********************************/
 /*****************************************************************************************/
 
-void Transmite_A_Servidor(char buffer[], int len, int Channel = 1,bool Debug=false)
+bool Transmite_A_Servidor(char buffer[], int len, int Channel = 1, bool Debug = false)
 {
 
     if (WiFi.status() == WL_CONNECTED)
     {
 
-        if (Channel == 1)
+        #ifdef Debug_Mensajes_Server
+                Serial.print("Tamaño a enviar: ");
+                Serial.println(len);
+        #endif
+        //    Serial.println("buffer enviado: ");
+        //    Serial.println(buffer);
+        int length_ = 0;
+        if (Configuracion.Get_Configuracion(Tipo_Conexion))
         {
-#ifdef Debug_Mensajes_Server
-            Serial.print("Tamaño a enviar: ");
-            Serial.println(len);
-#endif
-            //    Serial.println("buffer enviado: ");
-            //    Serial.println(buffer);
-            int length_ = 0;
-            if (Configuracion.Get_Configuracion(Tipo_Conexion))
-            {
-                length_ = clientTCP.write(buffer, len);
-                if(Debug)
-                    Info_Cashless.Log(RTC, "BUFFER_TCP_CH1", "OK");
-            }
-
-            else
-            {
-                memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
-                IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
-                uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
-
-                clientUDP.beginPacket(serverIP, serverPort);
-                length_ = clientUDP.write((const uint8_t *)buffer, len);
-                clientUDP.endPacket();
-                if(Debug)
-                    Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK");
-            }
-#ifdef Debug_Mensajes_Server
-            Serial.print("Bytes enviados: ");
-            Serial.println(length_);
-            Serial.println("--------------------------------------------------------------------");
-#endif
+            length_ = clientTCP.write(buffer, len);
+            if (Debug)
+                Info_Cashless.Log(RTC, "BUFFER_TCP_CH1", "OK");
+            return true;
         }
-        else if (Channel == 2)
+
+        else
         {
-#ifdef Debug_Mensajes_Server
-            Serial.print("Tamaño a enviar: ");
-            Serial.println(len);
-#endif
-            //    Serial.println("buffer enviado: ");
-            //    Serial.println(buffer);
-            int length_2 = 0;
-            if (Configuracion.Get_Configuracion(Tipo_Conexion))
-            {
-                length_2 = clientTCP.write(buffer, len);
-                if(Debug)
-                    Info_Cashless.Log(RTC, "BUFFER_TCP_CH2", "OK");
-            }
-            else
-            {
-                memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
-                IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
-                uint16_t serverPort2 = Configuracion.Get_Configuracion(Puerto_Server2, 0);
+            memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+            IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+            uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
 
-                clientUDP2.beginPacket(serverIP2, serverPort2);
-                length_2 = clientUDP2.write((const uint8_t *)buffer, len);
-                clientUDP2.endPacket();
-                if(Debug)
-                    Info_Cashless.Log(RTC, "BUFFER_UDP_CH2", "OK");
-            }
-#ifdef Debug_Mensajes_Server
-            Serial.print("Bytes enviados: ");
-            Serial.println(length_);
-            Serial.println("--------------------------------------------------------------------");
-#endif
+            clientUDP.beginPacket(serverIP, serverPort);
+            length_ = clientUDP.write((const uint8_t *)buffer, len);
+            clientUDP.endPacket();
+            if (Debug)
+                Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK");
+
+            return true;
         }
+#ifdef Debug_Mensajes_Server
+        Serial.print("Bytes enviados: ");
+        Serial.println(length_);
+        Serial.println("--------------------------------------------------------------------");
+#endif
     }
     else
     {
@@ -392,11 +359,19 @@ void Transmite_A_Servidor(char buffer[], int len, int Channel = 1,bool Debug=fal
             break;
         }
 
-        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error);
+        //Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error);
+        String SSID_Wifi_ = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+        String Password_Wifi_ = Configuracion.Get_Configuracion(Password, "Password_red");
+        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error+": "+SSID_Wifi_+":"+Password_Wifi_);
+        
 #ifdef Debug_Mensajes_Server
         Serial.println("No se puede enviar mensaje, no conexion a WIFI");
 #endif
+
+        return false;
     }
+
+    return false;
 }
 
 /*****************************************************************************************/
@@ -1137,7 +1112,10 @@ void Transmite_Contadores_Accounting()
             Api_G.Trasmite_Contadores_Gmaster_Api(res, Configuracion.Get_Configuracion_ES(Metodo_Conta, "Metodo_Contadores"), Variables_globales.Get_Variable_Global(Token_Valido_Generado));
         }
         else
+        {
             Serial.println("Set buffer general ERROR");
+            Info_Cashless.Log(RTC, "ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES");
+        }
     }
     else
     {
@@ -1160,7 +1138,22 @@ void Transmite_Contadores_Accounting()
 #endif
             int len = sizeof(res);
             int Channel=1;
-            Transmite_A_Servidor(res, len,Channel,true);
+
+            if (Transmite_A_Servidor(res, len, Channel, true))
+            {
+
+                IPAddress Ip(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+
+                String Contadores_ = "";
+                for (int i = 4; i < 258; i++)
+                {
+                    Contadores_ += Buffer.Get_buffer_contadores_ACC_No_encriptado()[i];
+                }
+                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                    Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), Contadores_);
+                else
+                    Info_Cashless.Log(RTC, "FALLA_ENVIANDO_TRAMA" + Ip.toString(), "NO_HAY_COMUNICACION_CON_LA_MET");
+            }
         }
         else
         {
@@ -1563,441 +1556,222 @@ void Transmite_Eco_Broadcast(int Channel = 1)
 {
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
-    if (Channel == 1)
-    {
-        // Direccion MAC ESP32
+
+    // Direccion MAC ESP32
 #ifdef Debug_Mensajes_Server
-        Serial.print("Direccion MAC: ");
-        Serial.println(WiFi.macAddress());
+    Serial.print("Direccion MAC: ");
+    Serial.println(WiFi.macAddress());
 #endif
-        String mac = WiFi.macAddress();
+    String mac = WiFi.macAddress();
 
 // Direccion IP ESP32
 #ifdef Debug_Mensajes_Server
-        Serial.print("Direccion IP Local: ");
+    Serial.print("Direccion IP Local: ");
 #endif
-        uint32_t ip = WiFi.localIP();
+    uint32_t ip = WiFi.localIP();
 #ifdef Debug_Mensajes_Server
-        Serial.println(WiFi.localIP());
+    Serial.println(WiFi.localIP());
 #endif
 
 // Socket de conexion
 #ifdef Debug_Mensajes_Server
-        Serial.print("Socket: ");
+    Serial.print("Socket: ");
 #endif
-        string socket;
-        if (Configuracion.Get_Configuracion(Tipo_Conexion))
-        {
-#ifdef Debug_Mensajes_Server
-            Serial.println(clientTCP.remotePort());
-#endif
-            socket = std::to_string(clientTCP.remotePort());
-        }
-        else
-        {
-#ifdef Debug_Mensajes_Server
-            Serial.println(clientUDP.remotePort());
-#endif
-            socket = std::to_string(clientUDP.remotePort());
-        }
-
-// Mascara subred ESP32
-#ifdef Debug_Mensajes_Server
-        Serial.print("Mascara Subred: ");
-        Serial.println(WiFi.subnetMask());
-
-        // Puerta de enlace ESP32
-        Serial.print("Puerta de enlace: ");
-        Serial.println(WiFi.gatewayIP());
-
-        // Nombre de la maquina
-        Serial.print("Nombre de MAQ: ");
-#endif
-        String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
-#ifdef Debug_Mensajes_Server
-        Serial.println(Name);
-
-        Serial.print("**************************************************************************************");
-        Serial.println();
-#endif
-        char IP[4];
-        bzero(IP, 4);
-        memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
-
-        char dir_ip[12] = {};
-        int j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)IP[i];
-            dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            dir_ip[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        char IP_GW[4];
-        bzero(IP_GW, 4);
-        memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
-
-        char dir_ip_gw[12] = {};
-        j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)IP_GW[i];
-            dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            dir_ip_gw[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        char SN_MASK[4];
-        bzero(SN_MASK, 4);
-        memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
-
-        char sn_mask[12] = {};
-        j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)SN_MASK[i];
-            sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            sn_mask[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        res[0] = 'L';
-        res[1] = '|';
-        res[2] = '0';
-        res[3] = '1';
-        res[4] = '|';
-        // MAC
-        res[5] = mac[0];
-        res[6] = mac[1];
-        res[7] = mac[2];
-        res[8] = mac[3];
-        res[9] = mac[4];
-        res[10] = mac[5];
-        res[11] = mac[6];
-        res[12] = mac[7];
-        res[13] = mac[8];
-        res[14] = mac[9];
-        res[15] = mac[10];
-        res[16] = mac[11];
-        res[17] = mac[12];
-        res[18] = mac[13];
-        res[19] = mac[14];
-        res[20] = mac[15];
-        res[21] = mac[16];
-        res[22] = '|';
-        // PORT
-        res[23] = '0';
-        res[24] = socket[0];
-        res[25] = socket[1];
-        res[26] = socket[2];
-        res[27] = socket[3];
-        res[28] = '|';
-        // IP
-        res[29] = dir_ip[0];
-        res[30] = dir_ip[1];
-        res[31] = dir_ip[2];
-        res[32] = '.';
-        res[33] = dir_ip[3];
-        res[34] = dir_ip[4];
-        res[35] = dir_ip[5];
-        res[36] = '.';
-        res[37] = dir_ip[6];
-        res[38] = dir_ip[7];
-        res[39] = dir_ip[8];
-        res[40] = '.';
-        res[41] = dir_ip[9];
-        res[42] = dir_ip[10];
-        res[43] = dir_ip[11];
-        res[44] = '|';
-        // MASCARA
-        res[45] = sn_mask[0];
-        res[46] = sn_mask[1];
-        res[47] = sn_mask[2];
-        res[48] = '.';
-        res[49] = sn_mask[3];
-        res[50] = sn_mask[4];
-        res[51] = sn_mask[5];
-        res[52] = '.';
-        res[53] = sn_mask[6];
-        res[54] = sn_mask[7];
-        res[55] = sn_mask[8];
-        res[56] = '.';
-        res[57] = sn_mask[9];
-        res[58] = sn_mask[10];
-        res[59] = sn_mask[11];
-        res[60] = '|';
-        // IP Enlace
-        res[61] = dir_ip_gw[0];
-        res[62] = dir_ip_gw[1];
-        res[63] = dir_ip_gw[2];
-        res[64] = '.';
-        res[65] = dir_ip_gw[3];
-        res[66] = dir_ip_gw[4];
-        res[67] = dir_ip_gw[5];
-        res[68] = '.';
-        res[69] = dir_ip_gw[6];
-        res[70] = dir_ip_gw[7];
-        res[71] = dir_ip_gw[8];
-        res[72] = '.';
-        res[73] = dir_ip_gw[9];
-        res[74] = dir_ip_gw[10];
-        res[75] = dir_ip_gw[11];
-        res[76] = '|';
-        // Nombre MAQ
-        res[77] = Name[0];
-        res[78] = Name[1];
-        res[79] = Name[2];
-        res[80] = Name[3];
-        res[81] = Name[4];
-        res[82] = Name[5];
-        res[83] = Name[6];
-        res[84] = Name[7];
-        res[85] = Name[8];
-        res[86] = Name[9];
-        res[87] = Name[10];
-        res[88] = Name[11];
-        res[89] = Name[12];
-        res[90] = Name[13];
-        res[91] = Name[14];
-        res[92] = Name[15];
-
-#ifdef Debug_Mensajes_Server
-        Serial.println("Set buffer general OK");
-#endif
-
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len);
-    }else if(Channel ==2)
+    string socket;
+    if (Configuracion.Get_Configuracion(Tipo_Conexion))
     {
-          // Direccion MAC ESP32
 #ifdef Debug_Mensajes_Server
-        Serial.print("Direccion MAC: ");
-        Serial.println(WiFi.macAddress());
+        Serial.println(clientTCP.remotePort());
 #endif
-        String mac = WiFi.macAddress();
-
-// Direccion IP ESP32
-#ifdef Debug_Mensajes_Server
-        Serial.print("Direccion IP Local: ");
-#endif
-        uint32_t ip = WiFi.localIP();
-#ifdef Debug_Mensajes_Server
-        Serial.println(WiFi.localIP());
-#endif
-
-// Socket de conexion
-#ifdef Debug_Mensajes_Server
-        Serial.print("Socket: ");
-#endif
-        string socket;
-        if (Configuracion.Get_Configuracion(Tipo_Conexion))
-        {
-#ifdef Debug_Mensajes_Server
-            Serial.println(clientTCP.remotePort());
-#endif
-            socket = std::to_string(clientTCP.remotePort());
-        }
-        else
-        {
-#ifdef Debug_Mensajes_Server
-            Serial.println(clientUDP.remotePort());
-#endif
-            socket = std::to_string(clientUDP2.remotePort());
-        }
-
-// Mascara subred ESP32
-#ifdef Debug_Mensajes_Server
-        Serial.print("Mascara Subred: ");
-        Serial.println(WiFi.subnetMask());
-
-        // Puerta de enlace ESP32
-        Serial.print("Puerta de enlace: ");
-        Serial.println(WiFi.gatewayIP());
-
-        // Nombre de la maquina
-        Serial.print("Nombre de MAQ: ");
-#endif
-        String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
-#ifdef Debug_Mensajes_Server
-        Serial.println(Name);
-
-        Serial.print("**************************************************************************************");
-        Serial.println();
-#endif
-        char IP[4];
-        bzero(IP, 4);
-        memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
-
-        char dir_ip[12] = {};
-        int j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)IP[i];
-            dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            dir_ip[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        char IP_GW[4];
-        bzero(IP_GW, 4);
-        memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
-
-        char dir_ip_gw[12] = {};
-        j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)IP_GW[i];
-            dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            dir_ip_gw[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        char SN_MASK[4];
-        bzero(SN_MASK, 4);
-        memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
-
-        char sn_mask[12] = {};
-        j = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            int octeto = (int)SN_MASK[i];
-            sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
-            j++;
-            int resultado = octeto % 100;
-            sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
-            j++;
-            sn_mask[j] = (resultado % 10) + '0';
-            j++;
-        }
-
-        res[0] = 'L';
-        res[1] = '|';
-        res[2] = '0';
-        res[3] = '1';
-        res[4] = '|';
-        // MAC
-        res[5] = mac[0];
-        res[6] = mac[1];
-        res[7] = mac[2];
-        res[8] = mac[3];
-        res[9] = mac[4];
-        res[10] = mac[5];
-        res[11] = mac[6];
-        res[12] = mac[7];
-        res[13] = mac[8];
-        res[14] = mac[9];
-        res[15] = mac[10];
-        res[16] = mac[11];
-        res[17] = mac[12];
-        res[18] = mac[13];
-        res[19] = mac[14];
-        res[20] = mac[15];
-        res[21] = mac[16];
-        res[22] = '|';
-        // PORT
-        res[23] = '0';
-        res[24] = socket[0];
-        res[25] = socket[1];
-        res[26] = socket[2];
-        res[27] = socket[3];
-        res[28] = '|';
-        // IP
-        res[29] = dir_ip[0];
-        res[30] = dir_ip[1];
-        res[31] = dir_ip[2];
-        res[32] = '.';
-        res[33] = dir_ip[3];
-        res[34] = dir_ip[4];
-        res[35] = dir_ip[5];
-        res[36] = '.';
-        res[37] = dir_ip[6];
-        res[38] = dir_ip[7];
-        res[39] = dir_ip[8];
-        res[40] = '.';
-        res[41] = dir_ip[9];
-        res[42] = dir_ip[10];
-        res[43] = dir_ip[11];
-        res[44] = '|';
-        // MASCARA
-        res[45] = sn_mask[0];
-        res[46] = sn_mask[1];
-        res[47] = sn_mask[2];
-        res[48] = '.';
-        res[49] = sn_mask[3];
-        res[50] = sn_mask[4];
-        res[51] = sn_mask[5];
-        res[52] = '.';
-        res[53] = sn_mask[6];
-        res[54] = sn_mask[7];
-        res[55] = sn_mask[8];
-        res[56] = '.';
-        res[57] = sn_mask[9];
-        res[58] = sn_mask[10];
-        res[59] = sn_mask[11];
-        res[60] = '|';
-        // IP Enlace
-        res[61] = dir_ip_gw[0];
-        res[62] = dir_ip_gw[1];
-        res[63] = dir_ip_gw[2];
-        res[64] = '.';
-        res[65] = dir_ip_gw[3];
-        res[66] = dir_ip_gw[4];
-        res[67] = dir_ip_gw[5];
-        res[68] = '.';
-        res[69] = dir_ip_gw[6];
-        res[70] = dir_ip_gw[7];
-        res[71] = dir_ip_gw[8];
-        res[72] = '.';
-        res[73] = dir_ip_gw[9];
-        res[74] = dir_ip_gw[10];
-        res[75] = dir_ip_gw[11];
-        res[76] = '|';
-        // Nombre MAQ
-        res[77] = Name[0];
-        res[78] = Name[1];
-        res[79] = Name[2];
-        res[80] = Name[3];
-        res[81] = Name[4];
-        res[82] = Name[5];
-        res[83] = Name[6];
-        res[84] = Name[7];
-        res[85] = Name[8];
-        res[86] = Name[9];
-        res[87] = Name[10];
-        res[88] = Name[11];
-        res[89] = Name[12];
-        res[90] = Name[13];
-        res[91] = Name[14];
-        res[92] = Name[15];
-
-#ifdef Debug_Mensajes_Server
-        Serial.println("Set buffer general OK");
-#endif
-
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len,Channel);
+        socket = std::to_string(clientTCP.remotePort());
     }
+    else
+    {
+#ifdef Debug_Mensajes_Server
+        Serial.println(clientUDP.remotePort());
+#endif
+        socket = std::to_string(clientUDP.remotePort());
+    }
+
+// Mascara subred ESP32
+#ifdef Debug_Mensajes_Server
+    Serial.print("Mascara Subred: ");
+    Serial.println(WiFi.subnetMask());
+
+    // Puerta de enlace ESP32
+    Serial.print("Puerta de enlace: ");
+    Serial.println(WiFi.gatewayIP());
+
+    // Nombre de la maquina
+    Serial.print("Nombre de MAQ: ");
+#endif
+    String Name = Configuracion.Get_Configuracion(Nombre_Maquina, "Nombre_Maq");
+#ifdef Debug_Mensajes_Server
+    Serial.println(Name);
+
+    Serial.print("**************************************************************************************");
+    Serial.println();
+#endif
+    char IP[4];
+    bzero(IP, 4);
+    memcpy(IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP) / sizeof(IP[0]));
+
+    char dir_ip[12] = {};
+    int j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)IP[i];
+        dir_ip[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        dir_ip[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        dir_ip[j] = (resultado % 10) + '0';
+        j++;
+    }
+
+    char IP_GW[4];
+    bzero(IP_GW, 4);
+    memcpy(IP_GW, Configuracion.Get_Configuracion(Direccion_IP_GW, 'x'), sizeof(IP_GW) / sizeof(IP_GW[0]));
+
+    char dir_ip_gw[12] = {};
+    j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)IP_GW[i];
+        dir_ip_gw[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        dir_ip_gw[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        dir_ip_gw[j] = (resultado % 10) + '0';
+        j++;
+    }
+
+    char SN_MASK[4];
+    bzero(SN_MASK, 4);
+    memcpy(SN_MASK, Configuracion.Get_Configuracion(Direccion_SN_MASK, 'x'), sizeof(SN_MASK) / sizeof(SN_MASK[0]));
+
+    char sn_mask[12] = {};
+    j = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        int octeto = (int)SN_MASK[i];
+        sn_mask[j] = ((octeto - (octeto % 100)) / 100) + '0';
+        j++;
+        int resultado = octeto % 100;
+        sn_mask[j] = ((resultado - (resultado % 10)) / 10) + '0';
+        j++;
+        sn_mask[j] = (resultado % 10) + '0';
+        j++;
+    }
+
+    res[0] = 'L';
+    res[1] = '|';
+    res[2] = '0';
+    res[3] = '1';
+    res[4] = '|';
+    // MAC
+    res[5] = mac[0];
+    res[6] = mac[1];
+    res[7] = mac[2];
+    res[8] = mac[3];
+    res[9] = mac[4];
+    res[10] = mac[5];
+    res[11] = mac[6];
+    res[12] = mac[7];
+    res[13] = mac[8];
+    res[14] = mac[9];
+    res[15] = mac[10];
+    res[16] = mac[11];
+    res[17] = mac[12];
+    res[18] = mac[13];
+    res[19] = mac[14];
+    res[20] = mac[15];
+    res[21] = mac[16];
+    res[22] = '|';
+    // PORT
+    res[23] = '0';
+    res[24] = socket[0];
+    res[25] = socket[1];
+    res[26] = socket[2];
+    res[27] = socket[3];
+    res[28] = '|';
+    // IP
+    res[29] = dir_ip[0];
+    res[30] = dir_ip[1];
+    res[31] = dir_ip[2];
+    res[32] = '.';
+    res[33] = dir_ip[3];
+    res[34] = dir_ip[4];
+    res[35] = dir_ip[5];
+    res[36] = '.';
+    res[37] = dir_ip[6];
+    res[38] = dir_ip[7];
+    res[39] = dir_ip[8];
+    res[40] = '.';
+    res[41] = dir_ip[9];
+    res[42] = dir_ip[10];
+    res[43] = dir_ip[11];
+    res[44] = '|';
+    // MASCARA
+    res[45] = sn_mask[0];
+    res[46] = sn_mask[1];
+    res[47] = sn_mask[2];
+    res[48] = '.';
+    res[49] = sn_mask[3];
+    res[50] = sn_mask[4];
+    res[51] = sn_mask[5];
+    res[52] = '.';
+    res[53] = sn_mask[6];
+    res[54] = sn_mask[7];
+    res[55] = sn_mask[8];
+    res[56] = '.';
+    res[57] = sn_mask[9];
+    res[58] = sn_mask[10];
+    res[59] = sn_mask[11];
+    res[60] = '|';
+    // IP Enlace
+    res[61] = dir_ip_gw[0];
+    res[62] = dir_ip_gw[1];
+    res[63] = dir_ip_gw[2];
+    res[64] = '.';
+    res[65] = dir_ip_gw[3];
+    res[66] = dir_ip_gw[4];
+    res[67] = dir_ip_gw[5];
+    res[68] = '.';
+    res[69] = dir_ip_gw[6];
+    res[70] = dir_ip_gw[7];
+    res[71] = dir_ip_gw[8];
+    res[72] = '.';
+    res[73] = dir_ip_gw[9];
+    res[74] = dir_ip_gw[10];
+    res[75] = dir_ip_gw[11];
+    res[76] = '|';
+    // Nombre MAQ
+    res[77] = Name[0];
+    res[78] = Name[1];
+    res[79] = Name[2];
+    res[80] = Name[3];
+    res[81] = Name[4];
+    res[82] = Name[5];
+    res[83] = Name[6];
+    res[84] = Name[7];
+    res[85] = Name[8];
+    res[86] = Name[9];
+    res[87] = Name[10];
+    res[88] = Name[11];
+    res[89] = Name[12];
+    res[90] = Name[13];
+    res[91] = Name[14];
+    res[92] = Name[15];
+
+#ifdef Debug_Mensajes_Server
+    Serial.println("Set buffer general OK");
+#endif
+
+    int len = sizeof(res);
+    Transmite_A_Servidor(res, len);
 }
 
 /*****************************************************************************************/
@@ -2382,55 +2156,60 @@ void Guarda_Configuracion_ESP32(void)
         
         Encuesta_ROM();
         delay(600);
-        String string_dato = String(contadores.Get_Contadores_Char(ROM_Signature)[0], HEX);
-        String string_dato1 = String(contadores.Get_Contadores_Char(ROM_Signature)[1], HEX);
-        
+        // String string_dato = String(contadores.Get_Contadores_Char(ROM_Signature)[0], HEX);
+        // String string_dato1 = String(contadores.Get_Contadores_Char(ROM_Signature)[1], HEX);
+        char Fir4byte[5];
+        sprintf(Fir4byte, "%02X%02X", (uint8_t)contadores.Get_Contadores_Char(ROM_Signature)[0], (uint8_t)contadores.Get_Contadores_Char(ROM_Signature)[1]);
 
+        res[11] = Fir4byte[0];
+        res[12] = Fir4byte[1];
+        res[13] = Fir4byte[2];
+        res[14] = Fir4byte[3];
 
+        res[15] = '&';
 
-        char Valida[2];
+        // char Valida[2];
 
-        Valida[0]=contadores.Get_Contadores_Char(ROM_Signature)[0];
-        Valida[1]=contadores.Get_Contadores_Char(ROM_Signature)[1];
+        // Valida[0]=contadores.Get_Contadores_Char(ROM_Signature)[0];
+        // Valida[1]=contadores.Get_Contadores_Char(ROM_Signature)[1];
 
+        // if(Valida[0]!='0'&& Valida[1]!='0')
+        // {
 
-        if(Valida[0]!='0'&& Valida[1]!='0')
-        {
+        //     if (string_dato1.length() < 2)
+        //     {
+        //         string_dato1 = "0" + string_dato1;
+        //     }
 
-            if (string_dato1.length() < 2)
-            {
-                string_dato1 = "0" + string_dato1;
-            }
+        //     if (string_dato.length() < 2)
+        //     {
+        //         string_dato = "0" + string_dato;
+        //     }
 
-            if (string_dato.length() < 2)
-            {
-                string_dato = "0" + string_dato;
-            }
+        //     (string_dato[0] > 96) ? res[11] = string_dato[0] - 32 : res[11] = string_dato[0];
+        //     (string_dato[1] > 96) ? res[12] = string_dato[1] - 32 : res[12] = string_dato[1];
 
-            (string_dato[0] > 96) ? res[11] = string_dato[0] - 32 : res[11] = string_dato[0];
-            (string_dato[1] > 96) ? res[12] = string_dato[1] - 32 : res[12] = string_dato[1];
+        // //    Serial.println(res[1], HEX);
 
-        //    Serial.println(res[1], HEX);
+        //     (string_dato1[0] > 96) ? res[13] = string_dato1[0] - 32 : res[13] = string_dato1[0];
+        //     (string_dato1[1] > 96) ? res[14] = string_dato1[1] - 32 : res[14] = string_dato1[1];
+        //     res[15]='&';
+        // }else{
+        //     res[11] = '0';
+        //     res[12] = '0';
+        //     res[13] = '0';
+        //     res[14] = '0';
+        //     res[15] = '&';
+        // }
 
-            (string_dato1[0] > 96) ? res[13] = string_dato1[0] - 32 : res[13] = string_dato1[0];
-            (string_dato1[1] > 96) ? res[14] = string_dato1[1] - 32 : res[14] = string_dato1[1];
-            res[15]='&';
-        }else{
-            res[11] = '0';
-            res[12] = '0';
-            res[13] = '0';
-            res[14] = '0';
-            res[15] = '&';
-        }
-
-        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
-        {
-            res[11] = '0';
-            res[12] = '0';
-            res[13] = '0';
-            res[14] = '0';
-            res[15] = '&';
-        }
+        // if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
+        // {
+        //     res[11] = '0';
+        //     res[12] = '0';
+        //     res[13] = '0';
+        //     res[14] = '0';
+        //     res[15] = '&';
+        // }
 
         for (int i = 16; i < 256; i++)
         {
@@ -2441,9 +2220,12 @@ void Guarda_Configuracion_ESP32(void)
         #endif
         int len = sizeof(res);
         Transmite_A_Servidor(res, len);
+
         if (cambios)
-            delay(600);
+        {
+            delay(1000);
             ESP.restart();
+        }
     }
 }
 
@@ -2609,15 +2391,15 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
     Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita Guardado de Datos.
     if (!Variables_globales.Get_Variable_Global(Enable_Storage))
     {
+
         Info_Cashless.Log(RTC, "MODO_FTP_INICIADO", "COMANDO_315_RECIBIDO");
         Variables_globales.Set_Variable_Global(Ftp_Mode, true); // Activa ftp
         
         if (Variables_globales.Get_Variable_Global(Ftp_Mode))
         {
-            
             //vTaskSuspend(Encuestas);
             //vTaskSuspend(RecepcionRS232);
-           
+
             vTaskDelete(Check_Comunication_Maq);
             Variables_globales.Set_Variable_Global(Comunicacion_Maq,false);
             
@@ -2800,40 +2582,83 @@ void Data_Forwarding::Forwarding_Contadores_Accounting(void)
 Data_Forwarding Transmite_Reenvio_Contadores;
 
 
+unsigned long Timer_Ftp_Inicial = 0;
+int Intervalo_Envio = 10000;  // 20 segundos
+
+void Reporte_FTP(bool FtpMode)
+{
+    if (FtpMode)
+    {
+        if (millis() - Timer_Ftp_Inicial > Intervalo_Envio)
+        {
+            Timer_Ftp_Inicial = millis();
+
+            // Aquí el código del reporte
+            Info_Cashless.Log(RTC, "MODO_FTP_ACTIVO", "Reporte_Periodico");
+
+#ifdef Debug_Task
+            Serial.println("🟢 Reporte FTP activo enviado");
+#endif
+
+            Transmite_Confirmacion('T', 'P');
+        }
+    }
+    else
+    {
+        // Si ya no está en modo FTP, reinicia el contador
+        Timer_Ftp_Inicial = millis();
+    }
+}
 
 /*****************************************************************************************/
 /********************************** MENSAJES RFID ****************************************/
 /*****************************************************************************************/
 void Mensajes_RFID(void)
 {
-
+    
     /* -------------------------> Contadores Inicio sesion RFID<-----------------------------------*/
     if(Variables_globales.Get_Variable_Global(Flag_Contadores_Sesion_ON))  
     {
-
+        
         esp_task_wdt_reset();
         if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
         {
+            Credit_Handle=true;
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
             Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-            delay(300);
+
+            unsigned long tiempoInicio = millis();
+            unsigned long timeout = 2000; // 5 segundos de espera máximo
+
+            while ((millis() - tiempoInicio < timeout))
+            {
+                esp_task_wdt_reset();
+                vTaskDelay(pdMS_TO_TICKS(200)); // Espera 200 ms entre chequeos
+            }
+
         }
-       
+
         esp_task_wdt_reset();
         #ifdef Debug_Mensajes_RFID
         Serial.println("Contadores Sesion RFID Iniciada....");
         #endif
         if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
         {
-            Transmite_Contadores_Accounting();
+
             if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
             {
-                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
                 // delay(50);
                 // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
             }
+            else
+            {
+                Transmite_Contadores_Accounting();
+            }
         }else{
             Transmite_Confirmacion('A', '0');
+            
         }
         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);       
         Variables_globales.Set_Variable_Global(Flag_Contadores_Sesion_ON, false);
@@ -2850,22 +2675,33 @@ void Mensajes_RFID(void)
             if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
             {   
                 Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-                delay(300);
+                //delay(300);
+
+                unsigned long tiempoInicio = millis();
+                unsigned long timeout = 2000; // 2 segundos de espera máximo
+
+                while ((millis() - tiempoInicio < timeout))
+                {
+                    esp_task_wdt_reset();
+                    vTaskDelay(pdMS_TO_TICKS(200)); // Espera 200 ms entre chequeos
+                }
             }
            
             esp_task_wdt_reset();
             #ifdef Debug_Mensajes_RFID
             Serial.println("Contadores Sesion RFID Terminada....");
             #endif
-            Transmite_Contadores_Accounting();
+            
             // delay(50);
             // Transmite_Contadores_Accounting();
 
             if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
             {
-                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
                 // delay(50);
                 // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+            }else{
+                Transmite_Contadores_Accounting();
             }
         }else{
             Transmite_Confirmacion('A', '0');
@@ -2926,10 +2762,12 @@ void Mensajes_RFID(void)
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                         Encuesta_Creditos_Premio(); /*Encuesta creditos despues de premio*/
                         delay(350);
-                        Transmite_Contadores_Accounting(); /* Envia Contadores*/
+                        
 
                         if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
-                            Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                            Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
+                        else
+                            Transmite_Contadores_Accounting(); /* Envia Contadores*/
 
                         Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
                         if (Variables_globales.Get_Variable_Global(Conexion_RFID))
@@ -3102,15 +2940,17 @@ void Mensajes_RFID(void)
                         delay(350);
                     }
                     Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
-                    Transmite_Contadores_Accounting();
+                    
                     // delay(50);
                     // Transmite_Contadores_Accounting();
 
                     if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }else{
+                        Transmite_Contadores_Accounting();
                     }
 
                     /* --------------------------->  Add <-----------------*/
@@ -3124,6 +2964,8 @@ void Mensajes_RFID(void)
 
             if(contadores.Get_Status_Flag_Bill_In() && !Variable_Solicitud_Operador_Id)
             {
+
+                //Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
 
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
                 {
@@ -3145,10 +2987,14 @@ void Mensajes_RFID(void)
                                 Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
                             }
                         }
-                        Transmite_Contadores_Accounting();
+
                         if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
                         {
-                            Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                            Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
+                        }
+                        else
+                        {
+                            Transmite_Contadores_Accounting();
                         }
                     }
                     /*----------------------------------------------------------------------------------*/
@@ -3167,15 +3013,17 @@ void Mensajes_RFID(void)
                         Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
                         delay(350);
                     }
-                    Transmite_Contadores_Accounting();
+                    
                     // delay(50);
                     // Transmite_Contadores_Accounting();
 
                     if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                    }else{
+                        Transmite_Contadores_Accounting();
                     }
                     /*----------------------------------------------------------------------------------*/
                     New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
@@ -3256,7 +3104,9 @@ void Task_Procesa_Comandos(void *parameter)
             bzero(Tmp, 258);
 
             memcpy(res, Buffer.Get_buffer_recepcion(), 258);
-           
+
+            // Serial.println("Recibido: ");
+            // Serial.println(Comando_Recibido());
             switch (Comando_Recibido())
             {
             case 3:
@@ -3438,29 +3288,51 @@ void Task_Procesa_Comandos(void *parameter)
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
                     if (Inactiva_Maquina())
+                    {
                         Transmite_Confirmacion('A', 'B');
+
+                        Info_Cashless.Log(RTC, "SOLICITUD_INACTIVA_MAQUINA_SOCKET_RECIBIDA","MAQUINA_INACTIVADA_CON_EXITO");
+                    }
                     else
+                    {
                         Transmite_Confirmacion('A', 'C');
+                        Info_Cashless.Log(RTC, "SOLICITUD_INACTIVA_MAQUINA_SOCKET_RECIBIDA","FALLO_INACTIVANDO_MAQUINA");
+                    }
+                        
                 }
                 else
+                {
                     Transmite_Confirmacion('A', '0');
+                    Info_Cashless.Log(RTC, "SOLICITUD_INACTIVA_MAQUINA_SOCKET_RECIBIDA","NO_HAY_COMUNICACION_CON_LA_MET");
+                }
+                    
                 break;
 
             case 18:
-                 #ifdef Debug_Mensajes_Server
+                #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de activar maquina");
                 #endif
+
+                
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
                     if (Activa_Maquina())
+                    {
                         Transmite_Confirmacion('A', '9');
+                        Info_Cashless.Log(RTC, "SOLICITUD_ACTIVA_MAQUINA_SOCKET_RECIBIDA","MAQUINA_ACTIVADA_CON_EXITO");
+                    }
                     else
+                    {
                         Transmite_Confirmacion('A', 'A');
+                        Info_Cashless.Log(RTC, "SOLICITUD_ACTIVA_MAQUINA_SOCKET_RECIBIDA","FALLO_ACTIVANDO_MAQUINA");
+                    }
                 }
                 else
+                {
                     Transmite_Confirmacion('A', '0');
+                    Info_Cashless.Log(RTC, "SOLICITUD_ACTIVA_MAQUINA_SOCKET_RECIBIDA","NO HAY_COMUNCIACION_CON_LA_MET");
+                }
                 break;
-
             case 181:
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Confirmacion contadores recibido con exito");
@@ -4440,104 +4312,18 @@ void Task_Procesa_Comandos(void *parameter)
             /* Reset timer*/
             Finally_Timer = Start_Timer;
         }
-        //Procesa_Comandos_Socket2();
-       // Mensajes_RFID();
+       
         vTaskDelay(100 / portTICK_PERIOD_MS);
       //  continue;
     }
     vTaskDelay(10);
 }
 
-void Procesa_Comandos_Socket2(void)
-{
-    #define SOCKET2 2
-    if (Variables_globales.Get_Variable_Global(Dato_Entrante_Valido_Socket2))
-    {
-        // esp_task_wdt_reset();
-        Variables_globales.Set_Variable_Global(Dato_Entrante_Valido_Socket2, false);
-        //            flag_dato_valido_recibido = false;
 
-        char res[258] = {};
-        bzero(res, 258); // Pone el buffer en 0
-
-        char Tmp[258] = {};
-        bzero(Tmp, 258);
-
-        memcpy(res, Buffer.Get_buffer_recepcion2(), 258);
-
-        switch (Comando_Recibido_Socket_2())
-        {
-        case 503:
-            #ifdef Debug_Mensajes_Server
-            Serial.println("Solicitud de Cierre Sesion");
-            #endif
-            Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
-
-            if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-            {
-                if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-                {
-                    if (Close_Sesion_Player_Tracking())
-                    {
-
-                        Transmite_Confirmacion('D', 'D', SOCKET2);
-                    }
-                }
-            }
-            else
-            {
-                Transmite_Confirmacion('A', '0',SOCKET2);
-            }
-            break;
-
-        default:
-            break;
-        }
-    }
-    else if (Variables_globales.Get_Variable_Global(Dato_Entrante_No_Valido_Socket2))
-    {
-        Variables_globales.Set_Variable_Global(Dato_Entrante_No_Valido_Socket2, false);
-
-        char res[258] = {};
-        bzero(res, 258); // Pone el buffer en 0
-        memcpy(res, Buffer.Get_buffer_recepcion2(), 258);
-        
-        if (res[0] == 'E' && res[1] == 'B')
-        {
-
-            #ifdef Debug_Mensajes_Server
-            Serial.println("Eco Broadcast");
-            #endif
-
-            IPAddress serverIP_Remote2(clientUDP2.remoteIP()[0], clientUDP2.remoteIP()[1], clientUDP2.remoteIP()[2], clientUDP2.remoteIP()[3]);
-
-            memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
-
-            if (serverIP_Remote2[3] != IP_Server2[3] && serverIP_Remote2[2] == IP_Server2[2]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
-            {
-
-                NVS.begin("Config_ESP32", false);
-                uint8_t ip_server_dest2[] = {serverIP_Remote2[0], serverIP_Remote2[1], IP_Server2[2], serverIP_Remote2[3]};
-                NVS.putBytes("Dir_IP_Serv2", ip_server_dest2, sizeof(ip_server_dest2));
-                size_t ip_serv_len2 = NVS.getBytesLength("Dir_IP_Serv");
-                char IP_SERV2[ip_serv_len2];
-                NVS.getBytes("Dir_IP_Serv2", IP_SERV2, ip_serv_len2);
-
-                NVS.end();
-                Configuracion.Set_Configuracion_ESP32(Direccion_IP_Server2, IP_SERV2);
-                memcpy(IP_Server2, Configuracion.Get_Configuracion(Direccion_IP_Server2, 'x'), sizeof(IP_Server2) / sizeof(IP_Server2[0]));
-                IPAddress serverIP2(IP_Server2[0], IP_Server2[1], IP_Server2[2], IP_Server2[3]);
-            }
-            Transmite_Eco_Broadcast(SOCKET2);
-        }
-        else{
-            Transmite_Confirmacion('C', 'R',SOCKET2);
-        }
-    }
-}
 /*****************************************************************************************/
 /******************************** TAREA DE TRANSMISION ***********************************/
 /*****************************************************************************************/
+
 
 void Task_Maneja_Transmision(void *parameter)
 {
@@ -4557,6 +4343,8 @@ void Task_Maneja_Transmision(void *parameter)
         Transmision_Controlada_Contadores();
       //  Handle_ACK();
         Mensajes_RFID();
+        Reporte_FTP(Variables_globales.Get_Variable_Global(Ftp_Mode));
+
         vTaskDelay(800 / portTICK_PERIOD_MS);
         continue;
     }
@@ -4802,57 +4590,106 @@ void Transmision_Controlada_Contadores(void)
             /*----------------------> Trama de contadores  2 minutos <-----------------------------------------------------------*/
             if ((New_Timmer_Inicial - New_Timer_Final) >= Tiempo_Transmision_No_Juego)
             {
-                if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
-                {
-                    #ifdef Debug_Transmision
-                    Serial.println("Contadores, maquina NO juego....");
-                    #endif
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
-                    {
-                            Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                uint16_t TipoMaq=Configuracion.Get_Configuracion(Tipo_Maquina, 0);
+                bool Status_Hopper = Variables_globales.Get_Variable_Global(Flag_Hopper_Enable);
+                bool Status_Cancel_Poker = Variables_globales.Get_Variable_Global(Primer_Cancel_Credit);
+                bool Transmite=false;
 
-                          //  Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-                          //  delay(200);
-                              Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-                              delay(250);
-                    }
-                        Transmite_Contadores_Accounting();
-                }
-                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+                switch (TipoMaq)
                 {
-                    #ifdef Debug_Transmision
-                    Serial.println("Contadores, maquina NO juego....");
-                    #endif
-                    Contador_Transmision_Contadores = 0;
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
-                    {
-                        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
-                       // Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-                       // delay(200);
-                          Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-                          delay(250);
-                    }
-                    
-                        Transmite_Contadores_Accounting();
-                }
-                else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
-                {
-                    #ifdef Debug_Transmision
-                    Serial.println("Contadores, maquina NO juego....");
-                    #endif
-                    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
-                    {
-                        Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                case 6:
+                case 14:
 
-                        //  Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
-                        //  delay(200);
+                    if (!Status_Hopper && Status_Cancel_Poker)
+                    {
                         Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
                         delay(250);
+                        Transmite_Contadores_Accounting();
+                        Transmite=true;
                     }
+                    else
+                    {
+                        if(Status_Hopper)
+                            Info_Cashless.Log(RTC,"FALLO_ENVIO_TRAMA","Hopper_Poker_Activo");
+                        if(!Status_Cancel_Poker)
+                            Info_Cashless.Log(RTC,"FALLO_ENVIO_TRAMA","Primer_Cancel_No_Calculado");
+                    }
+                    break;
+
+                case 9:
+                case 15:
                     Transmite_Contadores_Accounting();
+                    Transmite=true;
+                break;
+
+                default:
+                    Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                    // Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                    // delay(200);
+                    Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                    delay(250);
+                    Transmite_Contadores_Accounting();
+                    Transmite=true;
+                    break;
                 }
-                Contador_Transmision_Contadores = 0;
-                New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+
+                if (Transmite)
+                {
+                    Contador_Transmision_Contadores = 0;
+                    New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+                }
+
+                // if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
+                // {
+                //     #ifdef Debug_Transmision
+                //     Serial.println("Contadores, maquina NO juego....");
+                //     #endif
+                //     if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                //     {
+                //             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
+                //           //  Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                //           //  delay(200);
+                //               Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                //               delay(250);
+                //     }
+                //         Transmite_Contadores_Accounting();
+                // }
+                // else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14)
+                // {
+                //     #ifdef Debug_Transmision
+                //     Serial.println("Contadores, maquina NO juego....");
+                //     #endif
+                //     Contador_Transmision_Contadores = 0;
+                //     if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                //     {
+                //         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+                //        // Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                //        // delay(200);
+                //           Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                //           delay(250);
+                //     }
+                    
+                //         Transmite_Contadores_Accounting();
+                // }
+                // else if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable) != true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == true)
+                // {
+                //     #ifdef Debug_Transmision
+                //     Serial.println("Contadores, maquina NO juego....");
+                //     #endif
+                //     if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+                //     {
+                //         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+
+                //         //  Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                //         //  delay(200);
+                //         Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
+                //         delay(250);
+                //     }
+                //     Transmite_Contadores_Accounting();
+                // }
+                // Contador_Transmision_Contadores = 0;
+                // New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
             }
         }
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
@@ -4919,7 +4756,7 @@ void Transmision_Controlada_Contadores(void)
         }
 
         // Si cambio el cancel credit, porque se pago un premio
-        else if (flag_premio_pagado_cashout && !Variable_Solicitud_Operador_Id)
+        if (flag_premio_pagado_cashout && !Variable_Solicitud_Operador_Id)
         {
 
             #ifdef Debug_Transmision
@@ -4941,7 +4778,7 @@ void Transmision_Controlada_Contadores(void)
 
                     if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
                     }
@@ -4957,7 +4794,7 @@ void Transmision_Controlada_Contadores(void)
         }
 
         // Si cambio el billetero, porque se ingreso un nuevo billete
-        else if (flag_billete_insertado && !Variable_Solicitud_Operador_Id)
+        if (flag_billete_insertado && !Variable_Solicitud_Operador_Id)
         {
             if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {
@@ -4985,7 +4822,7 @@ void Transmision_Controlada_Contadores(void)
 
                     if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
                     }
@@ -5013,7 +4850,7 @@ void Transmision_Controlada_Contadores(void)
 
                     if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para Test */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para Test */
                     }
@@ -5669,15 +5506,17 @@ void Task_Verifica_Hopper(void *parameter)
                     Transmite_Confirmacion('C', '0');
                     
                     Variables_globales.Set_Variable_Global(Flag_Creditos_D_P, false);
-                    Transmite_Contadores_Accounting(); /*Transmite contadores por calculo de premio*/
+                    
                     // delay(50);
                     // Transmite_Contadores_Accounting(); /*Transmite contadores por calculo de premio*/
 
                     if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
                     {
-                        Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                        Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
                         // delay(50);
                         // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                    }else{
+                        Transmite_Contadores_Accounting(); /*Transmite contadores por calculo de premio*/
                     }
                         
                     /* Si  fue un operador  */
@@ -5785,15 +5624,19 @@ void Actualiza_Contadores(void)
     {
         if (Variables_globales.Get_Variable_Global(Billete_Insert) && !contadores.Get_Status_Flag_Premio() && !flag_premio_pagado_cashout && !flag_billete_insertado)
         {
+
+            //Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
            
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
             Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
             delay(350);
-            Transmite_Contadores_Accounting();
+            
 
             if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
             {
-                Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+                Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
+            }else{
+                Transmite_Contadores_Accounting();
             }
             /*---------------------------------------------------------------------------*/
             New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/

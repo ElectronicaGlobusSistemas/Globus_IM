@@ -718,6 +718,7 @@ String Web_Config::Get_Info_Config(int Type_Info)
         jsonDocument["s_dns"] = IP_toString(Current_Secundary_DNS);
         jsonDocument["tipo_transmision"] = Convert_bool_to_String(Current_Type_transmission);
         jsonDocument["Type_Socket"] = Convert_bool_to_String(Current_Tipo_Socket);
+        jsonDocument["NivelSSD"]=WiFi.RSSI();
 
     }if(Type_Info==INFO_API) /* Información API */
     {

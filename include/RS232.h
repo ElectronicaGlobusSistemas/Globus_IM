@@ -64,6 +64,11 @@ extern bool  condicionCumplida;
 extern Cashless_API Info_Cashless;
 extern API_Accounting Accounting;
 extern bool hayTransaccionesPendientes;
+
+
+
+bool Actualizacion_datos_Ok=false;
+bool Credit_Handle=false;
 /*-------------------> Cashless <------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------------------------------------*/
@@ -271,6 +276,17 @@ extern bool Flag_Change_Counters_Response;
 extern bool Flag_Change_Counters_One;
 bool Extended_Ticket_Command=false;
 
+
+
+extern bool Flag_Handle_Inactiva;
+extern bool Flag_Handle_Activa;
+
+extern bool Flag_Recv_Inactiva;
+extern bool Flag_Recv_Activa;
+
+
+
+
 #define flag_bloquea_Maquina            1
 #define flag_desbloquea_Maquina         2
 #define flag_encuesta_premio            3
@@ -307,6 +323,13 @@ char CurrentCredit_Poker_Data[9]  = {'0', '0', '0', '0', '0', '0', '0', '0'};
 //---------------------------Configuración de UART2 Data 8bits, baud 19200, 1 Bit de stop, Paridad Disable---------------
 
 char buff[128];
+
+
+
+extern bool Request_Inactiva;
+extern bool Request_Activa;
+extern bool Ack_Maq_Inactiva;
+extern bool Ack_Maq_Activa;
 
 void Init_UART1()
 {
@@ -595,7 +618,24 @@ void Transmite_Poll_Long(unsigned char Com_SAS)
   uart_set_parity(UART_NUM_2, UART_PARITY_DISABLE); // reset parity
 }
 //----------------------------------------------------------------------------------------------------------------------------
+void Request_Ack(char Ack)
+{
 
+  if (Ack == 0x01)
+  {
+    if (Request_Inactiva)
+    {
+      Ack_Maq_Inactiva = true;
+      Request_Inactiva = false;
+    }
+
+    if (Request_Activa)
+    {
+      Ack_Maq_Activa = true;
+      Request_Activa = false;
+    }
+  }
+}
 //-------------------------Interrupción  Recepción de Datos-------------------------------------------------------------------
 static void UART_ISR_ROUTINE(void *pvParameters)
 {
@@ -647,7 +687,13 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Serial.println("Mensaje de ACK recibido.................................................");
           #endif
           ACK_Maq = true;
+
+          
+          
         }
+
+        Request_Ack(buffer[0]);
+        
 
         // if(buffer[0] == 0x01 && flag_handle_maquina_Cashless)
         // {
@@ -1274,6 +1320,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 {
                   Act_Current_Credits = true;
                 }
+
+                if(Credit_Handle)
+                  Actualizacion_datos_Ok=true;
                  
               }
             }
@@ -1939,15 +1988,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
           Info_Cashless.Bloquea_Descarga_EFT(Evento,Configuracion.Get_Configuracion(Tipo_Maquina, 0),contadores.Get_Client_ID_Transaccion_Int(),Variables_globales.Get_Variable_Global(Flag_Sesion_RFID));
 
           
-          if (Evento == 0x7E)
-          {
-            Variables_globales.Set_Variable_Global(Status_Games_Machine, true);
-          }
-          else if (Evento == 0x7F)
-          {
-            Variables_globales.Set_Variable_Global(Status_Games_Machine, false);
-          }
-
+          Info_Cashless.Estado_Juego_Maquina(Evento);
           // Backup.enviarInformacionMaquina(Backup.Eventos_Accounting(5,Evento));
           if(Capture_Evento_Cashless && Evento==0x69)
           {
@@ -2403,6 +2444,22 @@ void Encuestas_Maquina(void *pvParameters)
 
       }
 
+      if(Flag_Handle_Inactiva)
+      {
+        Flag_Recv_Inactiva=true;
+        //Serial.println("Inactiva Maquina");
+        Transmite_Inactiva_Maquina();
+        Flag_Handle_Inactiva=false;
+      }
+
+      if(Flag_Handle_Activa)
+      {
+        Flag_Recv_Activa=true;
+        //Serial.println("Activa Maquina");
+        Transmite_Activa_Maquina();
+        Flag_Handle_Activa=false;
+      }
+
       // if(Tito.Get_Status_3D() && !Tito.Get_Status_Process_Ticket())
       // {
       //   Serial.println("Confirma Ticket");
@@ -2416,7 +2473,7 @@ void Encuestas_Maquina(void *pvParameters)
         switch (Handle_Maquina)
         {
         case 1:
-          //    Serial.println("Inactiva Maquina");
+          
           Transmite_Inactiva_Maquina();
           Handle_Maquina = 0;
           break;
@@ -4019,7 +4076,6 @@ bool Activa_Maquina(void)
   }
 }
 
-
 bool Encuesta_ROM(void)
 {
   flag_handle_maquina = true;
@@ -4036,7 +4092,6 @@ bool Encuesta_ROM(void)
     return false;
   }
 }
-
 
 void Transmite_Encuesta_ROM(void)
 {
@@ -4263,9 +4318,7 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
     Transmite_Poll_Long(0xF0);
     delay(100);
     sendDataa(dat, sizeof(dat)); // transmite sincronización
-    Transmite_Poll(0x00);
-    delay(50);
- 
+    delay(200);
     #ifdef Debug_Encuestas
     Serial.println("Ticket Out");
     #endif
@@ -4557,8 +4610,11 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
       #ifdef Debug_Encuestas
       Serial.println("Encuesta Creditos Generica....... ");
       #endif
+
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      delay(200);
       Transmite_Poll(0x1A);
-      delay(100);
+      delay(200);
       sendDataa(dat, sizeof(dat)); // transmite sincronización
       Transmite_Poll(0x00);
       delay(50);
@@ -4594,6 +4650,7 @@ void _Transmite_Encuesta_Creditos_D_Premio(void)
       if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2)
       {
         sendDataa(dat, sizeof(dat)); // transmite sincronización
+        delay(200);
         Transmite_Poll(0x1D);
       }
     }
@@ -5886,12 +5943,12 @@ void Transmite_Reset_Handpay(void)
     Transmite_Poll_Long(0xCB);
   }
 
-  void Encuesta_contador_1B(void)
+void Encuesta_contador_1B(void)
   {
     Transmite_Poll(0x1B);
   }
 
-  void Selector_Modo_SD(void)
+void Selector_Modo_SD(void)
   {
     if (Variables_globales.Get_Variable_Global(Ftp_Mode) == true || Variables_globales.Get_Variable_Global(Flag_Memoria_SD_Full) == true || Variables_globales.Get_Variable_Global(SD_INSERT) == false || Variables_globales.Get_Variable_Global(Falla_MicroSD) || Variables_globales.Get_Variable_Global(Updating_System) || Variables_globales.Get_Variable_Global(Flag_Log))
     {
@@ -5904,6 +5961,8 @@ void Transmite_Reset_Handpay(void)
         Variables_globales.Set_Variable_Global(Enable_Storage, true);
       }
     }
+
+    //Variables_globales.Set_Variable_Global(Enable_Storage, false);
   }
 
 void Delete_Trama()
@@ -6917,6 +6976,8 @@ void Transmite_Download_AFT_Maq(void)
           sendDataa(dat4, sizeof(dat4)); // Transmite DIR
         else
         {
+
+          esp_task_wdt_reset();
           Transmite_Poll_Long(Transfer_Command_Down[i]);
         }
       }
@@ -8736,6 +8797,10 @@ unsigned char EFT_Maq_Cashable_Ack(void)
 
     else if (Buffer_Cashless.Get_Buffer_Transfer_EFT()[4] != 0x00)
       return Buffer_Cashless.Get_Buffer_Transfer_EFT()[4]; /* Transfer no*/
+
+    else{
+      return 0xF0;
+    }
   }
   else
   {
@@ -8816,6 +8881,11 @@ unsigned char EFT_Maq_Descarga(void)
 
     else if(Buffer_Cashless.Get_Buffer_Transfer_EFT()[4]!=0x00)
       return Buffer_Cashless.Get_Buffer_Transfer_EFT()[4]; /* Transfer no*/
+
+    else{
+      return 0xF0;
+    }
+
   }else{
     return 0x11;
   }
@@ -8898,6 +8968,11 @@ unsigned char EFT_Maq_Descarga_Ack(void)
 
     else if(Buffer_Cashless.Get_Buffer_Transfer_EFT()[4]!=0x00)
       return Buffer_Cashless.Get_Buffer_Transfer_EFT()[4]; /* Transfer no*/
+
+    else{
+      return 0xF0;
+    }
+    
   }else{
     return 0x11;
   }

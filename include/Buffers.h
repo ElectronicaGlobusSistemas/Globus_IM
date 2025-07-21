@@ -175,6 +175,8 @@ public:
     bool Set_buffer_contadores_ACC_CRC(void);
     char *Get_buffer_contadores_ACC(void);
 
+    char* Get_buffer_contadores_ACC_No_encriptado(void);
+
     bool Set_buffer_contadores_ACC_NO(int, Contadores_SAS, ESP32Time, Variables_Globales);
     char *Get_buffer_contadores_ACC_NO(void);
 
