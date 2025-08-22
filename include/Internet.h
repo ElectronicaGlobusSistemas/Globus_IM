@@ -183,7 +183,7 @@ void Storage_Status_WIFI(void)
 void CONNECT_WIFI(void)
 {
 
-  WiFi.setHostname("Globus-IM");
+  WiFi.setHostname("Globus-IM-ESP32");
   //-----------------------------------------------------------------------------------------------------------
   // Obtiene direccion IP guardada en Objeto Configuracion
   memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
@@ -316,7 +316,7 @@ void Conec()
 
 
 
-    WiFi.setHostname("Globus-IM");
+    WiFi.setHostname("Globus-IM_ESP32");
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -399,7 +399,7 @@ void RECONECT_WIFI_ESP()
 
     memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
     memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
-    WiFi.setHostname("Globus-IM");
+    WiFi.setHostname("Globus-IM_ESP32");
     WiFi.mode(WIFI_MODE_STA);
     IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
     IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);
@@ -532,7 +532,7 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
 
       memcpy(DNS_Primario, Configuracion.Get_Configuracion(Dns_One_IP, 'x'), sizeof(DNS_Primario) / sizeof(DNS_Primario[0]));
       memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
-      WiFi.setHostname("Globus-IM");
+      WiFi.setHostname("Globus-IM_ESP32");
 
       WiFi.mode(WIFI_MODE_STA);
       IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);

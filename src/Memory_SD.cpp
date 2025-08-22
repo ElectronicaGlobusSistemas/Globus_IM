@@ -58,7 +58,7 @@ int Contador_Dias=0;
 
 #define SD_CS_PIN 5  // Cambia este pin según tu conexión
 #define SPI_CLOCK SD_SCK_MHZ(10)
-#define MAX_LOG_LEN      350
+#define MAX_LOG_LEN      500
 #define MAX_FILENAME_LEN 64
 
 typedef struct {
@@ -218,7 +218,7 @@ void Queue_SD(void)
   if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
     MensajeLog msg;
-    while (xQueueReceive(cola_logs, &msg, 0) == pdTRUE)
+    if (xQueueReceive(cola_logs, &msg, 0) == pdTRUE)
     {
       String mensaje = String(msg.mensaje);
       String archivo = String(msg.archivo);

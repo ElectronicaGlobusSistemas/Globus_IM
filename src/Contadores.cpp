@@ -850,6 +850,8 @@ bool Contadores_SAS::Set_Operador_ID_Temp_APP(char Operador_[])
  
   return true;
 }
+
+
 bool Contadores_SAS:: Set_Operador_ID_Temp(char Operador_[])
 {
   int contador=0;
@@ -880,6 +882,25 @@ bool Contadores_SAS:: Set_Operador_ID_Temp(char Operador_[])
     return true;
   }
   return false;
+}
+
+bool Contadores_SAS::Set_Operador_ID_Temp_New(uint32_t Id)
+{
+  char New_Id[9]; /* Id + \0*/
+
+  sprintf(New_Id, "%08lu", Id); // convierte con ceros a la izquierda
+
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Operador_Temp[i] = New_Id[i];
+  }
+
+  for(int i=0; i<8; i++)
+  {
+    Serial.println(ID_Operador_Temp[i]);
+  }
+
+  return true;
 }
 
 bool Contadores_SAS::ID_Consulta_INFO_Operador(char Operador[])
@@ -1273,10 +1294,7 @@ int Contadores_SAS::Get_Operador_ID_Int(char Operador_ID[8])
 
 bool Contadores_SAS::Set_Client_ID_Transaccion(byte Client[])
 {
-  for (int i = 0; i < 8; i++)
-  {
-    ID_Client_Transaccion[i] = '0';
-  }
+
   ID_Client_Transaccion[0] = Client[0];
   ID_Client_Transaccion[1] = Client[1];
   ID_Client_Transaccion[2] = Client[2];
@@ -1295,6 +1313,28 @@ bool Contadores_SAS::Set_Client_ID_Transaccion(byte Client[])
   }
   return true;
 }
+
+bool Contadores_SAS::Set_Client_ID_Transaccion_New(uint32_t Id)
+{
+
+   char New_Id[9]; /* Id + \0*/
+
+  sprintf(New_Id, "%08lu", Id); // convierte con ceros a la izquierda
+
+  for (int i = 0; i < 8; i++)
+  {
+    ID_Client_Transaccion[i] = New_Id[i];
+  }
+
+  for(int i=0; i<8; i++)
+  {
+    Serial.println(ID_Client_Transaccion[i]);
+  }
+
+  return true;
+}
+
+
 
 byte* Contadores_SAS::Get_Client_ID_Transaccion(void)
 {
@@ -1338,6 +1378,35 @@ int Contadores_SAS::Get_Client_ID_Int(void)
   int Client_Id_Int = atoi(clientIDString);
   return Client_Id_Int;
 }
+
+uint32_t Contadores_SAS::IdTarjeta(byte Block[18])
+{
+  char Array_Tarjeta[9]; // 8 caracteres + terminador nulo
+
+  for (int i = 0; i < 8; i++)
+  {
+    Array_Tarjeta[i] = (char)Block[i + 1]; // Block[1] a Block[8]
+  }
+  Array_Tarjeta[8] = '\0'; // terminador de cadena
+
+  return strtoul(Array_Tarjeta, nullptr, 10); // base 10
+}
+
+
+
+int Contadores_SAS::TipoTarjeta(byte Block[18])
+{
+  if(Block[0]=='C')
+    return CLIENTE;
+  else if(Block[0]=='O')
+    return OPERADOR;
+  else
+    return NO_VALIDA;
+}
+
+
+
+
 
 int Contadores_SAS::Get_Client_ID_Int_(byte Info_Card[])
 {

@@ -53,5 +53,6 @@
         "bitset": "cpp",
         "queue": "cpp"
     },
-    "cmake.sourceDirectory": "C:/Users/Program. Electronico/Desktop/Nueva carpeta/Proyecto RFID OG/03-RFID-INTEGRA_RFID1/.pio/libdeps/esp32dev/ArduinoJson"
+    "cmake.sourceDirectory": "C:/Users/Program. Electronico/Desktop/Nueva carpeta/Proyecto RFID OG/03-RFID-INTEGRA_RFID1/.pio/libdeps/esp32dev/ArduinoJson",
+    "python.languageServer": "None"
 }

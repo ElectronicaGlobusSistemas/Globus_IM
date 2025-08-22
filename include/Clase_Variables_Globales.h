@@ -136,7 +136,11 @@ using namespace std;
 #define Flag_Log                            112
 #define Flag_Premio_Mistery                 113
 #define Lectura_RFD_TFT_Display             114
-
+#define Flag_Maquina_Juego_Evento           115
+#define Flag_Contadores_Session_Unknown     116
+#define Flag_Multiplicador_EFT_550          117
+#define Flag_Bill_Insert_Sesiones           118
+#define Flag_Cancel_Sesiones                119
 
 class Variables_Globales
 {
@@ -250,6 +254,11 @@ private:
     bool Flag_Log_;
     bool Flag_Premio_Mistery_;
     bool Lectura_RFD_TFT_Display_;
+    bool Flag_Maquina_Juego_Evento_;
+    bool Flag_Contadores_Session_Unknown_;
+    bool Flag_Multiplicador_EFT_550_;
+    bool Flag_Bill_Insert_Sesiones_;          
+    bool Flag_Cancel_Sesiones_;                
     
 
 public:

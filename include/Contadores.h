@@ -54,6 +54,12 @@ using namespace std;
 
 
 #define Legacy_Bonus_Awards 55
+
+
+#define OPERADOR            56
+#define CLIENTE             57
+#define NO_VALIDA           58
+
 //---------------------------------------->Clase Manejo de Contadores<-------------------------------------------------
 class Contadores_SAS
 {
@@ -173,7 +179,10 @@ public:
   void Set_Flag_Bill_In(bool Change_Status);
   bool Get_Status_Flag_Bill_In(void);
 
-  
+  uint32_t IdTarjeta(byte Block[18]);
+  int TipoTarjeta(byte Block[18]);
+  bool Set_Operador_ID_Temp_New(uint32_t Id);
+  bool Set_Client_ID_Transaccion_New(uint32_t Id);
   /* Cashless*/
 
   bool Set_Client_ID_Transaccion(byte Client[]);

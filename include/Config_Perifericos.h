@@ -35,7 +35,7 @@ extern WiFiClient client;              // Declara un objeto cliente para conecta
 //------------------------------------------------------------------
 
 
-
+extern int Tipo_Display;
 
 extern char Archivo_CSV[100];
 //extern int Sd_Mont;
@@ -91,8 +91,8 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,5,4};
-uint8_t Address_Device_TFT_Display[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+uint8_t Version_Firmware_[]={2,1,5,5};
+uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 
 
@@ -1050,17 +1050,30 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Ignore_Reg_Maq",Ignore_Register);
     }
 
+    if(!NVS.isKey("Address_TFT"))
+    {
+        uint8_t Adress_TFT_Display[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        NVS.putBytes("Address_TFT", Adress_TFT_Display, sizeof(Adress_TFT_Display));
+    }
 
-    // if(!NVS.isKey("Address_TFT"))
-    // {
-    //     uint8_t Adress_TFT_Display[] = {0x34, 0x85, 0x18, 0x71, 0x0C, 0xCC};
-    //     NVS.putBytes("Address_TFT", Adress_TFT_Display, sizeof(Adress_TFT_Display));
-    // }
     if (!NVS.isKey("TimeBackup"))
     {
         uint32_t time = 15;
         NVS.getULong("TimeBackup", time);
     }
+
+    if(!NVS.isKey("Bill_EFT"))
+    {
+        bool Bill_EFT=true; /* Si multiplica por 10*/
+        NVS.putBool("Bill_EFT",Bill_EFT);
+    }
+
+    if(!NVS.isKey("Type_TFT"))
+    {
+        int Tipo_TFT=TFT_UNKNOW;
+        NVS.putInt("Type_TFT",Tipo_Conexion);
+    }
+
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1727,40 +1740,69 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Premios SAS: Deshabilitatos");
 
 
-    // size_t adress_TFT_Display_Len= NVS.getBytesLength("Address_TFT");
-    // uint8_t Adress_TFT_Display[adress_TFT_Display_Len];
-    // int Count_test=0;
-    // NVS.getBytes("Address_TFT",Adress_TFT_Display,adress_TFT_Display_Len);
+    size_t adress_TFT_Display_Len= NVS.getBytesLength("Address_TFT");
+    uint8_t Adress_TFT_Display[adress_TFT_Display_Len];
+    int Count_test=0;
+    NVS.getBytes("Address_TFT",Adress_TFT_Display,adress_TFT_Display_Len);
 
-    // for (int i = 0; i < 6; i++)
-    // {
-    //     if (Adress_TFT_Display[i] == 0x00)
-    //     {
-    //         Count_test++;
-    //     }
-    // }
+    for (int i = 0; i < 6; i++)
+    {
+        if (Adress_TFT_Display[i] == 0x00)
+        {
+            Count_test++;
+        }
+    }
 
-    // if(Count_test>=6)
-    // {
-    //     /* No Existe un dispositivo sincronizado */
-    //     Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,false);
-    //     Variables_globales.Set_Variable_Global(Conexion_TFT_Display,false);
-    //     Serial.println("Pantalla TFT: No existe dispositivo sincronizado");
-    // }else{
-    //     /* Existe un dispositivo sincronizado */
-    //     memcpy(Address_Device_TFT_Display, Adress_TFT_Display, sizeof(Address_Device_TFT_Display) / sizeof(Address_Device_TFT_Display[0]));
+    if(Count_test>=6)
+    {
+        /* No Existe un dispositivo sincronizado */
+        Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,false);
+        Variables_globales.Set_Variable_Global(Conexion_TFT_Display,false);
+        Serial.println("Pantalla TFT: No existe dispositivo sincronizado");
+    }else{
+        /* Existe un dispositivo sincronizado */
+        memcpy(Address_Device_TFT_Display, Adress_TFT_Display, sizeof(Address_Device_TFT_Display) / sizeof(Address_Device_TFT_Display[0]));
         
-    //     Serial.print("Pantalla TFT Wireless: ");
-    //     for(int i=0; i<6; i++)
-    //     {
-    //         Serial.print(Address_Device_TFT_Display[i],HEX);
-    //         Serial.print(":");
-    //     }
-    //     Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
-    // }
+        Serial.print("Pantalla TFT Wireless: ");
+        for(int i=0; i<6; i++)
+        {
+            Serial.print(Address_Device_TFT_Display[i],HEX);
+            Serial.print(":");
+        }
+        Serial.println();
+
+        Tipo_Display = NVS.getInt("Type_TFT",TFT_UNKNOW);
+        
+
+        switch (Tipo_Display)
+        {
+        case TFT_48S3_43:
+            Serial.print("Tipo de pantalla TFT: ");
+            Serial.println("48S3-4.3");
+            break;
+
+        case TFT_M5STACK_DIAL:
+            Serial.print("Tipo de pantalla TFT: ");
+            Serial.println("M5STACK-DIAL");
+            break;
+
+        default:
+            Serial.print("Tipo de pantalla TFT: ");
+            Serial.println("Desconocida");
+            break;
+        }
+
+        Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
+    }
 
 
     Dia_Guarda_Logs=NVS.getULong("TimeBackup",15);
+
+    bool Multi_Bill=NVS.getBool("Bill_EFT",true);
+    Variables_globales.Set_Variable_Global(Flag_Multiplicador_EFT_550,Multi_Bill);
+
+
+    
 
     Serial.println("\n");
     NVS.end();

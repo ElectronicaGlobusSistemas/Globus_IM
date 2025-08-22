@@ -14,6 +14,8 @@ using namespace std;
 #include "ArduinoJson.h"
 #include "Persistenca_Info.h"
 
+#include "Pantalla_TFT.h"
+
 bool App=false;
 extern bool Update_In_Cashless;
 extern bool Update_Out_Cashless;
@@ -1327,6 +1329,7 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               }
             }
             
+            /*PAUSAS 4*/
 
             else if (buffer[1] == 0x2A || buffer[1] == 0x2B || (buffer[1] > 0x3B && buffer[1] < 0x44))
             {
@@ -6078,54 +6081,57 @@ void Calcula_Cancel_Credit_IRT(void)
 }
 
 void Calcula_Bill_In_550(void)
-  {
-    int Bill_In_550, Residuo;
-    int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
-    char Contador_Bill_In_550[9];
-    bzero(Contador_Bill_In_550, 9);
+{
+  int Bill_In_550, Residuo;
+  int uni, dec, cen, unimil, decmil, centmil, unimill, decmill;
+  char Contador_Bill_In_550[9];
+  bzero(Contador_Bill_In_550, 9);
 
-    Bill_In_550 = contadores.Get_Contadores_Int(Copia_Bill_Amount);
+  Bill_In_550 = contadores.Get_Contadores_Int(Copia_Bill_Amount);
 
+  if(Variables_globales.Get_Variable_Global(Flag_Multiplicador_EFT_550))
     Bill_In_550 *= 10;
+  else
+    Bill_In_550 *= 1;
 
-    // Serial.print("contador bill_in int 550 es: ");
-    // Serial.println(Bill_In_550);
+  // Serial.print("contador bill_in int 550 es: ");
+  // Serial.println(Bill_In_550);
 
-    decmill = Bill_In_550 / 10000000;
-    Contador_Bill_In_550[0] = decmill + 48;
-    Residuo = Bill_In_550 % 10000000;
+  decmill = Bill_In_550 / 10000000;
+  Contador_Bill_In_550[0] = decmill + 48;
+  Residuo = Bill_In_550 % 10000000;
 
-    unimill = Residuo / 1000000;
-    Contador_Bill_In_550[1] = unimill + 48;
-    Residuo = Bill_In_550 % 1000000;
+  unimill = Residuo / 1000000;
+  Contador_Bill_In_550[1] = unimill + 48;
+  Residuo = Bill_In_550 % 1000000;
 
-    centmil = Residuo / 100000;
-    Contador_Bill_In_550[2] = centmil + 48;
-    Residuo = Bill_In_550 % 100000;
+  centmil = Residuo / 100000;
+  Contador_Bill_In_550[2] = centmil + 48;
+  Residuo = Bill_In_550 % 100000;
 
-    decmil = Residuo / 10000;
-    Contador_Bill_In_550[3] = decmil + 48;
-    Residuo = Bill_In_550 % 10000;
+  decmil = Residuo / 10000;
+  Contador_Bill_In_550[3] = decmil + 48;
+  Residuo = Bill_In_550 % 10000;
 
-    unimil = Residuo / 1000;
-    Contador_Bill_In_550[4] = unimil + 48;
-    Residuo = Bill_In_550 % 1000;
+  unimil = Residuo / 1000;
+  Contador_Bill_In_550[4] = unimil + 48;
+  Residuo = Bill_In_550 % 1000;
 
-    cen = Residuo / 100;
-    Contador_Bill_In_550[5] = cen + 48;
-    Residuo = Bill_In_550 % 100;
+  cen = Residuo / 100;
+  Contador_Bill_In_550[5] = cen + 48;
+  Residuo = Bill_In_550 % 100;
 
-    dec = Residuo / 10;
-    Contador_Bill_In_550[6] = dec + 48;
-    Residuo = Bill_In_550 % 10;
+  dec = Residuo / 10;
+  Contador_Bill_In_550[6] = dec + 48;
+  Residuo = Bill_In_550 % 10;
 
-    uni = Residuo;
-    Contador_Bill_In_550[7] = uni + 48;
+  uni = Residuo;
+  Contador_Bill_In_550[7] = uni + 48;
 
-    // Serial.print("contador bill_in char 550 es: ");
-    // Serial.println(Contador_Bill_In_550);
-    contadores.Set_Contadores(Bill_Amount, Contador_Bill_In_550);
-  }
+  // Serial.print("contador bill_in char 550 es: ");
+  // Serial.println(Contador_Bill_In_550);
+  contadores.Set_Contadores(Bill_Amount, Contador_Bill_In_550);
+}
 
 void Escribe_Tarjeta_Mecanica_2(char buf[])
   {
@@ -7051,7 +7057,7 @@ void Transmite_Download_AFT_Maq(void)
         Timout_Break = millis();
 
         bool CurrentStatus = false;
-
+        int statusCode=1000;
         if (Buffer_Cashless.Get_Bufffer_Transfer_AFT()[1] == 0x72)
         {
 
@@ -7140,6 +7146,10 @@ void Transmite_Download_AFT_Maq(void)
 
             if (Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x00 || Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x01)
             {
+
+              statusCode = Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4];
+              String statusCode_String = String(statusCode, HEX);
+              //Menssage_TFT("Descarga cashless realizada con exito codigo: " + statusCode_String);
 
               /* Reset Variable de juego terminado */
               Variables_globales.Set_Variable_Global(Status_Games_Machine, false);
@@ -7832,6 +7842,8 @@ void Transmite_Load_AFT_Maq(void)
       {
 
         bool CurrentStatus = false;
+        int statusCode=100;
+
         switch (Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4])
         {
         case 0x40:
@@ -7848,6 +7860,10 @@ void Transmite_Load_AFT_Maq(void)
           break;
 
         default:
+
+          statusCode=Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4];
+          String statusCode_String = String(statusCode, HEX);
+          //Menssage_TFT("Error en carga cashless codigo: "+statusCode_String);
           /* Reporta error de transaccion */
           Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, false);
           // Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());
@@ -7918,6 +7934,10 @@ void Transmite_Load_AFT_Maq(void)
           /* Reporta la transaccion OK */
           if (Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x00 || Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4] == 0x01)
           {
+
+            statusCode = Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4];
+            String statusCode_String = String(statusCode, HEX);
+            //Menssage_TFT("Carga cashless realizada con exito codigo: " + statusCode_String);
 
             Info_Cashless.Type_Sesion(PLAYER_CASHLESS_SESION, true); /*INICIA SESION PLAYER CASHLESS*/
             Info_Cashless.Init_Player_Tracking_Sesion(contadores.Get_Client_ID_Transaccion());

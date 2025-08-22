@@ -43,6 +43,8 @@ Tabla_Eventos Tabla_Evento;
 #include "Pantalla_TFT.h"
 
 #include "Persistenca_Info.h"
+#include "ScanWiFi.h"
+
 API_Accounting Accounting;
 extern Persistenca_Info Backup;
 
@@ -192,27 +194,26 @@ extern SemaphoreHandle_t sd_mutex;
 bool Formateo=false;
 int Result_Formatt=0;
 
-
 void setup()
 {
-  
+
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
   Init_Config(); // Config Perifericos
   /*--------------------> Verifica la Comunicación Maquina<------------------------- */
-  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0)!=9)
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
   {
     xTaskCreatePinnedToCore(
         Check_Comunicacion_Maq,
         "verificaComunica",
-        6000,/*8000*/
+        6000, /*8000*/
         NULL,
         configMAX_PRIORITIES - 15,
         &Check_Comunication_Maq,
         1); // Core donde se ejecutara la tarea
   }
 
-  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS)|| Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS) || Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
   {
 
     if (Info_Cashless.Inicialize_File_System())
@@ -229,14 +230,24 @@ void setup()
       /*--------------------------------------------------------------------------------*/
 
       /* -----------------------------> Transacciones Tito <----------------------------*/
-      if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+      if (Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
       {
         Tito.Load_Pending_Ticket_Transactions();
         Tito.Set_Confirma_Ticket(false);
       }
-        
+
+      /*------------------------> Carga Sesiones Sin tarjetas <-------------------------*/
+      Info_Cashless.Load_Sesiones_Unknown_Pendientes();
       /*--------------------------------------------------------------------------------*/
     }
+    else
+      Serial.println("No se inicio el sistema de archivos");
+  }
+  else
+  {
+
+    if (Info_Cashless.Inicialize_File_System())
+      Info_Cashless.Load_Sesiones_Unknown_Pendientes();
     else
       Serial.println("No se inicio el sistema de archivos");
   }
@@ -260,15 +271,18 @@ void setup()
   // else
   //   Serial.println("No se inicio el sistema de archivos");
 
- 
-  Cashless.Init_API_Server(); /* Inicializa Server Globus IM ESP32 */
-  Buffer_Cashless.Init_Buffer_Transfer_AFT(true); /* Inicializa Buffer de transferencias AFT*/
+  Cashless.Init_API_Server();                       /* Inicializa Server Globus IM ESP32 */
+  Buffer_Cashless.Init_Buffer_Transfer_AFT(true);   /* Inicializa Buffer de transferencias AFT*/
   Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
-  Cashless.Set_Amount_To_Load(0,0,0); /* Setea Valores de carga en 0 */
+  Cashless.Set_Amount_To_Load(0, 0, 0);             /* Setea Valores de carga en 0 */
   Info_Cashless.Init_Timer_Lector();
-  //Info_Cashless.Log(RTC,"INICIO_OPERACION_DISPOSITIVO_GLOBUS_IM_ESP32");
+  // Info_Cashless.Log(RTC,"INICIO_OPERACION_DISPOSITIVO_GLOBUS_IM_ESP32");
   sd_mutex = xSemaphoreCreateMutex();
+
+  // ScanWiFi();
 }
+
+
 unsigned long INT1=0;
 int Muestreo=500;
 bool Verifica=false;
@@ -359,7 +373,7 @@ void loop()
   Resurrect_reader();
   //check_Status_Reader_Polling();
   // if(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-  //Prueba_TFT();
+  //   Prueba_TFT();
   // if(Variables_globales.Get_Variable_Global(Comunicacion_Maq)&&!test)
   // {
   //   Backup.enviarInformacionMaquina(Backup.Test());
@@ -370,8 +384,7 @@ void loop()
   FtpFast();
 
 
-  //Info_Cashless.Count_Player_Sesions();
-
+  Info_Cashless.Task_Sesiones_Unknow();
 }
 
 /* Verifica comunicacion maquina */
@@ -844,7 +857,7 @@ void TimeOut_Player_Tracking_Sesion(void)
                 }
               }
 
-              if (Info_Cashless.Type_Sesion() == !PLAYER_CASHLESS_SESION)
+              if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
               {
 
                 Transmite_Contadores_Accounting();
@@ -854,16 +867,20 @@ void TimeOut_Player_Tracking_Sesion(void)
                 
               }
 
-              if (transaccionesPendientes.empty())
+              if (!transaccionesPendientes.empty())
+              {
                 Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente en maquina");
-                
-              if(Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending)||Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
+                Status_Barra(302);
+              }
+
+              if (Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) || Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
               {
                 /* Pendiente por Reportar transaccion */
                 // String  transaccion = transaccionesPendientes.front(); /* Toma la primera transferencia */
                 Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente de recepcion");
+                Status_Barra(302);
               }
-              Status_Barra(302);
+
               Info_Cashless.Unlock_Reader();
               // Transmite_Contadores_Accounting();
               // Close_Sesion_Player_Tracking();
@@ -951,8 +968,12 @@ void check_SD(void)
 
       Evento_Formateo_SD();
 
+      //Task_Conexion_TFT(3000);
+
       if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
       {
+
+        
 
        // printOpenSockets();
 

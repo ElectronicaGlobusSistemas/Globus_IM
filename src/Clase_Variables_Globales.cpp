@@ -365,6 +365,27 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Lectura_RFD_TFT_Display:
         return Lectura_RFD_TFT_Display_;
         break;
+
+    case Flag_Maquina_Juego_Evento:
+        return Flag_Maquina_Juego_Evento_;
+        break;
+
+    case Flag_Contadores_Session_Unknown:
+        return Flag_Contadores_Session_Unknown_;
+        break;
+
+    case Flag_Multiplicador_EFT_550:
+        return Flag_Multiplicador_EFT_550_;
+        break;
+
+
+    case Flag_Bill_Insert_Sesiones:
+        return Flag_Bill_Insert_Sesiones_;
+        break;
+
+    case Flag_Cancel_Sesiones:
+        return Flag_Cancel_Sesiones_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -728,6 +749,26 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Lectura_RFD_TFT_Display:
         Lectura_RFD_TFT_Display_=Change_estado;
         break;
+
+    case Flag_Maquina_Juego_Evento:
+        Flag_Maquina_Juego_Evento_=Change_estado;
+        break;
+    
+    case Flag_Contadores_Session_Unknown:
+        Flag_Contadores_Session_Unknown_=Change_estado;
+        break;
+
+    case Flag_Multiplicador_EFT_550:
+        Flag_Multiplicador_EFT_550_=Change_estado;
+        break;
+
+    case Flag_Bill_Insert_Sesiones:
+        Flag_Bill_Insert_Sesiones_=Change_estado;
+        break;
+    
+    case Flag_Cancel_Sesiones:
+        Flag_Cancel_Sesiones_=Change_estado;
+        break;
     }
 }
 
@@ -852,6 +893,12 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Log_=false;
     Flag_Premio_Mistery_=false;
     Lectura_RFD_TFT_Display_=false;
+    Flag_Maquina_Juego_Evento_=false;
+    Flag_Contadores_Session_Unknown_=false;
+    Flag_Multiplicador_EFT_550_=false;
+
+    Flag_Bill_Insert_Sesiones_=false;
+    Flag_Cancel_Sesiones_=false;
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

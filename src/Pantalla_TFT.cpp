@@ -16,7 +16,9 @@
 #define PING                  3
 #define RETURN_SESION         4
 #define LECTURA_TARJETA       5
+#define SINCRO                10
 
+//#define  DEBUG_TFT
 
 extern std::string IP_toString_(char IP_Char[]);
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
@@ -28,6 +30,15 @@ extern Configuracion_ESP32 Configuracion;
 bool Flag_Conexion_TFT=false;
 bool Flag_Status_Init_Player_TFT=false;
 bool Flag_Status_Close_Player_TFT=false;
+
+bool Flag_Sincro_TFT=false;
+bool Flag_Desincro_TFT=false;
+bool Flag_Config_TFT=false;
+
+int Tipo_TFT=TFT_UNKNOW;
+
+bool Flag_Descarga_TFT=false;
+bool Flag_Borrar_TFT=false;
 
 char Tipo_Tarjeta_RFID_TFT='R';
 int Id_Cliente_TFT_Display=0;
@@ -41,11 +52,13 @@ struct_message incomingData;
 
 /* MAC Destino */
 
+unsigned long Timeout_Conexion_TFT_Inicial=0;
+unsigned long Timeout_Conexion_TFT_Final=0;
+bool Enable_Conexion=false;
 
-uint8_t broadcastAddress[] = {0xB0, 0x81, 0x84, 0x96, 0x33, 0x68};
 
+uint8_t broadcastAddress[] = {0x48, 0xCA, 0x43, 0x32, 0xD6, 0xA8};
 extern uint8_t Address_Device_TFT_Display[];
-
 esp_now_peer_info_t peerInfo;
 
 
@@ -62,83 +75,194 @@ bool Await_ms(bool (*condicion)(), unsigned long timeout_ms) {
     unsigned long inicio = millis();
     while (!condicion() && (millis() - inicio < timeout_ms)) {
 
+
+        #ifdef DEBUG_TFT
         Serial.println(" Esperando respuesta  MAC.....");
+        #endif
         vTaskDelay(10);  // No bloquea demasiado la CPU
     }
     return condicion();  // Retorna true si se cumplió la condición, false si fue timeout
 }
+
+
+
 bool get_Flag_Conexion_TFT() {
     return Flag_Conexion_TFT;
 }
 
+bool get_Flag_Sincro_TFT(void)
+{
+    return Flag_Sincro_TFT;
+}
+
+bool get_Flag_Desincro_TFT(void)
+{
+    return Flag_Desincro_TFT;
+}
+
+bool get_Flag_Config_TFT(void)
+{
+    return Flag_Config_TFT;
+}
 
 /*  Inicializa pantall TFT utilizando el protocolo inalambrico ESP-NOW*/
-void Init_TFT_Display(void)
-{
 
+bool get_Flag_Descarga_TFT(void)
+{
+    return Flag_Descarga_TFT;
+}
+
+bool get_Flag_Borrar_TFT(void)
+{
+    return Flag_Borrar_TFT;
+}
+
+
+int get_Tipo_TFT(void)
+{
+    return Tipo_TFT;
+}
+
+bool Stop_TFT_Display(void)
+{
+    esp_err_t err = esp_now_deinit();
+
+    if (err == ESP_OK || err == ESP_ERR_ESPNOW_NOT_INIT)
+        return true;
+    else
+        return false;
+}
+
+bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
+{
     /* Pregunta si existe un dispositivo sincronizado */
 
-    Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
-    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+    if (EspNow)
     {
-        if (esp_now_init() != ESP_OK)
+        esp_err_t err = esp_now_init();
+        if (err == ESP_OK || err == ESP_ERR_ESPNOW_EXIST)
         {
-            Serial.println("Error Inicializing  esp Now");
-            Variables_globales.Set_Variable_Global(Conexion_TFT_Display, false);
-        }
-        else
-        {
+
+            if(MAC==nullptr)
+            {
+                Serial.println("No existe MAC para sincronizacion temporal");
+                return false;
+            }
 
             esp_now_register_recv_cb(OnDataRecv);
 
-            for (int i = 0; i < 6; i++)
-
-            {
-                Serial.println(broadcastAddress[i]);
-            }
-
-            memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+            memcpy(peerInfo.peer_addr, MAC, 6);
             peerInfo.channel = WiFi.channel();
             peerInfo.encrypt = false;
 
-            if (esp_now_add_peer(&peerInfo) != ESP_OK)
+            if (esp_now_add_peer(&peerInfo) == ESP_OK || esp_now_add_peer(&peerInfo) == ESP_ERR_ESPNOW_EXIST)
+                return true;
+            else
             {
+                #ifdef DEBUG_TFT
                 Serial.println("Error Emparejando el dispositivo");
+                #endif
+                return false;
+            }
+        }
+        #ifdef DEBUG_TFT
+        Serial.println("Error Inicializing  esp Now");
+        #endif
+        return false;
+    }
+    else
+    {
+
+        if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+        {
+            if (esp_now_init() != ESP_OK)
+            {
+#ifdef DEBUG_TFT
+                Serial.println("Error Inicializing  esp Now");
+#endif
                 Variables_globales.Set_Variable_Global(Conexion_TFT_Display, false);
+
+                return false;
             }
             else
             {
-                /* -----------> Test de conexion <--------------*/
+                /* Registra Callback recepcion ESPNOW*/
+                esp_now_register_recv_cb(OnDataRecv);
 
-                Serial.println("Pantalla TFT  OK");
-
-                StaticJsonDocument<200> doc;
-
-                String Payload = "";
-                int Intentos_Conexion = 3;
-                doc["IsSuccess"] = true;
-                doc["Opcion"] = PING;
-
-                serializeJson(doc, Payload);
-
-                Send_TFT(broadcastAddress, (uint8_t *)Payload.c_str(), Payload.length());
-                /* Conexion de pantalla OK */
-                
-                
-                if (Await_ms(get_Flag_Conexion_TFT, 1000))
+#ifdef DEBUG_TFT
+                for (int i = 0; i < 6; i++)
                 {
-                    Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
-                    Serial.println("Conexion de pantalla OK");
+
+                    Serial.print(broadcastAddress[i], HEX);
+                    Serial.print(":");
+                }
+                Serial.println();
+#endif
+                memcpy(peerInfo.peer_addr, Address_Device_TFT_Display, 6);
+                peerInfo.channel = WiFi.channel();
+                peerInfo.encrypt = false;
+
+                if(esp_now_add_peer(&peerInfo) == ESP_OK||esp_now_add_peer(&peerInfo) == ESP_ERR_ESPNOW_EXIST)
+                {
+
+                    Flag_Conexion_TFT = false;
+                    StaticJsonDocument<200> doc;
+
+                    String Payload = "";
+                    int Intentos_Conexion = 3;
+                    doc["IsSuccess"] = true;
+                    doc["Opcion"] = PING;
+
+                    serializeJson(doc, Payload);
+
+                    Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+                    /* Conexion de pantalla OK */
+
+                    if (Await_ms(get_Flag_Conexion_TFT, 1000))
+                    {
+                        Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
+                        // #ifdef DEBUG_TFT
+                        Serial.println("Pantalla TFT Wireless Inicializada...");
+                        // #endif
+                        Flag_Conexion_TFT = false;
+
+                        Menssage_TFT("Estableciendo conexion con dispositivo Globus IM...",2500,true);
+                        return true;
+                    }
+                    else
+                    {
+                        Variables_globales.Set_Variable_Global(Conexion_TFT_Display, false);
+#ifdef DEBUG_TFT
+
+                        Serial.print("Dispositivo no encontrado: ");
+                        for (int i = 0; i < 6; i++)
+                        {
+                            Serial.print(Address_Device_TFT_Display[i], HEX);
+                            Serial.print(":");
+                        }
+                        Serial.println();
+#endif
+                        Flag_Conexion_TFT = false;
+                        return false;
+                    }
                 }
                 else
+                {
+
+                    Serial.println(esp_now_add_peer(&peerInfo));
+#ifdef DEBUG_TFT
+                    Serial.println("Error Emparejando el dispositivo");
+#endif
                     Variables_globales.Set_Variable_Global(Conexion_TFT_Display, false);
-
-                Flag_Conexion_TFT = false;
-
-                /*--------------------------------------------*/
+                    return false;
+                }
             }
         }
+        else
+            return false;
     }
+
+    return false;
 }
 
 unsigned long Compu=0;
@@ -183,64 +307,112 @@ String formatearComoMoneda(uint32_t numero)
     return "$ "+resultado;
 }
 
-bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Total_Points_Tickets, int User_Level,uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion,uint32_t Saldo_No_Canjeable,int Current_Playertracking_Points,int Current_Points_Tickets)
+bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Total_Points_Tickets, int User_Level, uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, int Current_Playertracking_Points, int Current_Points_Tickets,int Tipo_Sesion)
 {
-    StaticJsonDocument<1024> doc;
-    doc.clear();
-    String Payload = "";
-    int Intentos_Conexion = 3;
 
-
-    doc["Nombre"] = User_Name;
-    doc["Total_Fide"] = Total_Playertracking_Points;
-    doc["Total_Bole"] = Total_Points_Tickets;
-    
-    doc["Actual_Bole"] = Current_Points_Tickets;
-    doc["Actual_Fide"] = Current_Playertracking_Points;
-   
-    doc["User_Level"] = User_Level;
-
-    doc["Saldo_Canje"]=formatearComoMoneda(Saldo_Canjeable);
-    doc["Saldo_Sin_Restri"]=formatearComoMoneda(Saldo_Sin_Restriccion);
-    doc["Saldo_No_Canje"]=formatearComoMoneda(Saldo_No_Canjeable);
-    doc["Opcion"] = UPDATE_POINTS;
-
-
-   
-    serializeJson(doc, Payload);
-     
-    for (int i = 0; i < Intentos_Conexion; i++)
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
-        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-            return true;
-        else
-            return false;
+        StaticJsonDocument<1024> doc;
+        doc.clear();
+        String Payload = "";
+        int Intentos_Conexion = 3;
 
-        delay(200);
+        doc["Nombre"] = User_Name;
+        doc["Total_Fide"] = Total_Playertracking_Points;
+        doc["Total_Bole"] = Total_Points_Tickets;
+
+        doc["Actual_Bole"] = Current_Points_Tickets;
+        doc["Actual_Fide"] = Current_Playertracking_Points;
+
+        doc["User_Level"] = User_Level;
+
+        
+
+        doc["Saldo_Canje"] = formatearComoMoneda(Saldo_Canjeable);
+        doc["Saldo_Sin_Restri"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+        doc["Saldo_No_Canje"] = formatearComoMoneda(Saldo_No_Canjeable);
+        doc["Tipo_S"] = Tipo_Sesion;
+        doc["Opcion"] = UPDATE_POINTS;
+
+        serializeJson(doc, Payload);
+
+        for (int i = 0; i < Intentos_Conexion; i++)
+        {
+            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                return true;
+            else
+                return false;
+
+            delay(200);
+        }
+    }
+    else
+        return false;
+}
+
+bool Close_Player_TFT(uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, int Tipo_Sesion)
+{
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<200> doc;
+
+        String Payload = "";
+        int Intentos_Conexion = 3;
+        doc["User_Name"] = "";
+        doc["Playertracking_Points"] = 0;
+        doc["Points_Tickets"] = 0;
+        doc["User_Level"] = 0;
+
+        doc["Saldo_Canje"] = formatearComoMoneda(Saldo_Canjeable);
+        doc["Saldo_Sin_Restri"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+        doc["Saldo_No_Canje"] = formatearComoMoneda(Saldo_No_Canjeable);
+
+        doc["Tipo_S"] = Tipo_Sesion;
+        doc["Opcion"] = CLOSE_PLAYER_TRACKING;
+
+        serializeJson(doc, Payload);
+
+        for (int i = 0; i < Intentos_Conexion; i++)
+        {
+            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                return true;
+            else
+                return false;
+        }
+    }else{
+        return false;
     }
 }
 
-bool Close_Player_TFT(void)
+bool Menssage_TFT(String Message, int timeout, bool IsSuccess)
 {
-    StaticJsonDocument<200> doc;
 
-    String Payload = "";
-    int Intentos_Conexion = 3;
-    doc["User_Name"] = "";
-    doc["Playertracking_Points"] = 0;
-    doc["Points_Tickets"] = 0;
-    doc["User_Level"] = 0;
-    doc["Opcion"] = CLOSE_PLAYER_TRACKING;
-
-    serializeJson(doc, Payload);
-
-    for (int i = 0; i < Intentos_Conexion; i++)
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
-        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-            return true;
-        else
-            return false;
-    }
+        StaticJsonDocument<500> doc;
+        doc.clear();
+        String Payload = "";
+        int Intentos_Conexion = 3;
+
+        doc["Message"] = Message;
+        doc["Timeout"] = timeout;
+        doc["IsSuccess"] = IsSuccess;
+        doc["Opcion"] = RETURN_SESION;
+
+        serializeJson(doc, Payload);
+
+        for (int i = 0; i < Intentos_Conexion; i++)
+        {
+            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                return true;
+            else
+                return false;
+
+            delay(200);
+        }
+    }else
+        return false;
 }
 
 bool Get_Status_Sesion_Player(void)
@@ -293,16 +465,24 @@ void Ping_Response(void)
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
 {
 
-    if (memcmp(mac, broadcastAddress, 6) != 0)
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
     {
-        Serial.println("MAC no autorizada, ignorando mensaje.");
-        return;
+        if (memcmp(mac, Address_Device_TFT_Display, 6) != 0)
+        {
+
+            #ifdef DEBUG_TFT
+            Serial.println("MAC no autorizada, ignorando mensaje.");
+            #endif
+            return;
+        }
     }
 
     memcpy(&incomingData, incomingDataPtr, len);
 
+    //#ifdef DEBUG_TFT
     Serial.println("JSON recibido:");
     Serial.println(incomingData.json_data);
+    //#endif
 
     StaticJsonDocument<200> doc;
     DeserializationError error = deserializeJson(doc, incomingData.json_data);
@@ -314,7 +494,11 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
         int Option = doc["Opcion"];
         int Id_Cliente = doc["Id_Cliente"];
         String Tipo_Tarjeta=doc["Tipo_Tarjeta"];
+
+        
+
         int i=0;
+
         switch (Option)
         {
         case PING: /* Conexion de pantalla TFT */
@@ -357,7 +541,56 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
                 Variables_globales.Set_Variable_Global(Lectura_RFD_TFT_Display,true);
             }
             break;
-        
+
+        case  SINCRO:
+            if (Issucess)
+            {
+                if (!doc.containsKey("Tipo_TFT"))
+                    Tipo_TFT = TFT_UNKNOW;
+                else
+                    Tipo_TFT = doc["Tipo_TFT"];
+
+                Flag_Sincro_TFT = true;
+            }
+            else
+                Flag_Sincro_TFT=false;
+
+            #ifdef DEBUG_TFT
+            Serial.println("Mensaje confirmacion recibido");
+            #endif
+        break;
+
+        case DESINCRO:
+            if(Issucess)
+            {
+                Tipo_TFT= TFT_UNKNOW;
+                Flag_Desincro_TFT=true;
+            }
+            else
+                Flag_Desincro_TFT=false;
+        break;
+
+        case CONFIG:
+            if(Issucess)
+                Flag_Config_TFT=true;
+            else
+                Flag_Config_TFT=false;
+        break;
+
+        case DOWNLOAD:
+            if(Issucess)
+                Flag_Descarga_TFT=true;
+            else
+                Flag_Descarga_TFT=false;
+            break;
+
+        case REMOVE_IMG_TFT:
+            if(Issucess)
+                Flag_Borrar_TFT=true;
+            else
+                Flag_Borrar_TFT=false;
+            break;
+
         default:
             break;
         }
@@ -369,8 +602,34 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
     }
     else
     {
+
+        #ifdef DEBUG_TFT
         Serial.print("Error parsing JSON: ");
         Serial.println(error.c_str());
+        #endif
+    }
+}
+
+void Task_Conexion_TFT(int Timeout,int Max_Intentos)
+{
+
+
+    static int Current_Intentos=0;
+
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) && Current_Intentos<Max_Intentos)
+    {
+
+        if (!Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+        {
+            Timeout_Conexion_TFT_Inicial = millis();
+
+            if ((Timeout_Conexion_TFT_Inicial - Timeout_Conexion_TFT_Final) > Timeout)
+            {
+                Init_TFT_Display();
+                Timeout_Conexion_TFT_Final = Timeout_Conexion_TFT_Inicial;
+                Current_Intentos++;
+            }
+        }
     }
 }
 

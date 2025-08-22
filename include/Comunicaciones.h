@@ -2712,6 +2712,54 @@ void Mensajes_RFID(void)
     }
     /* -------------------------> Contadores Sesion Cerrada<---------------------------------------*/
     
+    /* -------------------------> Contadores sesiones sin tarjeta<---------------------------------*/
+    if(Variables_globales.Get_Variable_Global(Flag_Contadores_Session_Unknown))
+    {
+
+        
+        Variables_globales.Set_Variable_Global(Flag_Contadores_Session_Unknown,false);
+
+        if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        {
+            Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
+   
+            esp_task_wdt_reset();
+            if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 15)
+            {   
+                Encuesta_Creditos_Premio(); /*Encuesta creditos antes de envio de contadores*/
+                //delay(300);
+
+                unsigned long tiempoInicio = millis();
+                unsigned long timeout = 2000; // 2 segundos de espera máximo
+
+                while ((millis() - tiempoInicio < timeout))
+                {
+                    esp_task_wdt_reset();
+                    vTaskDelay(pdMS_TO_TICKS(200)); // Espera 200 ms entre chequeos
+                }
+            }
+           
+            esp_task_wdt_reset();
+            #ifdef Debug_Mensajes_RFID
+            Serial.println("Contadores Sesion RFID Terminada....");
+            #endif
+            
+            // delay(50);
+            // Transmite_Contadores_Accounting();
+
+            if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
+            {
+                Trasmite_Contadores_Accounting_API_Gmaster(false); /* Envia contadores por Socket para App */
+                // delay(50);
+                // Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia contadores por Socket para App */
+            }else{
+                Transmite_Contadores_Accounting();
+            }
+        }else{
+            Transmite_Confirmacion('A', '0');
+        }
+    }
+    /*---------------------------------------------------------------------------------------------*/
     /* -------------------------> Reset Handpay operador <-----------------------------------------*/
     if(Variables_globales.Get_Variable_Global(Operador_Detected))
     {
@@ -2959,6 +3007,8 @@ void Mensajes_RFID(void)
                     /*-----------------------------------------------------*/
                 }
 
+                //Info_Cashless.Count_Player_Sesions(false,contadores.Get_Status_Flag_Premio());
+                Variables_globales.Set_Variable_Global(Flag_Cancel_Sesiones,true);
                 contadores.Set_Flag_Premio(false);
             }
 
@@ -3029,6 +3079,8 @@ void Mensajes_RFID(void)
                     New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
                     /*----------------------------------------------------------------------------------*/
                 }
+
+                Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
 
                 contadores.Set_Flag_Bill_In(false);
             }
@@ -4408,7 +4460,7 @@ void Verifica_Cambio_Contadores(void)
             Contador_Bill_In_Ant = Contador_Bill_In_Act;
             flag_billete_insertado = true;
         }
-    }
+    } 
 }
 
 bool Cumple_Condicion=false;
@@ -5024,6 +5076,9 @@ bool Calcula_Cancel_Credit(bool Calcula_Contador)
         /* Verifica el guardado */
         if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
         {
+            String Contadores_Formula = String(Cancel_Credit_Poker)+" = (("+String(Drop_Poker)+" - "+String(Coin_In_Poker)+") + " +String(Coin_Out_Poker) +") - "+String(Creditos_Poker);
+            
+            Info_Cashless.Log(RTC, "CALCULO_FORMULA_POKER", Contadores_Formula);
             return true; /*Contadores OK*/
         }
 
@@ -5200,12 +5255,23 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador)
         contadores.Set_Contadores(Total_Cancel_Credit, Contador_NULL);
         contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_NULL);
         Variables_globales.Set_Variable_Global(Primer_Cancel_Credit,true);
+
+
+        String contadores_iniciales = "Coin_In: " + String(Coin_In_Poker) + " Coin_Out: " + String(Coin_Out_Poker) + " Total_Drop: " + String(Drop_Poker);
+        
+        Info_Cashless.Log(RTC, "CALCULO_FORMULA_POKER", "ERROR_EN_CONVERSION: "+(contadores_iniciales));
+
+        Info_Cashless.Log(RTC, "CALCULO_FORMULA_POKER", "ERROR_EN_CONVERSION: "+String(Convert_Char_To_Int2(Contador_Cancel_Credit_Poker)+" "+String(Cancel_Credit_Poker_2)));
         return false; /*Intenta nuevamente el calculo del premio*/
     }else{ /* Si Son iguales (No existe diferencia)*/
 
         /* Verifica el guardado */
         if (contadores.Set_Contadores(Total_Cancel_Credit, Contador_Cancel_Credit_Poker) && contadores.Set_Contadores(Cancel_Credit_Hand_Pay, Contador_Cancel_Credit_Poker))
         {
+
+            String Contadores_Formula = String(Cancel_Credit_Poker)+" = (("+String(Drop_Poker)+" - "+String(Coin_In_Poker)+") + " +String(Coin_Out_Poker) +") - "+String(Creditos_Poker);
+            
+            Info_Cashless.Log(RTC, "CALCULO_FORMULA_POKER", Contadores_Formula);
             return true; /*Contadores OK*/
         }
 
@@ -5449,6 +5515,57 @@ void RESET_HANDPAY_NOT_SAS(void)
     }
 }
 
+void Borrado_Poker_Hopper_Enable(void)
+{
+
+    static int Coin_In_Poker_Anterior, Coin_Out_Poker_Anterior, Drop_Poker_Anterior;
+    static bool IsOK = false;
+    static bool IsKO = false;
+
+
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+    {
+
+        if (!IsOK)
+        {
+
+            Coin_In_Poker_Anterior = Convert_Char_To_Int11(Coin_In_Poker_Data);
+            Coin_Out_Poker_Anterior = Convert_Char_To_Int11(Coin_Out_Poker_Data);
+            Drop_Poker_Anterior = Convert_Char_To_Int11(Total_Drop_Poker_Data);
+
+            if (Coin_In_Poker_Anterior > 0 && Coin_Out_Poker_Anterior > 0 && Drop_Poker_Anterior > 0)
+            {
+                String contadores_iniciales = "Coin_In: " + String(Coin_In_Poker_Anterior) + " Coin_Out: " + String(Coin_Out_Poker_Anterior) + " Total_Drop: " + String(Drop_Poker_Anterior);
+                Info_Cashless.Log(RTC, "CONTADORES_INICIALES_POKER ", contadores_iniciales);
+
+                IsOK = true;
+            }
+        }
+        /* While */
+        if (IsOK)
+        {
+            int Coin_In_Poker_Actual;
+            int Coin_Out_Poker_Actual;
+            int Drop_Poker_Actual;
+
+            Coin_In_Poker_Actual = Convert_Char_To_Int11(Coin_In_Poker_Data);
+            Coin_Out_Poker_Actual = Convert_Char_To_Int11(Coin_Out_Poker_Data);
+            Drop_Poker_Actual = Convert_Char_To_Int11(Total_Drop_Poker_Data);
+
+            if (Coin_In_Poker_Actual < Coin_In_Poker_Anterior && Coin_Out_Poker_Actual < Coin_Out_Poker_Anterior && Drop_Poker_Actual < Drop_Poker_Anterior)
+            {
+                //Serial.println("Borrado poker detectado");
+
+                String contadores_iniciales = "Coin_In: " + String(Coin_In_Poker_Actual) + " Coin_Out: " + String(Coin_Out_Poker_Actual) + " Total_Drop: " + String(Drop_Poker_Actual);
+                Info_Cashless.Log(RTC, "RESET_CONTADORES_POKER_DETECTADO", contadores_iniciales);
+                Calcula_Cancel_Credit(true);
+                delay(100);
+                IsOK = false;
+            }
+        }
+    }
+}
+
 /* Verifica senal de  Hopper en Maquinas Poker para calcular el premio 
 Transmite a servidor (D1) */     
 void Task_Verifica_Hopper(void *parameter)
@@ -5469,6 +5586,7 @@ void Task_Verifica_Hopper(void *parameter)
 
     for (;;)
     {
+       
 
         Verifica_Cambio_Contadores();
         contadorActiv++;
@@ -5491,6 +5609,8 @@ void Task_Verifica_Hopper(void *parameter)
             Conta_Poll_Cancel_Poker++;
             if (Conta_Poll_Cancel_Poker > Extern_Pulsos && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
             {
+
+                //Info_Cashless.Count_Player_Sesions(false,Variables_globales.Get_Variable_Global(Flag_Hopper_Enable));
                 
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
                 Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
@@ -5532,8 +5652,11 @@ void Task_Verifica_Hopper(void *parameter)
                 Transmite_Confirmacion('D', '1');
                 Conta_Poll_Cancel_Poker = 0;
                 contadorActiv=0;
+                Variables_globales.Set_Variable_Global(Flag_Cancel_Sesiones,true);
             }
         }
+
+        // Borrado_Poker_Hopper_Enable();
         vTaskDelay(200 / portTICK_PERIOD_MS);
     }
 }
@@ -5626,7 +5749,9 @@ void Actualiza_Contadores(void)
         {
 
             //Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
-           
+
+            //Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
+            
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
             Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
             delay(350);
@@ -5641,6 +5766,7 @@ void Actualiza_Contadores(void)
             /*---------------------------------------------------------------------------*/
             New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
             /*---------------------------------------------------------------------------*/
+            Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
             Variables_globales.Set_Variable_Global(Billete_Insert, false);
         }
     }else{

@@ -82,6 +82,7 @@
 #define DESCARGA_AUTOMATICO           (0x55)
 #define DESCARGA_EFT_BLOQUEADA        (0x56)
 #define FECHA_ELIMINA_LOG             (0x57)
+#define TFT_NOT_INIT                  (0x58)
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -90,6 +91,7 @@ void Sesion_Abierta_Color(int Figura);
 void Clear_Barra(void);
 void RESET_Handle(void);
 void Cliente_VS_Operador(byte MEMORIA[],byte INFO[]);
+//void Cliente_VS_Operador(int TIPO_TARJETA,uint32_t ID);
 void Status_Barra(int Status);
 static void Read_RFID(void *parameter); /* Lee y verifica  RFID*/
 void Reset_Handle_LED(void);
@@ -116,6 +118,16 @@ enum EstadoTransfer {
     TRANSFER_DONE
 };
 
+enum Estado_Lector
+{
+    ESTADO_INACTIVO,
+    ESTADO_SESION_ACTIVA,
+    ESTADO_SIN_COMUNICACION,
+    ESTADO_SIN_CONEXION_RFID,
+    ESTADO_UPDATING,
+    ESTADO_AP_MODE,
+    ESTADO_LISTO_PARA_LEER
+};
 
 class Cashless_API
 {
@@ -143,8 +155,12 @@ private:
     int TimeOut_Ejecuta=15000;
     bool Reset_Time=false;
     EstadoTransfer estado_transfer = TRANSFER_IDLE;  // Variable miembro
-    
 
+    unsigned long Timeout_Sesiones_Pendientes_Inicial=0;
+    unsigned long Timeout_Sesiones_Pendientes_Final=0;
+    int Timeout_Sesiones_Pendientes=30000;
+
+    
 public:
 
     int Info_Client(byte Id_Client[], ESP32Time ,String Type_Transaction=LOAD_TRANSACTION, uint32_t Transaction_ID=0);
@@ -160,11 +176,11 @@ public:
     bool Close_Player_Tracking_Sesion(bool Enable);
     bool Reader_Lock(bool Status);
     int Type_Sesion(int Flag=SESION_DEFAULT,bool Status=false);
-
+    void Procesar_Lectura_Tarjeta(void);
     void Agragar_Transaccion(String Json);
     
     bool Updated_Cashless_Counters(String Type_Transaccion);
-
+    bool Envia_Sesiones_Unknown(bool Opcion);
     bool enviarTransaccion(const String &json);
 
     void Log(ESP32Time RTC,String Msg,String Data="",const char *Txt="/LogESP.txt");
@@ -178,7 +194,7 @@ public:
     void Saves_Current_Player_Sesion(byte Id_Client_Recovery[],int Type_Sesion);
     void Remove_Currrent_Player_Sesion(void);
 
-    void Count_Player_Sesions(bool Billete_In=false);
+    void Count_Player_Sesions(bool Billete_In=false, bool Flag_Premio=false);
     
     bool Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion);
     String Get_Current_Pending_Ack_Load(void);
@@ -186,7 +202,7 @@ public:
 
     bool Valida_Operador_Cashless(char ID_Tarjeta_Operador[]);
     
-
+    void Test_Txt(String Msg);
     /* Actualiza Objeto  Transfer Load and Download */
     bool Update_Ack_Evento_69(String Type_Transaccion,int Code=0x00);
     /* Habilita procesamiento de evento 68 (Transferencia completa) */
@@ -238,6 +254,15 @@ public:
     bool CreaLog(const char *Archivo,bool Minutes_Days=false,uint32_t Min_Day=15);
     bool Verifica_Log(const char *Archivo, bool Minutes_Days=false,uint32_t Min_Day=15);
     bool Guarda_Tiempo_Log(bool Minutes_Days, uint32_t Min_Day);
+
+    void guardarSesiones(void);
+    bool haySesionesEnArchivo(void);
+    void Nueva_Sesion(const String &json);
+    void Intenta_Enviar_Sesiones_Task(void);
+    String  Get_Info_Sesion_Unknown(bool Estado_Sesion);
+    bool Envia_Sesiones_Unknown(const String &json);
+    void Load_Sesiones_Unknown_Pendientes(void);
+    void Task_Sesiones_Unknow(int timeout=5000);
 };
 void New_Token(void*arg);
 void Resurrect_reader(void);
