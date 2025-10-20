@@ -29,6 +29,7 @@ using namespace std;
 
 
 #define BONUS_PENDING 0x40
+#define BONUS_OK      0x00
 #define NOT_COMUNICATIONS_WITH_MACHINE_FOR_BONUS 0xFF
 #define COMMAND_RECEIVED 0x01
 #define REJECTED 0x81
@@ -84,7 +85,7 @@ public:
   bool Clear_Buffer(int Filtro_Buffer);
   bool Set_RX_AFT_2(int Filtro_buffer);
 
-
+  bool Tester(int Test);
   bool  Set_Key_Register_AFT(char Buffer[],bool Reset=false);
   bool  Delete_Key_Register_AFT(bool Reset=true);
   char* Get_Key_Register_AFT();
@@ -170,7 +171,7 @@ class Transsaccion_Cashless
   private:
   bool Estado_Tranmision_Auto_Registro=false;
   uint32_t Num_Trans_ID;
-  char Counter_Trans_ID[7];
+  char Counter_Trans_ID[8];
   char Credit_To_Load[20];
   char ACK_Bonus[128];
   char Flag_Legacy_Pay=0xAA; 
@@ -239,9 +240,11 @@ class Transsaccion_Cashless
     void Set_Reintento_Registro(bool Set);
     bool Get_Reintento_Registro();
     bool Requerimiento_Bonusing(int Evento, bool Enable_Bonusing=false);
+    bool Requerimiento_Bonusing(int Evento, bool Enable_Bonusing=false,int Status_Bonus=0xAA);
     char Get_ACK_Bonus_Copia(void);
     int  Get_Status_AFT_Bonus(int Update_Status=0);
     void Set_Status_AFT_Bonus(int );
+
 };  
 String Token_Generator_Update(String Url);
 bool esMacValida(String mac);

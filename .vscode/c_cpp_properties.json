@@ -12,6 +12,7 @@
                 "c:/Users/Program. Electronico/Desktop/Nueva carpeta/01/RUTA-RD/FirmwareESP32/Globus_IM/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
+                "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                 "c:/Users/Program. Electronico/Desktop/Nueva carpeta/01/RUTA-RD/FirmwareESP32/Globus_IM/lib/CRC",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/HTTPUpdate/src",
@@ -229,7 +230,6 @@
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                 "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 ""
             ],
@@ -240,6 +240,7 @@
                     "c:/Users/Program. Electronico/Desktop/Nueva carpeta/01/RUTA-RD/FirmwareESP32/Globus_IM/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src",
+                    "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                     "c:/Users/Program. Electronico/Desktop/Nueva carpeta/01/RUTA-RD/FirmwareESP32/Globus_IM/lib/CRC",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/HTTPUpdate/src",
@@ -457,7 +458,6 @@
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                    "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                     "C:/Users/Program. Electronico/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     ""
                 ]

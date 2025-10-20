@@ -12,6 +12,15 @@
 #include "time.h"
 #include "Clase_Variables_Globales.h"
 #include "RFID.h"
+#include "SD.h"
+
+
+#define BLOCK_SIZE 258
+
+QueueHandle_t API_Gmaster::colaPendientes = NULL;  // 🔹 se define una sola vez aquí
+
+
+#define FILE_NAME "/fifo_bin.txt"
 
 #define MAX_LIM_EVENTOS_Api 900
 
@@ -44,6 +53,66 @@ extern unsigned short Num_Eventos;
 extern unsigned char Tabla_Eventos_[ 999 ][ 8 ];
 extern String IP_toString_String(char IP_Char[]);
 
+bool API_Gmaster::Guarda_Trama(char Buffer[])
+{
+
+    char temp[BLOCK_SIZE];
+    memset(temp, 0, BLOCK_SIZE);
+    strncpy(temp, Buffer, BLOCK_SIZE - 1);
+
+    if (xQueueSend(colaPendientes, temp, 0) == pdTRUE)
+    {
+        Serial.println("📥 Buffer agregado a la cola");
+        return true;
+    }
+    else
+    {
+        Serial.println("⚠️ Cola llena, guardando en SD directamente");
+        return true;
+    }
+}
+
+bool API_Gmaster::Procesa_Cola_Tramas_Pendientes(void)
+{
+    bool IsSuccess = false;
+    char Buffer[BLOCK_SIZE];
+
+    if (xQueueReceive(colaPendientes, &Buffer, 0) == pdTRUE)
+    {
+        File file = SD.open(FILE_NAME, FILE_APPEND);
+        if (file)
+        {
+            file.write((const uint8_t *)Buffer, BLOCK_SIZE);
+            file.close();
+            Serial.println("💾 Bloque guardado en SD");
+            IsSuccess = true;
+        }
+        else
+        {
+            Serial.println("❌ Error al abrir archivo SD");
+        }
+    }
+
+    return IsSuccess;
+}
+
+bool API_Gmaster::Inicializa_Cola_Tramas(bool Status)
+{
+
+    if (colaPendientes != NULL)
+        return true;
+
+    if (Status)
+    {
+        Serial.println("Cola OK");
+    }
+    colaPendientes = xQueueCreate(50, BLOCK_SIZE);
+
+    if (colaPendientes == NULL)
+        return false;
+    else
+        return true;
+}
 /*------------------------------------> Solicitudes <---------------------------------------------------------*/
 
 void API_Gmaster::Transmite_Confirmacion_API(char Buffer[], String api, bool Token_Valido)
@@ -138,8 +207,11 @@ void API_Gmaster::Transmite_Confirmacion_API(char Buffer[], String api, bool Tok
         Info_Cashless.Log(RTC, "ENVIO_CONFIRMACION_ACK_API", "FALLO_TOKEN_DE_ACCESO_NO_GENERADO");
 }
 
-void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, bool Token_Valido)
+bool API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, bool Token_Valido)
 {
+
+    bool IsSuccess=false;
+    
     if (Token_Valido)
     {
 
@@ -187,6 +259,8 @@ void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
 #endif
                         String errorMsg = String(error.c_str());
                         Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "ERROR_DESERIALIZANDO_OBJETO_RESPONSE: " + errorMsg);
+
+                        IsSuccess=false;
                     }
                     else
                     {
@@ -204,10 +278,12 @@ void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
                             Serial.println("Contadores recibidos con exito!");
 #endif
                             Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "CONTADORES_RECIBIDOS_CON_EXITO");
+                            IsSuccess=true;
                         }
                         else
                         {
                             Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "CONTADORES_RECIBIDOS_NO_PROCESADOS");
+                            IsSuccess=false;
                         }
                     }
 
@@ -220,6 +296,7 @@ void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
                     Serial.println(httpCode);
 #endif
                     Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "FALLO_EN_PETICION_HTTP_CODIGO_ERROR: " + String(httpCode));
+                    IsSuccess=false;
                 }
                 https.end();
             }
@@ -228,6 +305,7 @@ void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
             {
                 Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "NO_SE_ESTABLECIO_CONEXION_CON_SERVER" + String(fwurl));
                 https.end();
+                IsSuccess=false;
             }
 
             // client->flush();
@@ -240,10 +318,17 @@ void API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
             Serial.print("No conectado a la red WiFi");
 #endif
             Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "FALLO_NO_CONECTADO_A_LA_RED_WIFI");
+            IsSuccess=false;
         }
     }
     else
+    {
         Info_Cashless.Log(RTC, "ENVIO_TRAMA_CONTADORES_API", "FALLO_TOKEN_DE_ACCESO_NO_GENERADO");
+        IsSuccess=false;
+    }
+
+    return IsSuccess;
+        
 }
 
 void API_Gmaster::Transmite_Eventos_Gmaster_Api(char Buffer[], String Api, bool Token_Valido)

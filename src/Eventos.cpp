@@ -168,6 +168,16 @@ bool Eventos_SAS::Set_evento(char evento)
         return true;
         break;
 
+        case 0xEF:
+        Evento_SAS=evento;
+        return true;
+        break;
+
+        case 0xFE:
+        Evento_SAS=evento;
+        return true;
+        break;
+
         default:
 
            // Serial.println(evento,HEX);

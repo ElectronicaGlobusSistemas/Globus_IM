@@ -57,6 +57,9 @@
 #define NOT_COMMUNICATION_WITH_THE_MACHINE    (0x34) /* No hay comunicacion con la maquina */
 #define NOT_WIFI_CONNECTION           (0x35)
 #define TYPE_MACHINE_NOT_MACTH        (0x36)
+#define COMANDO_NO_IDENTIFICADO       (0x59)
+
+
 
 #define NOT_RED                       (0x37)
 #define AUTHENTICATION_ERROR          (0x38)
@@ -83,6 +86,15 @@
 #define DESCARGA_EFT_BLOQUEADA        (0x56)
 #define FECHA_ELIMINA_LOG             (0x57)
 #define TFT_NOT_INIT                  (0x58)
+#define TRANSACCION_PENDIENTE_POR_CONSULTA (0x60)
+ 
+
+
+#define INFO_  0
+#define DEBUG_ 1
+#define ERROR_ 2
+#define WARN_  3
+#define FATAL_ 4
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -183,7 +195,11 @@ public:
     bool Envia_Sesiones_Unknown(bool Opcion);
     bool enviarTransaccion(const String &json);
 
-    void Log(ESP32Time RTC,String Msg,String Data="",const char *Txt="/LogESP.txt");
+
+    
+    bool Ack_Transfer_Pending_Pendiente(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion,char Saldos[15]);
+    bool Status_Transfer_Download_Pendiente_AFT(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client, char Saldos[15]);
+    void Log(ESP32Time RTC,String Msg,String Data="",const char *Txt="/LogESP.txt",int Nivel_log=INFO_);
     void guardarTransacciones();
     void intentarEnviarTransacciones();
     void nuevaTransferencia(const String& json);
@@ -207,7 +223,7 @@ public:
     bool Update_Ack_Evento_69(String Type_Transaccion,int Code=0x00);
     /* Habilita procesamiento de evento 68 (Transferencia completa) */
     bool Set_Transfer_Pending(bool Status,String Type_Transaccion,char Buffer_Transfer_Amount[]);
-
+    bool Status_Transfer_Download_Pendiente(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client);
     bool Get_Status_Event_Pending_Transfer(String Type_Transaccion);
 
 
@@ -259,10 +275,20 @@ public:
     bool haySesionesEnArchivo(void);
     void Nueva_Sesion(const String &json);
     void Intenta_Enviar_Sesiones_Task(void);
-    String  Get_Info_Sesion_Unknown(bool Estado_Sesion);
+    String  Get_Info_Sesion_Unknown(bool Estado_Sesion,bool flag_contador);
     bool Envia_Sesiones_Unknown(const String &json);
     void Load_Sesiones_Unknown_Pendientes(void);
     void Task_Sesiones_Unknow(int timeout=5000);
+    String FormatearBytesComoHex(char* data, size_t length);
+    void Parametros_iniciales_Sesion(char buffer[]);
+    void Test_Counter(char* Contador,long&valor_test);
+
+
+    bool ExitsCahlessID(void);
+    bool RemoveCashlessID();
+    int GetCashlessID(int Parameter);
+    bool SetCashlessID(String Type_Transaction="C");
+
 };
 void New_Token(void*arg);
 void Resurrect_reader(void);

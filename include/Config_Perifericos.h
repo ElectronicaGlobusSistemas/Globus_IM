@@ -91,7 +91,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,5,5};
+uint8_t Version_Firmware_[]={2,1,6,1};
 uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 
@@ -327,12 +327,12 @@ static void ManagerTasks(void *parameter)
 
         TIMEOUT_WiFi_CONNECT=millis();
         //---------------------------------> Config via Serial <-----------------------------------------
-        // if (Serial.available() > 0)
-        // {
-        //     String Command = Serial.readString(); // read until timeout
-        //     Config_Red_Serial(Command);
-        //     Serial.flush();
-        // }
+        if (Serial.available() > 0)
+        {
+            String Command = Serial.readString(); // read until timeout
+            Config_Red_Serial(Command);
+            Serial.flush();
+        }
         //------------------------------------------------------------------------------------------------
         //-----------------------------> MCU piloto <-----------------------------------------------------
         Tiempo_Actual = millis();
@@ -359,7 +359,7 @@ static void ManagerTasks(void *parameter)
                 TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
                 RECONECT_WIFI_ESP(); /* Ejecuta reconexion WiFi*/
                 WL_DISCONNECT_OK=true;
-                Info_Cashless.Log(RTC,"PERDIDA_CONEXION_WIFI","TASK_RECUPERA_CONEXION");
+                Info_Cashless.Log(RTC,"PERDIDA_CONEXION_WIFI","TASK_RECUPERA_CONEXION",archivo,WARN_);
             }
             if((TIMEOUT_WiFi_CONNECT-TIMEOUT_WiFi_CONNECT_2)>=Interval_Connect)
             {
@@ -440,7 +440,7 @@ static void ManagerTasks(void *parameter)
 
                 if (millis() - tiempoDesconexionFTP > TIMEOUT_FTP_MS)
                 {
-                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "TIMEOUT_ALCANZADO_FTP_OFFLINE");
+                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "TIMEOUT_ALCANZADO_FTP_OFFLINE",archivo,WARN_);
                     delay(100);
                     ESP.restart();
                 }
@@ -455,7 +455,7 @@ static void ManagerTasks(void *parameter)
 
                 if (millis() - tiempoSDDesconectada > TIMEOUT_SD_MS)
                 {
-                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "SD_REMOVIDA_EN_MODO_FTP_TIMEOUT");
+                    Info_Cashless.Log(RTC, "REINICIO_DISPOSITIVO", "SD_REMOVIDA_EN_MODO_FTP_TIMEOUT",archivo,WARN_);
                     delay(100);
                     ESP.restart();
                 }
@@ -483,11 +483,11 @@ static void ManagerTasks(void *parameter)
             
         }
 
-        if(WiFi.status()==WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
+        if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(AutoUPDATE_OK))
         {
             UpdateOTA.Confirmacion_ACK_HTTPS(URL_OK, RES_URL); /* URL OK */
             delay(10);
-            UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits)),Variables_globales.Get_Variable_Global(Access_Point_Mode)); /* Agregar parametros para  verificar que la maquina no este en juego */
+            UpdateOTA.Auto_Update(Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego), Variables_globales.Get_Variable_Global(Flag_Hopper_Enable), flag_billete_insertado, flag_premio_pagado_cashout, Variables_globales.Get_Variable_Global(Flag_Sesion_RFID), Convert_Char_To_Int10(contadores.Get_Contadores_Char(Current_Credits)), Variables_globales.Get_Variable_Global(Access_Point_Mode)); /* Agregar parametros para  verificar que la maquina no este en juego */
             Variables_globales.Set_Variable_Global(AutoUPDATE_OK, false);
         }
 
@@ -1073,6 +1073,15 @@ void Init_Configuracion_Inicial(void)
         int Tipo_TFT=TFT_UNKNOW;
         NVS.putInt("Type_TFT",Tipo_Conexion);
     }
+
+    if(!NVS.isKey("Id_Backup"))
+    {
+        byte Cliente[8]={'0', '0', '0', '0','0','0','0','0'};
+        NVS.putBytes("Id_Backup",Cliente,sizeof(Cliente));
+    }
+
+
+    
 
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1760,6 +1769,17 @@ void Init_Configuracion_Inicial(void)
         Variables_globales.Set_Variable_Global(Conexion_TFT_Display,false);
         Serial.println("Pantalla TFT: No existe dispositivo sincronizado");
     }else{
+
+        Adress_TFT_Display[0]=0x48;
+        Adress_TFT_Display[1]=0xCA;
+        Adress_TFT_Display[2]=0x43;
+        Adress_TFT_Display[3]=0x32;
+        Adress_TFT_Display[4]=0xD6;
+        Adress_TFT_Display[5]=0xA8;
+        
+
+        
+
         /* Existe un dispositivo sincronizado */
         memcpy(Address_Device_TFT_Display, Adress_TFT_Display, sizeof(Address_Device_TFT_Display) / sizeof(Address_Device_TFT_Display[0]));
         
@@ -1795,6 +1815,9 @@ void Init_Configuracion_Inicial(void)
         Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
     }
 
+
+    // entrada = NVS.getLong("coinin", 0);
+    // salida = NVS.getLong("coinout", 0);
 
     Dia_Guarda_Logs=NVS.getULong("TimeBackup",15);
 
@@ -1864,6 +1887,16 @@ void Config_Red_Serial(String Comando)
     unsigned long Tf=0;
     int inter_v=20000;
 
+    if (Comando[0] == 'J')
+    {
+        Carga_Bonus_Maquina_Magic();
+
+        // char Trama[128] = "HOLA MUNDO";
+
+        // Api_G.Guarda_Trama(Trama);
+
+        // Api_G.Procesa_Cola_Tramas_Pendientes();
+    }
 
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
     {

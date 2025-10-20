@@ -31,13 +31,15 @@ private:
     int Timer_Sincro_Ok=300000; //10s
     bool Inicia_Solicitud=false;
 
+    static QueueHandle_t colaPendientes;
+
   //  ESP32Time DateTime_Expires;
 public:
   bool Init_API_Gmaster(String URL, String Access_Token);
   /* Metodo Transmite eventos  */
   void Transmite_Eventos_Gmaster_Api(char Buffer[], String Api, bool Token_Valido);
   /*Metodo Transmite Contadores */
-  void Trasmite_Contadores_Gmaster_Api(char Buffer[],String api,bool Token_Valido);
+  bool Trasmite_Contadores_Gmaster_Api(char Buffer[],String api,bool Token_Valido);
   /* Metodo Transmite  ACK */
   void Transmite_Confirmacion_API(char res[],String api, bool Token_Valido);
   /* Sincroniza RTC */
@@ -64,6 +66,13 @@ public:
   String Get_Access_Token_String();
   String Get_Controlador_Api(void);
   void Marca_Eventos_Api(void);
+
+
+  bool Guarda_Trama(char Buffer[]);
+
+  bool Inicializa_Cola_Tramas(bool Status);
+
+  bool Procesa_Cola_Tramas_Pendientes(void);
 
 };
 

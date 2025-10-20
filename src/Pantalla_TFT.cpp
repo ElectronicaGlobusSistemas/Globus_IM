@@ -7,7 +7,8 @@
 #include "Configuracion.h"
 #include "Pantalla_TFT.h"
 #include "RFID.h"
-
+#include <WebServer.h>
+#include <HTTPClient.h>
 
 
 #define INIT_PLAYER_TRACKING  0
@@ -17,8 +18,12 @@
 #define RETURN_SESION         4
 #define LECTURA_TARJETA       5
 #define SINCRO                10
-
+#define COMANDO_NO_IDENTIFICADO 100
+#define UPDATE_TFT            16
 //#define  DEBUG_TFT
+
+
+WebServer ServerUpdate(8080);
 
 extern std::string IP_toString_(char IP_Char[]);
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
@@ -34,6 +39,7 @@ bool Flag_Status_Close_Player_TFT=false;
 bool Flag_Sincro_TFT=false;
 bool Flag_Desincro_TFT=false;
 bool Flag_Config_TFT=false;
+bool Flag_Update_TFT=false;
 
 int Tipo_TFT=TFT_UNKNOW;
 
@@ -62,7 +68,6 @@ extern uint8_t Address_Device_TFT_Display[];
 esp_now_peer_info_t peerInfo;
 
 
-
 bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len)
 {
     esp_err_t result = esp_now_send(MAC, Data, len);
@@ -71,6 +76,34 @@ bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len)
     else
         return false;
 }
+
+/* Reset de pantalla TFT*/
+bool Reset_TFT(void)
+{
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<200> doc;
+
+        String Payload = "";
+        int Intentos_Conexion = 6;
+        doc["IsSuccess"] = true;
+        doc["Opcion"] = REESTART_TFT;
+
+        serializeJson(doc, Payload);
+
+        for (int i = 0; i < Intentos_Conexion; i++)
+        {
+            esp_err_t result = esp_now_send(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+
+            if (result == ESP_OK)
+                return true;
+            else
+                return false;
+        }
+    }
+    return false;
+}
+
 bool Await_ms(bool (*condicion)(), unsigned long timeout_ms) {
     unsigned long inicio = millis();
     while (!condicion() && (millis() - inicio < timeout_ms)) {
@@ -83,8 +116,6 @@ bool Await_ms(bool (*condicion)(), unsigned long timeout_ms) {
     }
     return condicion();  // Retorna true si se cumplió la condición, false si fue timeout
 }
-
-
 
 bool get_Flag_Conexion_TFT() {
     return Flag_Conexion_TFT;
@@ -105,6 +136,11 @@ bool get_Flag_Config_TFT(void)
     return Flag_Config_TFT;
 }
 
+
+bool get_Flag_Update_TFT(void)
+{
+    return  Flag_Update_TFT;
+}
 /*  Inicializa pantall TFT utilizando el protocolo inalambrico ESP-NOW*/
 
 bool get_Flag_Descarga_TFT(void)
@@ -116,7 +152,6 @@ bool get_Flag_Borrar_TFT(void)
 {
     return Flag_Borrar_TFT;
 }
-
 
 int get_Tipo_TFT(void)
 {
@@ -222,7 +257,7 @@ bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
                     {
                         Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
                         // #ifdef DEBUG_TFT
-                        Serial.println("Pantalla TFT Wireless Inicializada...");
+                        Serial.println("📺 Pantalla TFT Wireless Inicializada...✅");
                         // #endif
                         Flag_Conexion_TFT = false;
 
@@ -479,26 +514,23 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
 
     memcpy(&incomingData, incomingDataPtr, len);
 
-    //#ifdef DEBUG_TFT
+    #ifdef DEBUG_TFT
     Serial.println("JSON recibido:");
     Serial.println(incomingData.json_data);
-    //#endif
+    #endif
 
     StaticJsonDocument<200> doc;
     DeserializationError error = deserializeJson(doc, incomingData.json_data);
 
     if (!error)
     {
-
+        int i=0;
         bool Issucess = doc["IsSuccess"];
         int Option = doc["Opcion"];
         int Id_Cliente = doc["Id_Cliente"];
         String Tipo_Tarjeta=doc["Tipo_Tarjeta"];
 
         
-
-        int i=0;
-
         switch (Option)
         {
         case PING: /* Conexion de pantalla TFT */
@@ -591,7 +623,30 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
                 Flag_Borrar_TFT=false;
             break;
 
+        case UPDATE_TFT:
+            if(Issucess)
+                Flag_Update_TFT=true;
+            else
+                Flag_Update_TFT=false;
+            break;
+
         default:
+            StaticJsonDocument<200> doc;
+            doc.clear();
+            String Payload = "";
+            int Intentos_Conexion = 3;
+
+            doc["Opcion"] = COMANDO_NO_IDENTIFICADO;
+            doc["Message"] = "Comando no identificado recibido";
+
+            serializeJson(doc, Payload);
+
+            for (int i = 0; i < Intentos_Conexion; i++)
+            {
+                if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                    break;
+            }
+
             break;
         }
         // Serial.println("Nombre: " + userName);
@@ -706,4 +761,62 @@ bool Up_Points(void)
         return Code;
     }
     return false;
+}
+
+
+
+String Url="http://mi-servidor.com/firmware_tft.bin";
+
+void handleFirmware() {
+  WiFiClient client;          // Cliente hacia el esclavo
+  HTTPClient http;            // Cliente hacia el servidor central
+
+  Serial.println("Esclavo solicitó firmware, abriendo conexión al servidor...");
+  if (http.begin(client, Url)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      // Enviar cabeceras HTTP al esclavo
+      ServerUpdate.sendHeader("Content-Type", "application/octet-stream");
+      ServerUpdate.sendHeader("Connection", "close");
+      ServerUpdate.send(200);
+
+      // Obtener stream del servidor central
+      WiFiClient* stream = http.getStreamPtr();
+
+      uint8_t buff[1024];  // buffer de 1 KB
+      while (http.connected()) {
+        size_t len = stream->available();
+        if (len) {
+          int c = stream->readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
+          ServerUpdate.client().write(buff, c);   // reenviar al esclavo
+        }
+        vTaskDelay(10);
+      }
+      Serial.println("Firmware enviado al esclavo!");
+    } else {
+      ServerUpdate.send(500, "text/plain", "Error descargando firmware");
+    }
+    http.end();
+  } else {
+    ServerUpdate.send(500, "text/plain", "No se pudo conectar al servidor central");
+  }
+}
+
+
+void Init_Server(const char *ssid,const char *password)
+{
+
+    WiFi.mode(WIFI_MODE_APSTA);
+    WiFi.softAP(ssid, password);
+
+
+    ServerUpdate.on("/firmware.bin", HTTP_GET, handleFirmware);
+
+    ServerUpdate.begin();
+}
+
+
+void RumUpdateTFT()
+{
+    ServerUpdate.handleClient();
 }

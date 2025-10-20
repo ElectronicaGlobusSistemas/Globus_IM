@@ -6,6 +6,7 @@
 #define CONFIG                13
 #define DOWNLOAD              14
 #define REMOVE_IMG_TFT        15
+#define UPDATE_TFT            16
 
 #ifndef PANTALLA_TFT_H
 #define PANTALLA_TFT_H
@@ -34,6 +35,10 @@ bool get_Flag_Sincro_TFT();
 bool get_Flag_Config_TFT(void);
 bool get_Flag_Descarga_TFT(void);
 bool get_Flag_Borrar_TFT(void);
+bool get_Flag_Update_TFT(void);
 int get_Tipo_TFT(void);
 void Task_Conexion_TFT(int Timeout);
+void Init_Server(const char *ssid,const char *password);
+bool Reset_TFT(void);
+void RumUpdateTFT();
 #endif // PANTALLA_TFT_H

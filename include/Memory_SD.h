@@ -30,6 +30,15 @@
 #define FORMAT_SUCCESS         2   // Tarjeta formateada con éxito
 #define FORMAT_FAILED          3   // Falla formateando tarjeta SD
 
+#define FAT32 32
+#define FAT16 16
+#define FAT12 12
+#define FATUNKNOW 0
+
+
+#define ERROR_VALIDACION_MEMORIA_SD 0xEF
+#define MEMORIA_NO_INSERTADA        0xFE
+#define ERROR_CRC_ARCHIVOS_MEMORIA  2
 
 
 void Erro_Log_Write(String Datos, String archivo);
@@ -67,6 +76,13 @@ bool VerificaArchivo(const char* archivo, String DataTime);
 void FtpFast(void);
 bool formatearSD(void);
 void Evento_Formateo_SD(void);
+void Write_New_Data(String Datos, String archivo, bool select, String Encabezado);
+void Write_Data_File_Txt_New_Data(String Datos, String archivo);
+String addCRCToLine(String line);
+
+bool validateFile(const char *path);
+bool Cheack_SD_CriticalMemory(const char *criticalFiles[], int Number_CriticalFile);
+bool Check_Card(void);
 //------------------------------------------------------------------------------------------
 
 

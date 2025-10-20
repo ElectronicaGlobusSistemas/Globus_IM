@@ -59,6 +59,70 @@ extern unsigned long TIMEOUT_WiFi_CONNECT_2;
 extern bool WL_DISCONNECT_OK;
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
+
+WiFiEvent_t event;
+WiFiEventInfo_t info;
+
+
+#include <WiFi.h>
+
+unsigned long timeout=0;
+unsigned long timeoutF=0;
+int intv=1000;
+bool OneF=false;
+
+String reasonToString(uint8_t reason) {
+  switch (reason) {
+    case WIFI_REASON_UNSPECIFIED:              return "Motivo_no_especificado_";
+    case WIFI_REASON_AUTH_EXPIRE:              return "Expiró_la_autenticación_";
+    case WIFI_REASON_AUTH_LEAVE:               return "Se_salió_de_la_autenticación_";
+    case WIFI_REASON_ASSOC_EXPIRE:             return "Expiró_la_asociación_";
+    case WIFI_REASON_ASSOC_TOOMANY:            return "Demasiados_clientes_en_el_AP_";
+    case WIFI_REASON_NOT_AUTHED:               return "No_autenticado_";
+    case WIFI_REASON_NOT_ASSOCED:              return "No_asociado_";
+    case WIFI_REASON_ASSOC_LEAVE:              return "Se_salió_de_la_asociación_";
+    case WIFI_REASON_ASSOC_NOT_AUTHED:         return "Intento_de_asociación_sin_autenticación_";
+    case WIFI_REASON_DISASSOC_PWRCAP_BAD:      return "Capacidad_de_potencia_inválida_";
+    case WIFI_REASON_DISASSOC_SUPCHAN_BAD:     return "Canales_no_soportados_";
+    case WIFI_REASON_BSS_TRANSITION_DISASSOC:  return "Desasociado_por_transición_BSS_(roaming)_";
+    case WIFI_REASON_IE_INVALID:               return "IE_inválido_en_la_negociación_";
+    case WIFI_REASON_MIC_FAILURE:              return "Fallo_en_la_integridad_(MIC)_";
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:   return "Timeout_en_el_4-Way_Handshake_";
+    case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT: return "Timeout_al_actualizar_clave_de_grupo_";
+    case WIFI_REASON_IE_IN_4WAY_DIFFERS:       return "Diferencia_en_IE_durante_el_4-Way_Handshake_";
+    case WIFI_REASON_GROUP_CIPHER_INVALID:     return "Cifrado_de_grupo_inválido_";
+    case WIFI_REASON_PAIRWISE_CIPHER_INVALID:  return "Cifrado_par-a-par_inválido_";
+    case WIFI_REASON_AKMP_INVALID:             return "Método_de_autenticación_(AKMP)_inválido_";
+    case WIFI_REASON_UNSUPP_RSN_IE_VERSION:    return "Versión_de_RSN_no_soportada_";
+    case WIFI_REASON_INVALID_RSN_IE_CAP:       return "Capacidades_RSN_inválidas_";
+    case WIFI_REASON_802_1X_AUTH_FAILED:       return "Falló_la_autenticación_802.1X_";
+    case WIFI_REASON_CIPHER_SUITE_REJECTED:    return "Conjunto_de_cifrado_rechazado_";
+    case WIFI_REASON_INVALID_PMKID:            return "PMKID_inválido_";
+    case WIFI_REASON_BEACON_TIMEOUT:           return "Timeout_de_beacons_(AP_perdido)_";
+    case WIFI_REASON_NO_AP_FOUND:              return "No_se_encontró_el_AP_";
+    case WIFI_REASON_AUTH_FAIL:                return "Falló_la_autenticación_(contraseña_incorrecta?)_";
+    case WIFI_REASON_ASSOC_FAIL:               return "Falló_la_asociación_con_el_AP_";
+    case WIFI_REASON_HANDSHAKE_TIMEOUT:        return "Timeout_en_el_handshake_WPA/WPA2_";
+    case WIFI_REASON_CONNECTION_FAIL:          return "Falló_la_conexión_";
+    case WIFI_REASON_AP_TSF_RESET:             return "AP_reinició_su_temporizador_(TSF)_";
+    case WIFI_REASON_ROAMING:                  return "Cambio_de_AP_(roaming)_";
+    default:                                   return "Motivo_desconocido_";
+  }
+}
+
+void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      Serial.print("WiFi desconectado, razón: ");
+      Serial.println(info.wifi_sta_disconnected.reason);
+      Info_Cashless.Log(RTC,"WIFI_DESCONECTADO",reasonToString(info.wifi_sta_disconnected.reason));
+      break;
+    default:
+      break;
+  }
+}
+
+
 void Init_Wifi()
 {
   // xTaskCreatePinnedToCore(
@@ -113,75 +177,74 @@ void Reset_Config_Intentos_WIFI(void)
 void Storage_Status_WIFI(void)
 {
 
-  
   switch (WiFi.status())
-        {
-        case WL_DISCONNECTED:
-            Selector_Modo_SD();
-            log_e("Estado WIFI: Desconectado", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","Desconectado");
-        break;
+  {
+  case WL_DISCONNECTED:
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: Desconectado", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "Desconectado",archivo,ERROR_);
+    break;
 
+  case WL_NO_SSID_AVAIL:
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: No se encontro ningun SSID ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "No_se_encontro_ningun_SSID",archivo,ERROR_);
+    break;
 
-        case WL_NO_SSID_AVAIL:
-            Selector_Modo_SD();
-            log_e("Estado WIFI: No se encontro ningun SSID ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","No_se_encontro_ningun_SSID");
-        break;
-        
-        case WL_CONNECT_FAILED:
+  case WL_CONNECT_FAILED:
 
-            Selector_Modo_SD();
-            log_e("Estado WIFI: Fallo en conexion WIFI ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","Fallo_intento_conexion_WIFI: "+ SSID_Wifi+":"+Password_Wifi);
-        break;
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: Fallo en conexion WIFI ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "Fallo_intento_conexion_WIFI: " + SSID_Wifi + ":" + Password_Wifi,archivo,ERROR_);
+    break;
 
-        case WL_CONNECTED:
+  case WL_CONNECTED:
 
-            Selector_Modo_SD();
-            log_e("Estado WIFI: Wifi conectado ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","CONEXION_ESTABLECIDA_CON: "+SSID_Wifi);
-            
-        break;
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: Wifi conectado ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "CONEXION_ESTABLECIDA_CON: " + SSID_Wifi,archivo,DEBUG_);
 
-        case WL_CONNECTION_LOST:
-            Selector_Modo_SD();
-            log_e("Estado WIFI: Se_perdio_la_conexion_Wifi ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","PERDIDA_DE_CONEXION_WIFI: "+String(WiFi.RSSI()));
-        break;
+    break;
 
+  case WL_CONNECTION_LOST:
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: Se_perdio_la_conexion_Wifi ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "PERDIDA_DE_CONEXION_WIFI: " + String(WiFi.RSSI()),archivo,ERROR_);
+    break;
 
-        case WL_IDLE_STATUS:
-            Selector_Modo_SD();
-            log_e("Estado WIFI: Wifi inactivo ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-            Info_Cashless.Log(RTC,"ESTADO_WIFI","WIFI INACTIVO: "+String(WiFi.RSSI()));
-        break;
+  case WL_IDLE_STATUS:
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: Wifi inactivo ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "WIFI INACTIVO: " + String(WiFi.RSSI()),archivo,ERROR_);
+    break;
 
-        case WL_NO_SHIELD:
-            Selector_Modo_SD();
-            log_e("Estado WIFI: No Shield ", 103);
-            LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-        break;
+  case WL_NO_SHIELD:
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: No Shield ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "WL_NO_SHIELD: " + String(WiFi.RSSI()),archivo,ERROR_);
+    break;
 
-        default:
-          
-          Selector_Modo_SD();
-          log_e("Estado WIFI: No identificado ", 103);
-          LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-       
-          break;
-        }
+  default:
+
+    // Selector_Modo_SD();
+    // log_e("Estado WIFI: No identificado ", 103);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    Info_Cashless.Log(RTC, "ESTADO_WIFI", "NO_IDENTIFICADO: " + String(WiFi.RSSI()),archivo,ERROR_);
+    break;
+  }
 }
-
 
 void CONNECT_WIFI(void)
 {
+
+  WiFi.onEvent(WiFiEvent);
 
   WiFi.setHostname("Globus-IM-ESP32");
   //-----------------------------------------------------------------------------------------------------------
@@ -223,6 +286,7 @@ void CONNECT_WIFI(void)
   if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
   {
     Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
+    Info_Cashless.Log(RTC, "STA_Failed_to_configure","ERROR_APLICANDO_CONFIGURACION_WIFI",archivo,FATAL_);
   }
 
   WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
@@ -241,20 +305,21 @@ void CONNECT_WIFI(void)
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("Wifi conectado");
-    Serial.print("Conectado a: ");
+    Serial.println("Wifi conectado ✅");
+    Serial.print("📶 Conectado a: ");
     Serial.println(SSID_Wifi);
-    Serial.print("IP address: ");
+    Serial.print("🌐 IP address: ");
     Serial.println(WiFi.localIP());
-    Serial.print("ESP Mac Address: ");
+    Serial.print("🆔 ESP Mac Address: ");
     Serial.println(WiFi.macAddress());
     digitalWrite(WIFI_Status, HIGH);
-    Serial.print("Nivel Señal WIFI: ");
+    Serial.print("📶 Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
     Serial.print("Canal WiFi: ");
     Serial.println(WiFi.channel());
-    Serial.println(WiFi.getHostname());
-
+    String HostName=WiFi.getHostname();
+    Serial.println("🤖 "+HostName);
+    
     Reset_Config_Intentos_WIFI();
   }
   else
@@ -269,7 +334,7 @@ void CONNECT_WIFI(void)
 void WIFI_VERIFY(int Intentos_Conexion)
 {
   /*Si no es Cashless y no hay sesiones abiertas */
-  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3 && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3 && !Variables_globales.Get_Variable_Global(Flag_Sesion_RFID)&&Configuracion.Get_Configuracion(Tipo_Maquina, 0)<17)
   {
     if (Intentos_Conexion > MAX_INTENT_CONEXION_WIFI && !Variables_globales.Get_Variable_Global(Excepcion_WIFI))
     {
@@ -291,9 +356,9 @@ void WIFI_VERIFY(int Intentos_Conexion)
 
 void Conec()
 {
-   Selector_Modo_SD();
-    log_e("Intento Conexion  A WIFI ", 105);
-    LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+  //  Selector_Modo_SD();
+  //   log_e("Intento Conexion  A WIFI ", 105);
+  //   LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
 
     digitalWrite(WIFI_Status, LOW);
     Serial.print("Conectando a... ");
@@ -327,9 +392,10 @@ void Conec()
     if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
     {
       Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
-      Selector_Modo_SD();
-      log_e("Error Cargando datos en modo estacion", 104);
-      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      // Selector_Modo_SD();
+      // // log_e("Error Cargando datos en modo estacion", 104);
+      // // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      
       Intentos_Conexion_WIFI++;
     }
 
@@ -363,23 +429,23 @@ void RECONECT_WIFI_ESP()
     Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
     Serial.print("Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
-    Selector_Modo_SD();
-    log_e("WIFI RECONECTADO ", 106);
+    // Selector_Modo_SD();
+    // log_e("WIFI RECONECTADO ", 106);
     Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
-    LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-    Init_FTP_SERVER();
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    //Init_FTP_SERVER();
     Reset_Config_Intentos_WIFI();
     Serial.println("Termina verifica conexion WIFI...");
     Desconexion_Forzada = false;
     WL_DISCONNECT_OK=false;
     TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
-    
+    Info_Cashless.Log(RTC, "ESTADO_WIFI","RECONECTADO: "+SSID_Wifi+"-NIVEL SEÑAL:"+String(WiFi.RSSI()));
   }
   else
   {
-    Selector_Modo_SD();
-    log_e("Intento Conexion  A WIFI ", 105);
-    LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+    // Selector_Modo_SD();
+    // log_e("Intento Conexion  A WIFI ", 105);
+    // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
 
     digitalWrite(WIFI_Status, LOW);
     Serial.print("Conectando a... ");
@@ -410,12 +476,12 @@ void RECONECT_WIFI_ESP()
     if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
     {
       Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
-      Selector_Modo_SD();
-      log_e("Error Cargando datos en modo estacion", 104);
-      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      // Selector_Modo_SD();
+      // log_e("Error Cargando datos en modo estacion", 104);
+      // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
       Intentos_Conexion_WIFI++;
 
-      Info_Cashless.Log(RTC, "STA_Failed_to_configure");
+      Info_Cashless.Log(RTC, "STA_Failed_to_configure","ERROR_APLICANDO_CONFIGURACION_WIFI",archivo,FATAL_);
     }
 
     WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de respuesta
@@ -452,10 +518,10 @@ void RECONECT_WIFI_ESP()
       }
       
       Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
-      Selector_Modo_SD();
-      log_e("Fallo en el intento de conexion a la red WIFI", 103);
-      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
-
+      // Selector_Modo_SD();
+      // log_e("Fallo en el intento de conexion a la red WIFI", 103);
+      // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      
       Serial.print("\nNo se puede conectar a... ");
       Serial.println(SSID_Wifi);
       digitalWrite(WIFI_Status, LOW);
@@ -490,10 +556,10 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
       Serial.print("Nivel Señal WIFI: ");
       Serial.println(WiFi.RSSI());
-      Selector_Modo_SD();
-      log_e("WIFI RECONECTADO ", 106);
+      // Selector_Modo_SD();
+      // log_e("WIFI RECONECTADO ", 106);
       Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
-      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
       Init_FTP_SERVER();
 
 
@@ -510,9 +576,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
     }
     else
     {
-      Selector_Modo_SD();
-      log_e("Intento Conexion  A WIFI ", 105);
-      LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+      // Selector_Modo_SD();
+      // log_e("Intento Conexion  A WIFI ", 105);
+      // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
 
       digitalWrite(WIFI_Status, LOW);
       Serial.print("Conectando a... ");
@@ -544,9 +610,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
       {
         Serial.println("STA Failed to configure"); // mensaje Monitor Serial.
-        Selector_Modo_SD();
-        log_e("Error Cargando datos en modo estacion", 104);
-        LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+        // Selector_Modo_SD();
+        // log_e("Error Cargando datos en modo estacion", 104);
+        // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
         Intentos_Conexion_WIFI++;
       }
 
@@ -584,9 +650,9 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
         
         
         Storage_Status_WIFI(); /* GUARDA ESTADO CONEXION  WIFI */
-        Selector_Modo_SD();
-        log_e("Fallo en el intento de conexion a la red WIFI", 103);
-        LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
+        // Selector_Modo_SD();
+        // log_e("Fallo en el intento de conexion a la red WIFI", 103);
+        // LOG_ESP(Archivo_LOG, Variables_globales.Get_Variable_Global(Enable_Storage));
 
         Serial.print("\nNo se puede conectar a... ");
         Serial.println(SSID_Wifi);
@@ -637,7 +703,7 @@ void CONNECT_SERVER_TCP(void)
     else
     {
       clientUDP.begin(serverPort);
-      Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+      Serial.printf("📡 Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
       
 
 //       if (ClienteUDPA.listen(serverPort))

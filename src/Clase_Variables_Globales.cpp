@@ -386,6 +386,30 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Cancel_Sesiones:
         return Flag_Cancel_Sesiones_;
         break;
+
+    case Flag_Sesion_Sin_Tarjeta:
+        return Flag_Sesion_Sin_Tarjeta_;
+        break;
+
+    case Flag_Evento_Transfer_Dowmload:
+        return  Flag_Evento_Transfer_Dowmload_;
+        break;
+
+    case Flag_Evento_69:
+        return Flag_Evento_69_;
+        break;
+
+    case Flag_Evento_Cashless_Up:
+        return Flag_Evento_Cashless_Up_;
+        break;
+
+    case Flag_Evento_Down:
+        return Flag_Evento_Down_;
+        break;
+
+    case Falg_Evento_BA:
+        return Falg_Evento_BA_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -769,6 +793,31 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Cancel_Sesiones:
         Flag_Cancel_Sesiones_=Change_estado;
         break;
+
+    case Flag_Sesion_Sin_Tarjeta:
+        Flag_Sesion_Sin_Tarjeta_=Change_estado;
+        break;
+
+    case Flag_Evento_Transfer_Dowmload:
+        Flag_Evento_Transfer_Dowmload_=Change_estado;
+        break;
+
+
+     case Flag_Evento_69:
+        Flag_Evento_69_=Change_estado;
+        break;
+
+    case Flag_Evento_Cashless_Up:
+        Flag_Evento_Cashless_Up_=Change_estado;
+        break;
+
+    case Flag_Evento_Down:
+        Flag_Evento_Down_=Change_estado;
+        break;
+
+    case Falg_Evento_BA:
+        Falg_Evento_BA_=Change_estado;
+        break;
     }
 }
 
@@ -899,6 +948,14 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
 
     Flag_Bill_Insert_Sesiones_=false;
     Flag_Cancel_Sesiones_=false;
+    Flag_Sesion_Sin_Tarjeta_=false;
+    Flag_Evento_Transfer_Dowmload_=false;
+    Flag_Evento_69_=false;
+    Flag_Evento_Cashless_Up_=false;
+    Flag_Evento_Down_=false;
+    Falg_Evento_BA_=false;
+
+    
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

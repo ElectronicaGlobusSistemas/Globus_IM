@@ -24,6 +24,9 @@ public:
     void Off_AP(void);
     bool Evento_Conexion(void);
     String Get_Info_Config(int Type_Info);
+    bool MaquinaDisponible(void);
+    void Rutine_handle(void);
+
 };
 
 void prueba();

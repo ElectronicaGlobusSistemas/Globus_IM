@@ -291,8 +291,8 @@ bool Transmite_A_Servidor(char buffer[], int len, int Channel = 1, bool Debug = 
         if (Configuracion.Get_Configuracion(Tipo_Conexion))
         {
             length_ = clientTCP.write(buffer, len);
-            if (Debug)
-                Info_Cashless.Log(RTC, "BUFFER_TCP_CH1", "OK");
+            // if (Debug)
+            //     Info_Cashless.Log(RTC, "BUFFER_TCP_CH1", "OK");
             return true;
         }
 
@@ -305,8 +305,8 @@ bool Transmite_A_Servidor(char buffer[], int len, int Channel = 1, bool Debug = 
             clientUDP.beginPacket(serverIP, serverPort);
             length_ = clientUDP.write((const uint8_t *)buffer, len);
             clientUDP.endPacket();
-            if (Debug)
-                Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK");
+            // if (Debug)
+            //     Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK",archivo,DEBUG_);
 
             return true;
         }
@@ -359,10 +359,11 @@ bool Transmite_A_Servidor(char buffer[], int len, int Channel = 1, bool Debug = 
             break;
         }
 
-        //Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error);
+        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error);
         String SSID_Wifi_ = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
         String Password_Wifi_ = Configuracion.Get_Configuracion(Password, "Password_red");
-        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error+": "+SSID_Wifi_+":"+Password_Wifi_);
+        Info_Cashless.Log(RTC, "FALLA_ENVIO_TRAMA", Error+": "+SSID_Wifi_+":"+Password_Wifi_,archivo,ERROR_);
+
         
 #ifdef Debug_Mensajes_Server
         Serial.println("No se puede enviar mensaje, no conexion a WIFI");
@@ -1114,7 +1115,7 @@ void Transmite_Contadores_Accounting()
         else
         {
             Serial.println("Set buffer general ERROR");
-            Info_Cashless.Log(RTC, "ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES");
+            Info_Cashless.Log(RTC, "ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES","",archivo,ERROR_);
         }
     }
     else
@@ -1125,10 +1126,10 @@ void Transmite_Contadores_Accounting()
             {
                 bool Serie=false;
                 Serie=contadores.Incrementa_Serie_Trama();
-                if(Serie)
-                    Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","True");
-                else
-                    Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","False");
+                // if(Serie)
+                //     Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","True");
+                // else
+                //     Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","False");
             }
             char res[258] = {};
             bzero(res, 258); // Pone el buffer en 0
@@ -1144,21 +1145,24 @@ void Transmite_Contadores_Accounting()
 
                 IPAddress Ip(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
 
-                String Contadores_ = "";
-                for (int i = 4; i < 258; i++)
-                {
-                    Contadores_ += Buffer.Get_buffer_contadores_ACC_No_encriptado()[i];
-                }
+                // String Contadores_ = "";
+                // for (int i = 4; i < 258; i++)
+                // {
+                //     Contadores_ += Buffer.Get_buffer_contadores_ACC_No_encriptado()[i];
+                // }
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-                    Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), Contadores_);
+                {
+                    //Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), Contadores_,archivo,DEBUG_);
+                    // Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), "OK",archivo,DEBUG_);
+                }
                 else
-                    Info_Cashless.Log(RTC, "FALLA_ENVIANDO_TRAMA" + Ip.toString(), "NO_HAY_COMUNICACION_CON_LA_MET");
+                    Info_Cashless.Log(RTC, "FALLA_ENVIANDO_TRAMA" + Ip.toString(), "NO_HAY_COMUNICACION_CON_LA_MET",archivo,ERROR_);
             }
         }
         else
         {
             Serial.println("Set buffer general ERROR");
-            Info_Cashless.Log(RTC,"ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES");
+            Info_Cashless.Log(RTC,"ERROR_SET_BUFFER_GENERAL_TRAMA_CONTADORES","",archivo,ERROR_);
         }
             
     }
@@ -3015,7 +3019,7 @@ void Mensajes_RFID(void)
             if(contadores.Get_Status_Flag_Bill_In() && !Variable_Solicitud_Operador_Id)
             {
 
-                //Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
+                Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
 
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
                 {
@@ -4910,6 +4914,9 @@ void Transmision_Controlada_Contadores(void)
                 New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
                 /*----------------------------------------------------------------------------------*/        
             }
+            if(!Variables_globales.Get_Variable_Global(Flag_Bill_Insert_Sesiones))
+                Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
+            
             
             flag_billete_insertado = false;
         }

@@ -141,6 +141,14 @@ using namespace std;
 #define Flag_Multiplicador_EFT_550          117
 #define Flag_Bill_Insert_Sesiones           118
 #define Flag_Cancel_Sesiones                119
+#define Flag_Sesion_Sin_Tarjeta             120
+#define Flag_Evento_Transfer_Dowmload       121     
+#define Flag_Evento_69                      122
+#define Flag_Evento_Cashless_Up             123
+#define Flag_Evento_Down                    124
+#define Falg_Evento_BA                      125
+
+
 
 class Variables_Globales
 {
@@ -258,7 +266,15 @@ private:
     bool Flag_Contadores_Session_Unknown_;
     bool Flag_Multiplicador_EFT_550_;
     bool Flag_Bill_Insert_Sesiones_;          
-    bool Flag_Cancel_Sesiones_;                
+    bool Flag_Cancel_Sesiones_;
+    bool Flag_Sesion_Sin_Tarjeta_;
+    bool Flag_Evento_Transfer_Dowmload_;
+
+
+    bool Flag_Evento_69_;
+    bool Flag_Evento_Cashless_Up_;
+    bool Flag_Evento_Down_;
+    bool Falg_Evento_BA_;
     
 
 public:

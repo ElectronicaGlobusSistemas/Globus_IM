@@ -218,7 +218,7 @@ void setup()
 
     if (Info_Cashless.Inicialize_File_System())
     {
-      Serial.println("Sistema de archivos iniciado");
+      Serial.println("📂 Sistema de archivos iniciado ✅");
       /* --------------------------> Transacciones Cashless <---------------------------*/
       if (Variables_globales.Get_Variable_Global(Enable_Cashless))
         Info_Cashless.Load_Pending_Transactions(); /* Carga en RAM transacciones Cashless pendientes */
@@ -241,15 +241,24 @@ void setup()
       /*--------------------------------------------------------------------------------*/
     }
     else
-      Serial.println("No se inicio el sistema de archivos");
+    {
+      Serial.println("📂 No se inicio el sistema de archivos ❌");
+    }
   }
   else
   {
 
     if (Info_Cashless.Inicialize_File_System())
+    {
+      Serial.println("📂 Sistema de archivos iniciado ✅");
       Info_Cashless.Load_Sesiones_Unknown_Pendientes();
+    }
+      
     else
-      Serial.println("No se inicio el sistema de archivos");
+    {
+      Serial.println("📂 No se inicio el sistema de archivos ❌");
+    }
+      
   }
 
   if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) < 4 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
@@ -280,6 +289,9 @@ void setup()
   sd_mutex = xSemaphoreCreateMutex();
 
   // ScanWiFi();
+  Info_Cashless.Log(RTC, "DISPOSITIVO_INICIADO");
+
+  //Api_G.Inicializa_Cola_Tramas(true);
 }
 
 
@@ -290,7 +302,8 @@ bool test=false;
 
 void loop()
 {
-  
+
+ 
   //Tito.Request_Handle_Tito();
   if(!Verifica)
   {
@@ -349,20 +362,20 @@ void loop()
   }
 
     /*---------------------------> Conecta módulo RFID <------------------------------------*/
-  
+
   if (!Variables_globales.Get_Variable_Global(Verify_Modulo_RFID))
   {
-      if ((TimeOut_Conect_RFID - TimeOut_Conect_Final) >= Time_Stop_Conect && !Variables_globales.Get_Variable_Global(Conexion_RFID) && Intentos_Conect_RFID < 2)
-      {
+    if ((TimeOut_Conect_RFID - TimeOut_Conect_Final) >= Time_Stop_Conect && !Variables_globales.Get_Variable_Global(Conexion_RFID) && Intentos_Conect_RFID < 2)
+    {
 
       Check_RFID();
       TimeOut_Conect_Final = TimeOut_Conect_RFID;
-      }
-      if(Intentos_Conect_RFID>4)
-      {
-        Variables_globales.Set_Variable_Global(Verify_Modulo_RFID,true);
-        TimeOut_Conect_Final = TimeOut_Conect_RFID;
-      }
+    }
+    if (Intentos_Conect_RFID > 4)
+    {
+      Variables_globales.Set_Variable_Global(Verify_Modulo_RFID, true);
+      TimeOut_Conect_Final = TimeOut_Conect_RFID;
+    }
   }
 
   /* -----------------------------> Premios SAS <---------------------------------------------------- */
@@ -384,7 +397,7 @@ void loop()
   FtpFast();
 
 
-  Info_Cashless.Task_Sesiones_Unknow();
+  //Info_Cashless.Task_Sesiones_Unknow();
 }
 
 /* Verifica comunicacion maquina */
@@ -808,26 +821,27 @@ void TimeOut_Player_Tracking_Sesion(void)
           if (Variables_globales.Get_Variable_Global(Enable_Cashless))
           {
 
-            /* Cashless  habilitado */
-            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE && !Info_Cashless.Get_Status_Handpay_EFT())
+            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && (Configuracion.Get_Configuracion(Tipo_Maquina, 0) <= 3) || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
             {
+
+              Info_Cashless.Log(RTC, "TRANSACCION_DESCARGA_AUTOMATICA","TIMEOUT_ALCANZADO_PROCESANDO_DESCARGA",archivo,WARN_);
 
               Info_Cashless.Lock_Reader();
               bool Handle = true;
               if (Info_Cashless.Get_Status_Reader())
                 Status_Barra(301);
-              int ClientID=contadores.Get_Client_ID_Transaccion_Int();
-              switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(),ClientID))
+              int ClientID = contadores.Get_Client_ID_Transaccion_Int();
+              switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(), ClientID))
               {
               case REQUEST_SUCCESSFULLY_RECEIVED:
-                //Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CASHLESS_DESCARGA_AUTOMATICA_MAQUINA");
-                Objeto_Transfer_Download["Operacion"]="Descarga Automatica";
+                // Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CASHLESS_DESCARGA_AUTOMATICA_MAQUINA");
+                Objeto_Transfer_Download["Operacion"] = "Descarga Automatica";
                 Solicitud_Descarga_Cashless();
                 Handle = false;
                 break;
 
               case 401:
-                //Info_Cashless.Log(RTC,"TOKEN_NO_AUTORIZADO");
+                // Info_Cashless.Log(RTC,"TOKEN_NO_AUTORIZADO");
                 Status_Barra(ERROR_LECTURA);
                 Info_Cashless.Unlock_Reader();
                 Handle = false;
@@ -835,46 +849,128 @@ void TimeOut_Player_Tracking_Sesion(void)
                 break;
 
               default:
-                //Info_Cashless.Log(RTC,"ERROR_SOLICITUD_DESCARGA_AUTOMATICA");
+                // Info_Cashless.Log(RTC,"ERROR_SOLICITUD_DESCARGA_AUTOMATICA");
                 Status_Barra(ERROR_LECTURA);
                 Info_Cashless.Unlock_Reader();
                 Handle = false;
+
+                Info_Cashless.Log(RTC, "TRANSACCION_DESCARGA_AUTOMATICA","ERROR_EN_SOLICITUD_DESCARGA",archivo,ERROR_);
                 break;
               }
-
-              // if (Handle)
-              // Info_Cashless.Unlock_Reader();
             }
+
+            /* Cashless  habilitado */
+            // if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE && !Info_Cashless.Get_Status_Handpay_EFT())
+            // {
+
+            //   Info_Cashless.Lock_Reader();
+            //   bool Handle = true;
+            //   if (Info_Cashless.Get_Status_Reader())
+            //     Status_Barra(301);
+            //   int ClientID=contadores.Get_Client_ID_Transaccion_Int();
+            //   switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(),ClientID))
+            //   {
+            //   case REQUEST_SUCCESSFULLY_RECEIVED:
+            //     //Info_Cashless.Log(RTC,"ENVIA_TRANSACCION_CASHLESS_DESCARGA_AUTOMATICA_MAQUINA");
+            //     Objeto_Transfer_Download["Operacion"]="Descarga Automatica";
+            //     Solicitud_Descarga_Cashless();
+            //     Handle = false;
+            //     break;
+
+            //   case 401:
+            //     //Info_Cashless.Log(RTC,"TOKEN_NO_AUTORIZADO");
+            //     Status_Barra(ERROR_LECTURA);
+            //     Info_Cashless.Unlock_Reader();
+            //     Handle = false;
+            //     Report_Http_Code(401, "Token de autenticacion no valido Codigo HTTP");
+            //     break;
+
+            //   default:
+            //     //Info_Cashless.Log(RTC,"ERROR_SOLICITUD_DESCARGA_AUTOMATICA");
+            //     Status_Barra(ERROR_LECTURA);
+            //     Info_Cashless.Unlock_Reader();
+            //     Handle = false;
+            //     break;
+            //   }
+
+            //   // if (Handle)
+            //   // Info_Cashless.Unlock_Reader();
+            // }
             else
             {
 
+              if (!transaccionesPendientes.empty())
+              {
+                //Info_Cashless.Unlock_Reader();
+
+                Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " Transferencia pendiente por recepcion");
+                Status_Barra(302);
+
+                Info_Cashless.Log(RTC, "TRANSACCION_DESCARGA_AUTOMATICA", "TRANSACCION_CANCELADA_POR_TRANSFERENCIA_PENDIENTE_DE_RECEPCION:" + String(AFT.GET_STATUS_TRANSFER()));
+                //return;
+              }
+
+              if (AFT.GET_STATUS_TRANSFER() != TransaccionCashless::TRANS_IDLE)
+              {
+                //Info_Cashless.Unlock_Reader();
+                Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  la descarga automatica transaccion en progreso estado:" + String(AFT.GET_STATUS_TRANSFER()));
+                Info_Cashless.Log(RTC, "TRANSACCION_DESCARGA_AUTOMATICA", "CANCELADA_POR_TRANSACCION_EN_PROGRESO_ESTADO:" + String(AFT.GET_STATUS_TRANSFER()));
+
+                //return;
+              }
+
               if (Info_Cashless.Get_Status_Handpay_EFT())
               {
+                Info_Cashless.Unlock_Reader();
                 if (Info_Cashless.Get_Status_Handpay_EFT())
                 {
                   Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Maquina en condicion de pago no puede realizar descarga EFT:");
-                  Info_Cashless.Log(RTC,"MAQUINA_EFT_EN_CONDICION_DE_PAGO","NO_PUEDE_REALIZAR_DESCARGA_AUTOMATICA");
+                  Info_Cashless.Log(RTC,"TRANSACCION_DESCARGA_AUTOMATICA","NO_PUEDE_REALIZAR_DESCARGA_AUTOMATICA_MAQUINA_EFT_EN_CONDICION_DE_PAGO");
                 }
+                //return;
               }
 
-              if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
+              if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
+              {
+                Info_Cashless.Unlock_Reader();
+                if(Variables_globales.Get_Variable_Global(Status_Games_Machine))
+                {
+                  Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Transaccion de descarga automatica cancelada por maquina en juego");
+                  Info_Cashless.Log(RTC,"TRANSACCION_DESCARGA_AUTOMATICA","MAQUINA_EFT_EN_JUEGO");
+                }
+                //return;
+              }
+
+              if(contadores.Get_Client_ID_Transaccion_Int() <= 0)
               {
 
-                Transmite_Contadores_Accounting();
-                Close_Sesion_Player_Tracking();
-                Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion fidelizacion terminada por creditos: " + String(Creditos), true);
-                Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS","CASHLESS HABILITADO");
+                Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Id de cliente no valido para realizar descarga: "+String(contadores.Get_Client_ID_Transaccion_Int()));
+                Info_Cashless.Log(RTC,"TRANSACCION_DESCARGA_AUTOMATICA","ID CLIENTE NO VALIDO PARA REALIZAR DESCARGA"+String(contadores.Get_Client_ID_Transaccion_Int()));
+                //return;
+              }
+              
+
+
+
+              // if (Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
+              // {
+
+              //   Transmite_Contadores_Accounting();
+              //   Close_Sesion_Player_Tracking();
+              //   Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion fidelizacion terminada por creditos: " + String(Creditos), true);
+              //   Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS","CASHLESS HABILITADO");
                 
-              }
+              // }
 
-              if (!transaccionesPendientes.empty())
-              {
-                Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente en maquina");
-                Status_Barra(302);
-              }
+              // if (!transaccionesPendientes.empty())
+              // {
+              //   Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente en maquina");
+              //   Status_Barra(302);
+              // }
 
               if (Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) || Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending))
               {
+                Info_Cashless.Unlock_Reader();
                 /* Pendiente por Reportar transaccion */
                 // String  transaccion = transaccionesPendientes.front(); /* Toma la primera transferencia */
                 Report_Http_Code(TRANSFER_PENDING, "No es posible realizar  descarga automatica por creditos: " + String(Creditos) + " transaccion pendiente de recepcion");
@@ -1019,7 +1115,7 @@ void check_SD(void)
             Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
             delay(10);
             Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
-            Serial.println("OK Archivos Listos..");
+            Serial.println("📂 OK Archivos Listos.. ✅");
             // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
             Total_SD = SD.totalBytes() / (1024 * 1024);
             Usado_SD = SD.usedBytes() / (1024 * 1024);

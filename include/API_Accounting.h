@@ -11,7 +11,7 @@ private:
 
     unsigned long Timer_Start_Premios=0;
     unsigned long Timer_End_Premios_SAS=0;
-    int TimeOut_Premios_SAS=120000;
+    int TimeOut_Premios_SAS=10000;
     bool Firts_SAS=false;
     bool Send_Handler_Cancel_Credit=false;
 

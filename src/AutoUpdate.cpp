@@ -13,12 +13,17 @@
 #include "API_Gmaster.h"
 #include "ArduinoJson.h"
 #include "Configuracion.h"
-
+#include "RFID.h"
 
 extern Preferences NVS;   
 extern ESP32Time RTC; // Objeto contiene hora y fecha
 //#define  Debug_HTTPS 
+extern AutoUpdate UpdateOTA;
 
+extern TaskHandle_t Check_Comunication_Maq;
+extern TaskHandle_t CommandProcess;
+extern TaskHandle_t ManagerTask;
+extern TaskHandle_t Mensajes_Server;
 
 extern void Recovery_Task_Hopper(void);
 extern API_Gmaster Api_G;
@@ -258,9 +263,6 @@ void AutoUpdate::firmwareUpdate(void)
   WiFiClient client;
   //client.setCACert(rootCACertificate);
   httpUpdate.setLedPin(4,HIGH); /* LED Status SD*/
-  
-  esp_task_wdt_init(1000000, true);
-  esp_task_wdt_reset();
   HTTPClient http;
   char Current_IP[4];
   memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
@@ -270,61 +272,181 @@ void AutoUpdate::firmwareUpdate(void)
   String Ip_Local=String(Ip.c_str());
 
   String URL_Complet=URL_GENERIC+API_BIN+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL+"&Ip="+Ip_Local;
- // #ifdef Debug_HTTPS
- // Serial.println(URL_Complet);
- // #endif
 
-  //client.setTimeout(30000); // 30 segundos
+  httpUpdate.onStart([]() {
+    
+    Variables_globales.Set_Variable_Global(Updating_System,true);
+    Serial.println("🔄 Iniciando actualización de firmware...");
+    vTaskDelete(Check_Comunication_Maq);
+    vTaskDelete(CommandProcess);
+    //vTaskDelete(ManagerTask);
+    vTaskDelete(Mensajes_Server);
+    Variables_globales.Set_Variable_Global(Comunicacion_Maq,false);
+  });
+
+  httpUpdate.onEnd([]() {
+
+    Serial.println("✅ Actualizacion  finalizada con exito!");
+    UpdateOTA.Confirmacion_ACK_HTTPS(INSTALL_OK,INS_OK);
+    UpdateOTA.DateTime_Update(true);
+  });
+
+  httpUpdate.onProgress([](int cur, int total) {
+    int percent = (cur * 100) / total;
+    Serial.printf("Progreso: %d%%\r", percent);
+    UpdateOTA.Confirmacion_ACK_HTTPS(String(percent),DES_OK);
+
+    if (Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
+    {
+      Status_Barra(UPDATING_SYS);
+    }
+  });
+
+
+  client.setTimeout(8000); // 30 segundos
+  http.setTimeout(8000); // 30 segundos
   http.addHeader("Authorization", "Bearer " + String(TOKEN_VALI));
   t_httpUpdate_return ret = httpUpdate.update(client, URL_Complet,"",TOKEN_VALI);
- 
+  
   
   switch (ret) {
 
   case HTTP_UPDATE_FAILED:
     #ifdef Debug_HTTPS 
-    Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+    Serial.printf(" ❌ HTTP_UPDATE_FAILD Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
     #endif
     
     esp_task_wdt_reset();
     Variables_globales.Set_Variable_Global(Updating_System,false);
     Confirmacion_ACK_HTTPS(ERROR_DES,DES_NO);
 
-
-   /* Recupera Hopper Poker */
-    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
-    {
-      ESP.restart();
-    }
+    delay(500);
+    ESP.restart();
     
   break;
 
   case HTTP_UPDATE_NO_UPDATES:
     esp_task_wdt_reset();
     #ifdef Debug_HTTPS
-    Serial.println("HTTP_UPDATE_NO_UPDATES");
+    Serial.println("❌ HTTP_UPDATE_NO_UPDATES");
     #endif
     Variables_globales.Set_Variable_Global(Updating_System,false);
     Confirmacion_ACK_HTTPS(ERROR_DES,DES_NO);
-    /* Apaga lectura de Hopper Poker */
-    if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
-    {
-      ESP.restart();
-    }
-
+   
+    delay(500);
+    ESP.restart();
     break;
 
   case HTTP_UPDATE_OK:
     esp_task_wdt_reset();
     #ifdef Debug_HTTPS
-    Serial.println("HTTP_UPDATE_OK");
+    Serial.println("✅ HTTP_UPDATE_OK");
     #endif
     break;
 
   default:
+    delay(500);
+    ESP.restart();
   break;
   }
 }
+
+
+
+
+// bool TurnOn_WiFi_TFT(String SSID_Temp, String PASSWORD_T)
+// {
+
+//   WiFi.mode(WIFI_MODE_STA);
+
+//   IPAddress Local_IP(192, 168, 5, 250);
+//   IPAddress Gateway(192, 168, 5, 1);
+//   IPAddress SubnetMask(255, 255, 255, 0);
+//   IPAddress primaryDNS(8, 8, 8, 8);   // optional
+//   IPAddress secondaryDNS(8, 8, 4, 4); //
+
+//   if (!WiFi.config(Local_IP, Gateway, SubnetMask, primaryDNS, secondaryDNS))
+//     return false;
+
+//   WiFi.setSleep(false); // Desactiva la suspensión de wifi en modo STA para mejorar la velocidad de
+//   WiFi.begin(SSID_Temp.c_str(), PASSWORD_T.c_str());
+
+//   unsigned long startAttemptTime = millis();
+
+//   // Esperar hasta 10 segundos la conexión
+//   while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000)
+//   {
+//     delay(200);
+//   }
+
+//   switch (WiFi.status())
+//   {
+//   case WL_CONNECTED:
+//     return true;
+//     break;
+
+//   default:
+//     return false;
+//     break;
+//   }
+// }
+
+// bool CheckFirmware_TFT(String Version_Actualizacion, String Version_Instalada)
+// {
+//   if (Version_Actualizacion == Version_Instalada)
+//     return false;
+//   else
+//     return true;
+// }
+
+// bool Get_Token(String URL,String API_TOKEN,String API_RES)
+// {
+
+//   String Url_Completa = URL + API_TOKEN + "?" + "Mac=" + WiFi.macAddress() + "&Ip=" + WiFi.localIP();
+  
+//   String Token_Valido = Token_Generator_Update(Url_Completa);
+
+// }
+
+// void Run_Update_TFT()
+// {
+//   WiFiClient client;
+  
+//   HTTPClient http;
+//   char Current_IP[4];
+//   memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+//   IP_toString_Ip(Current_IP);
+
+//   std::string Ip = IP_toString_Ip(Current_IP);
+//   String Ip_Local = String(Ip.c_str());
+
+//   String URL_Complet = URL_GENERIC + API_BIN + "?" + "Mac=" + WiFi.macAddress() + "&Ver=" + VERSION_FIR_LOCAL + "&Ip=" + Ip_Local;
+//   // #ifdef Debug_HTTPS
+//   // Serial.println(URL_Complet);
+//   // #endif
+
+//   // client.setTimeout(30000); // 30 segundos
+//   http.addHeader("Authorization", "Bearer " + String(TOKEN_VALI));
+//   t_httpUpdate_return ret = httpUpdate.update(client, URL_Complet, "", TOKEN_VALI);
+
+//   switch (ret)
+//   {
+
+//   case HTTP_UPDATE_FAILED:
+
+//     Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+//   break;
+
+//   case HTTP_UPDATE_NO_UPDATES:
+//     break;
+
+//   case HTTP_UPDATE_OK:
+//     break;
+
+//   default:
+//     break;
+//   }
+// }
 
 /* Compara version instalada y version de actualización */
 bool AutoUpdate::FirmwareVersionCheck(void)
@@ -335,7 +457,7 @@ bool AutoUpdate::FirmwareVersionCheck(void)
   if(VERSION_FIR_LOCAL==VERSION_FIR)
   {
     #ifdef Debug_HTTPS
-    Serial.println("Version  de firmware igual a version   instalada ");
+    Serial.println("✅ Version  de firmware igual a version   instalada");
     #endif
     Variables_globales.Set_Variable_Global(Updating_System,false);
     Confirmacion_ACK_HTTPS(INSTALL_VERSION_CURRENT,INS_OK);
@@ -348,7 +470,7 @@ bool AutoUpdate::FirmwareVersionCheck(void)
       vTaskDelete(Task_Poker_Hopper);
     }
     #ifdef Debug_HTTPS
-    Serial.println("Version  Nueva dectada!");
+    Serial.println("🔄 Version  Nueva dectada!");
     #endif
     Confirmacion_ACK_HTTPS(NEW_VERSION,VER_OK);
     return true;
