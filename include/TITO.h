@@ -90,6 +90,9 @@ extern ESP32Time RTC; // Objeto contiene hora y fecha
 #define REQUEST_FOR_CURRENT_TICKETS_STATUS     (0xFF)
 
 
+#define TIMEOUT_TICKET  1000
+
+
 class TITO
 {
 
@@ -125,6 +128,19 @@ private:
     
 
 public:
+
+
+
+    enum EstadoTransacciontito {
+    TRANS_TICKET_IDLE = 0,          // En espera: sin transacción activa
+    TRANS_TICKET_RECIBIDA = 1,      // Solicitud de carga recibida
+    TRANS_TICKET_EN_PROGRESO = 2,   // Se está procesando la transacción
+    TRANS_TICKET_PENDIENTE = 3,    // Pendiente de consultada estado
+    TRANS_TICKET_TIMEOUT= 4,       // TIMEOUT de consulta espirado 
+    TRANS_TICKET_FINALIZADA = 5    // Finalizada
+
+  };
+  EstadoTransacciontito estadotito;  // <-- variable que guarda el estado actual
    
    int Convert_2BNR_Int(char HighByte,char LowByte);
    bool Printed_Ticket_Amount(); /* Imprime Ticket */
@@ -215,11 +231,90 @@ public:
    bool Get_Flag_New_Ticket_In();
    bool Get_Flag_New_Ticket_Out();
 
-   void Set_Flag_Ticket_Out_Pending(int);
-   bool Get_Flag_Ticket_Out_Pending(void);
+  void Set_Flag_Ticket_Out_Pending(int);
+  bool Get_Flag_Ticket_Out_Pending(void);
 
+
+  void Envia_Comando_58();
+  void Init_Parameter_Ticket_Out();
+  void Ticket_Out_Pendiente(void);
+
+  bool GET_STATUS_TITO_58(bool timeout);
+   // Constructor inicializa en IDLE
+  TITO() : estadotito(TRANS_TICKET_IDLE) {};
+ 
+  bool ATTEND_TITO_57(bool timeout);
+
+  EstadoTransacciontito GET_STATUS_TITO_TRANSFER() const {
+    return estadotito;
+  }
+
+  bool Transfer_Tito_Is_ready()
+  {
+
+    switch (estadotito)
+    {
+    case TRANS_TICKET_IDLE:
+      return true;
+      break;
+
+    default:
+      return false;
+      break;
+    }
+    return false;
+  }
+
+  bool STATUS_TITO_TRANSFER(int Status)
+  {
+    if (Status < TRANS_TICKET_IDLE || Status > TRANS_TICKET_FINALIZADA)
+    {
+      return false; // Estado inválido
+    }
+    estadotito = static_cast<EstadoTransacciontito>(Status);
+
+    // switch (estado)
+    // {
+    // case TRANS_IDLE:
+    //   printf("🔵 Estado cambiado a: IDLE (En espera)\n");
+    //   break;
+    // case TRANS_RECIBIDA:
+    //   printf("📩 Estado cambiado a: RECIBIDA\n");
+    //   break;
+    // case TRANS_EN_PROGRESO:
+    //   printf("⏳ Estado cambiado a: EN PROGRESO\n");
+    //   break;
+    // case TRANS_PENDIENTE:
+    //   printf("🟡 Estado cambiado a: PENDIENTE\n");
+    //   break;
+    // case  TRANS_FINALIZADA:
+    //   printf("🏁 Estado cambiado a: FINALIZADA\n");
+    //   break;
+
+    // case TRANS_TIMEOUT:
+    //   printf("⏰ Estado cambiado a: TIMEOUT EXPIRADO\n");
+    //   break;
+    // default:
+    //   printf("❓ ESTADO DESCONOCIDO\n");
+    //   break;
+    // }
+
+    return true;
+  }
+
+  bool Await_Command_57(unsigned long Timeout);
+  void Send_Command_58();
+  bool Await_Command_58(unsigned long Timeout);
+  bool Awaiting_Key(unsigned long timeout);
+  void Request_Transfer_Tito_Out();
+
+  void Ticket_Mark_Pending(void);
+  void Ticket_Marked_As_Completed(void);
+  bool Waiting_for_the_printed_ticket_event(unsigned long timeout);
+  bool Waiting_For_This_Final_Ticket_Transaction(unsigned long Timeout);
 };
-
+bool Start_Ticket_Task(void);
+void Task_Generate_Ticket(void *pvParameters);
 
 
 

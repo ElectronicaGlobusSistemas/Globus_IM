@@ -236,7 +236,9 @@ void Transmite_Download_EFT_Maq(void);
 unsigned char EFT_Maq_Cashable_Ack(void);
 unsigned char EFT_Maq_Descarga_Ack(void);
 void TIMEOUT_TRANSFER(bool Handle);
-bool Carga_Bonus_Maquina_Magic(void);
+bool Transmite_Mistic_BA();
+
+
 bool Flaggg=false;
 
 extern unsigned long Bandera_RS232;
@@ -2037,6 +2039,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
           Info_Cashless.Requerimiento_AFT_6A(Evento, Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss));
 
+
+          
           Tito.Requerimiento_TITO_Ticket_In(Evento, Variables_globales.Get_Variable_Global(Enable_Tito_Ticket));
           Tito.Requerimiento_TITO_Ticket_Out(Evento, Variables_globales.Get_Variable_Global(Enable_Tito_Ticket), Variables_globales.Get_Variable_Global(Descarga_Solo_Cashelss), Variables_globales.Get_Variable_Global(Descarga_Solo_Tito));
 
@@ -2423,10 +2427,11 @@ void Encuestas_Maquina(void *pvParameters)
         Update_Status_Critical_Download();
       }
 
-      if(Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request) && !Tito.Get_Status_Process_Ticket())
+      if(Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request))
       {
        // Serial.println("Atentido el requerimiento");
-        Requerimiento_TITO();
+        // Requerimiento_TITO();
+        Tito.Request_Transfer_Tito_Out();
         Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request,false);
       }
       
@@ -2439,7 +2444,8 @@ void Encuestas_Maquina(void *pvParameters)
       
       if(Tito.Get_Confirma_Ticket())
       {
-        Remove_Ticket_In_Buffer();
+        //Remove_Ticket_In_Buffer();
+        
         Tito.Set_Confirma_Ticket(false);
       }
 
@@ -2484,7 +2490,7 @@ void Encuestas_Maquina(void *pvParameters)
         switch (Handle_Maquina)
         {
         case Flag_Magic:
-          Transmite_Mistic_Lega();
+          //Transmite_Mistic_Lega();
           break;
         
         default:
@@ -6284,13 +6290,20 @@ void Transmite_Encuesta_Creditos(void)
 void Transmite_Encuesta_Maquina_Juego(void)
 {
 
-
+  if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 3 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 5 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6)
+  {
+    Transmite_Poll(0x46);
+    delay(100);
+  }
   Transmite_Poll(0x1A);
   delay(100);
   Transmite_Poll(0x11);
   delay(100);
   Transmite_Poll(0x12);
   delay(100);
+
+  
+ 
 
   if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==11)
   {
@@ -6433,7 +6446,7 @@ bool Carga_Bonus_Maquina(void)
 }
 
 
-bool Carga_Bonus_Maquina_Magic(void)
+bool Transmite_Mistic_BA(void)
 {
     flag_handle_maquina = true;
     Handle_Maquina = Flag_Magic;
@@ -11698,7 +11711,7 @@ void Transmite_Download_AFT_Maq(void)
   else
   {
 
-    // Info_Cashless.Log(RTC, "TRANSACCION_AFT_DESCARGA", "RECIBIDA_POR_CONTROLADOR");
+    //Info_Cashless.Log(RTC, "TRANSACCION_AFT_DESCARGA", "RECIBIDA_POR_CONTROLADOR");
 
     AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
 
@@ -12871,7 +12884,7 @@ bool TransaccionCashless::Await_Transaccion_AFT_Load(unsigned long timeout)
     //   Contador = 0;
     // }
 
-    Mantiene
+    Mantiene_Comunicacion();
     vTaskDelay(300);
     //Serial.println("Esperando respuesta......");
   }

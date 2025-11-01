@@ -200,7 +200,7 @@ void Init_SD(void)
 
     
 
-    cola_logs = xQueueCreate(3, sizeof(MensajeLog));
+    cola_logs = xQueueCreate(5, sizeof(MensajeLog));
 
     // const char* criticalFiles[] = {
     //     "/Contadores-692025.csv"

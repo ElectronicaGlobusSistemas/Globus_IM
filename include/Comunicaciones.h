@@ -745,10 +745,29 @@ void Config_Timer_Transmission_In_Game(char Datos[])
  */
 void Config_Timer_Transmission_No_Game(char Datos[])
 {
+   
+    //Select=(Datos[4]-48)*10+(Datos[5]-48);
+    // Serial.println(Select);
+    // Serial.println(Datos[5]);
+    // Serial.println();
     int Select;
 
-    Select=(Datos[4]-48)*10+(Datos[5]-48);
-  //  Serial.println(Select);
+    // Si el segundo byte es dígito lo interpretamos como decena+unidad
+    if (Datos[4] >= '0' && Datos[4] <= '9' && Datos[5] >= '0' && Datos[5] <= '9')
+    {
+        Select = (Datos[4] - '0') * 10 + (Datos[5] - '0');
+    }
+    // Si solo el primer byte es dígito lo interpretamos como unidad (ej: "2" -> 2)
+    else if (Datos[4] >= '0' && Datos[4] <= '9')
+    {
+        Select = (Datos[4] - '0');
+    }
+    // ningún dígito válido -> valor por defecto
+    else
+    {
+        Select = 0;
+    }
+   // Serial.println(Select);
     switch (Select)
     {
     case  0:
@@ -1152,7 +1171,7 @@ void Transmite_Contadores_Accounting()
                 // }
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
-                    //Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), Contadores_,archivo,DEBUG_);
+                    Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(),"OK",archivo,DEBUG_);
                     // Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), "OK",archivo,DEBUG_);
                 }
                 else
@@ -2979,6 +2998,8 @@ void Mensajes_RFID(void)
             if (contadores.Get_Status_Flag_Premio()&& !Variable_Solicitud_Operador_Id)
             {
 
+                Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "PREMIO_PAGADO");
+
                 #ifdef Debug_Transmision
                 Serial.println("Contadores, premio pagado");
                 #endif
@@ -3011,14 +3032,14 @@ void Mensajes_RFID(void)
                     /*-----------------------------------------------------*/
                 }
 
-                //Info_Cashless.Count_Player_Sesions(false,contadores.Get_Status_Flag_Premio());
+                Info_Cashless.Count_Player_Sesions(false,contadores.Get_Status_Flag_Premio());
                 Variables_globales.Set_Variable_Global(Flag_Cancel_Sesiones,true);
                 contadores.Set_Flag_Premio(false);
             }
 
             if(contadores.Get_Status_Flag_Bill_In() && !Variable_Solicitud_Operador_Id)
             {
-
+                Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "BILLETE_INSERTADO");
                 Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
 
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
@@ -3172,7 +3193,7 @@ void Task_Procesa_Comandos(void *parameter)
 
             // Transmite_Reenvio_Contadores.Confirma_Envio_Server();
 
-
+                Info_Cashless.Log(RTC, "COMANDO_CONTADORES", "RECIBIDO");
 
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
@@ -4646,6 +4667,9 @@ void Transmision_Controlada_Contadores(void)
             /*----------------------> Trama de contadores  2 minutos <-----------------------------------------------------------*/
             if ((New_Timmer_Inicial - New_Timer_Final) >= Tiempo_Transmision_No_Juego)
             {
+
+                Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "NO_JUEGO");
+
                 uint16_t TipoMaq=Configuracion.Get_Configuracion(Tipo_Maquina, 0);
                 bool Status_Hopper = Variables_globales.Get_Variable_Global(Flag_Hopper_Enable);
                 bool Status_Cancel_Poker = Variables_globales.Get_Variable_Global(Primer_Cancel_Credit);
@@ -4676,6 +4700,8 @@ void Transmision_Controlada_Contadores(void)
                 case 15:
                     Transmite_Contadores_Accounting();
                     Transmite=true;
+
+                    
                 break;
 
                 default:
@@ -4754,6 +4780,8 @@ void Transmision_Controlada_Contadores(void)
             if (Contador_Transmision_Contadores >= Tiempo_Transmision_En_Juego)
             {
 
+                Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "EN_JUEGO");
+
                 if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) !=14)
                 {
                     #ifdef Debug_Transmision
@@ -4815,6 +4843,8 @@ void Transmision_Controlada_Contadores(void)
         if (flag_premio_pagado_cashout && !Variable_Solicitud_Operador_Id)
         {
 
+            Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "PREMIO_PAGADO");
+
             #ifdef Debug_Transmision
             Serial.println("Contadores, premio pagado....");
             #endif
@@ -4852,6 +4882,9 @@ void Transmision_Controlada_Contadores(void)
         // Si cambio el billetero, porque se ingreso un nuevo billete
         if (flag_billete_insertado && !Variable_Solicitud_Operador_Id)
         {
+
+            Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "BILLETE_INSERTADO");
+
             if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
             {
                 #ifdef Debug_Transmision
@@ -5617,7 +5650,7 @@ void Task_Verifica_Hopper(void *parameter)
             if (Conta_Poll_Cancel_Poker > Extern_Pulsos && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
             {
 
-                //Info_Cashless.Count_Player_Sesions(false,Variables_globales.Get_Variable_Global(Flag_Hopper_Enable));
+                Info_Cashless.Count_Player_Sesions(false,Variables_globales.Get_Variable_Global(Flag_Hopper_Enable));
                 
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
                 Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
@@ -5757,7 +5790,7 @@ void Actualiza_Contadores(void)
 
             //Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
 
-            //Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
+            
             
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
             Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
@@ -5775,6 +5808,8 @@ void Actualiza_Contadores(void)
             /*---------------------------------------------------------------------------*/
             Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
             Variables_globales.Set_Variable_Global(Billete_Insert, false);
+
+            Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
         }
     }else{
 

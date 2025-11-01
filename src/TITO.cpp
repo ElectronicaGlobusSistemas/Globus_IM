@@ -14,6 +14,18 @@
 #include "Preferences.h"
 #include "SPIFFS.h"
 #include <esp_task_wdt.h>
+#include "Transacciones.h"
+
+
+
+
+#define TICKET_OUT "0x01"
+
+TaskHandle_t taskHandleTicket = NULL;
+
+bool Result_Key=false;
+
+bool Result_RequestKey=false;
 
 std::vector<String> Ticket_Pendientes;
 const char* Ticketfile = "/Ticket.txt";
@@ -40,8 +52,16 @@ DynamicJsonDocument Objeto_Ticket_In_Transfer(800);
 DynamicJsonDocument Objeto_Ticket_In_Response(800);
 
 
+extern unsigned char decimalToBCD(unsigned char digit);
+extern bool CalcularCRC_Transfer(char Buffer[],int Size_Without_CRC);
+extern void sendDataa(const char *datos, unsigned int tamano);
+extern void Transmite_Poll_Long(unsigned char Com_SAS);
 
+extern char dat[1];
+extern char dat3[1];
+extern char dat4[1];
 
+extern TransaccionCashless AFT;
 
 void TITO::Set_Flag_New_Ticket_In(bool Flag_Status)
 {
@@ -106,33 +126,34 @@ bool TITO::Ticket_Transfer_To_Machine(void)
     return true;
 }
 
+
+
+
 bool TITO::Generate_Key_Ticket_Out(void)
 {
 
-    Serial.println("Solicitud Token ticket");
-    bool Code=false;
+   // Serial.println("Solicitud Token ticket");
+    bool Code = false;
     int httpCode;
 
     char IP_Server[4];
     memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
 
     char Current_IP[4];
-    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
     memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
 
-    std::string Ip=IP_toString_Ticket(IP_Server);
-    String Ip_Server=String(Ip.c_str());
-    String Puerto="9595";
-    String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Tito/Ticket_Out";
+    std::string Ip = IP_toString_Ticket(IP_Server);
+    String Ip_Server = String(Ip.c_str());
+    String Puerto = "9595";
+    String fwurl = "http://" + Ip_Server + ":" + Puerto + "/api/Tito/Ticket_Out";
 
     WiFiClient client;
     HTTPClient https;
 
-    
-   
     StaticJsonDocument<500> jsonDocument;
     jsonDocument.clear();
-    
+
     jsonDocument["IsSuccess"] = true;
     jsonDocument["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
     jsonDocument["Fecha_Hora"] = DataTime;
@@ -140,18 +161,16 @@ bool TITO::Generate_Key_Ticket_Out(void)
     jsonDocument["MAC"] = WiFi.macAddress();
     jsonDocument["Id_Maquina"] = 0;
 
-
-
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
-   // Serial.println(Json);
-    
+                                       // Serial.println(Json);
+
     https.setTimeout(5000); /* 5seg max */
     if (https.begin(client, fwurl))
     {
         https.addHeader("Content-Type", "application/json");
-        https.addHeader("hash",Info_Cashless.Get_Hash_Valido());
-        https.addHeader("gmsec","GMaster");
+        https.addHeader("hash", Info_Cashless.Get_Hash_Valido());
+        https.addHeader("gmsec", "GMaster");
         https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido()); // Agrega el token de autorización
         httpCode = https.POST(Json);
 
@@ -164,39 +183,38 @@ bool TITO::Generate_Key_Ticket_Out(void)
                 doc,
                 filter;
             DeserializationError error = deserializeJson(doc, Response);
-           // Serial.println( Response);
+            // Serial.println( Response);
             if (error)
             {
 #ifdef Debug_HTTPS
                 Serial.println("Error Json Contadores ");
 #endif
-                
             }
             else
             {
                 bool IsSuccess = doc["IsSuccess"];
 
-                if(IsSuccess)
+                if (IsSuccess)
                 {
-                    String  Validation_Number = doc["Validation_Number"]; /*"1234567890123456"*/
-                    if(Set_Parameter_Ticket(Validation_Number))
-                        Code=true;
+                    String Validation_Number = doc["Validation_Number"]; /*"1234567890123456"*/
+                    if (Set_Parameter_Ticket(Validation_Number))
+                        Code = true;
                     else
-                        Code=false;
+                        Code = false;
                 }
                 else
-                    Code=false;
+                    Code = false;
             }
 
             doc.clear();
         }
         else
         {
-            Code=false;
+            Code = false;
         }
         https.end();
 
-        if(Code)
+        if (Code)
             Serial.println("Token Ticket Generado correctamente!");
         else
             Serial.println("Token Ticket no generado!");
@@ -205,6 +223,7 @@ bool TITO::Generate_Key_Ticket_Out(void)
     }
     return false;
 }
+
 
 bool TITO::Reedeme_Ticket_In(void)
 {
@@ -793,22 +812,34 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
 /* Atiende Requerimiento TITO 57  Ticket Out */
 bool TITO::Requerimiento_TITO_Ticket_Out(int Evento, bool Habilita_Tito, bool Solo_Cashless, bool Solo_Tito)
 {
-   
 
-    if(Evento==0x3D && Tito.Get_Status_Process_Ticket()||Evento==0x3E && Tito.Get_Status_Process_Ticket())
+    if (Evento == 0x3D || Evento == 0x3E && !Tito.Transfer_Tito_Is_ready())
     {
         Serial.println("Ticket Impreso OK");
         Set_Confirma_Ticket(true);
     }
 
-    if (Evento == 0x57 && !Solo_Cashless && Habilita_Tito && Solo_Tito)
+    switch (Evento)
     {
-        if(!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request))
-            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request, true);
-        return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request);
+    case 0x57:
+        if (Tito.Transfer_Tito_Is_ready())
+        {
+            if (!Solo_Cashless && Habilita_Tito && Solo_Tito)
+            {
+                Tito.STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_RECIBIDA);
+
+                if (!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request))
+                    Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request, true);
+                return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request);
+            }
+        }
+        break;
+
+    default:
+        break;
     }
-    else
-        return false;
+
+    return false;
 }
 
 uint32_t TITO::Convert_5BCD_Uint32(char Buffer[],int Inicial_Index)
@@ -831,7 +862,6 @@ void TITO::Solicitud_Token_Ticket_Http(bool Status)
 {
     Solicitud_Token_Ticket=Status;
 }
-
 
 
 void TITO::Silicitud_Reedemed_Ticket_Http(bool Status)
@@ -1163,13 +1193,14 @@ bool TITO::Consult_Ticket(String Ticket_Informations)
     return false;
 }
 
-bool TITO:: Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
+
+bool TITO::Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
 {
-    if (Evento == 0x67  && Habilita_Tito)
+    if (Evento == 0x67 && Habilita_Tito)
     {
         Serial.println("Evento Ticket Insertado...");
-        if(!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
-            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In,true);
+        if (!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
+            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
         return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In);
     }
     else
@@ -1300,6 +1331,8 @@ void TITO::New_Transfer_Ticket(const String& json)
                Updated_Ticket_Counters(json); /* Transaccion OK  envia trama contadores */
             }
         }
+
+        STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
         //Transaccion_Finalizada();
     }
     
@@ -1330,24 +1363,9 @@ void TITO::Available_Ticket_Transfer(int Timeout)
 {
     bool Cambios=false;
 
-    if(Get_Flag_Ticket_Out_Pending())
-    {
-        String Json;
-        Objeto_Ticket_Out["Trans_Tipo"]="0x01";
-        if(Objeto_Ticket_Out["Code"]==0x00)
-            Objeto_Ticket_Out["Codigo"]=0x40;
-        else
-            Objeto_Ticket_Out["Codigo"]=0xFF;
-        serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
-
-       
-        Send_Transfer_Ticket(Json);
-        Serial.println(" ------------------------>SOLICITUD (HTTP POST) ACK TICKET OUT PENDIENTE <------------------");
-        Serial.println(Json);
-        Serial.println(" -------------------------------------------------------------------------------------------");
-        Set_Flag_Ticket_Out_Pending(false);
-    }
-
+    if (Get_Flag_Ticket_Out_Pending())
+        Ticket_Mark_Pending();
+    
 
     if(Get_Flag_New_Ticket_In())
     {
@@ -1359,13 +1377,8 @@ void TITO::Available_Ticket_Transfer(int Timeout)
     }
 
     if(Get_Flag_New_Ticket_Out())
-    {
-        String Json;
-        serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
-        Objeto_Ticket_Out.clear(); /*  Limpia  Objeto Ack Transferencias carga */
-        New_Transfer_Ticket(Json);
-        Set_Flag_New_Ticket_Out(false);
-    }
+       Ticket_Marked_As_Completed();
+    
 
     if(Flag_Parcial_New_Transfer_Ticket_In)
     {
@@ -1573,3 +1586,420 @@ bool TITO::Updated_Ticket_Counters(String Type_Transaccion)
     }
     return false;
 }
+
+
+
+
+
+bool TITO::Await_Command_57(unsigned long Timeout)
+{
+
+    bool IsSuccess = false;
+    unsigned long Timout_Break_Response;
+
+    Buffer_Cashless.Init_Buffer_TITO();
+
+    for (int i = 0; i < 1; i++)
+    {
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x57);
+        delay(500);
+    }
+
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO()[1] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        /* Poll de espera para mantener comunicacion */
+        AFT.Mantiene_Comunicacion();
+
+
+        esp_task_wdt_reset();
+        delay(200);
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x57);
+
+        if (Buffer_Cashless.Get_Buffer_TITO()[1] != 0xAA)
+            break;
+        vTaskDelay(10);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO()[1];
+
+    if (Recv == 0x57)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+void TITO::Send_Command_58()
+{
+    char Amount[6];
+    /* Amount */
+    Amount[0] = Buffer_Cashless.Get_Buffer_TITO()[3];
+    Amount[1] = Buffer_Cashless.Get_Buffer_TITO()[4];
+    Amount[2] = Buffer_Cashless.Get_Buffer_TITO()[5];
+    Amount[3] = Buffer_Cashless.Get_Buffer_TITO()[6];
+    Amount[4] = Buffer_Cashless.Get_Buffer_TITO()[7];
+    Buffer_Cashless.Init_Buffer_TITO();
+
+    char Host_Command[13];
+    int Host_Size = 10;
+
+    /*DIRECCION MAQUINA */
+    Host_Command[0] = 0x01;
+    /* COMANDO */
+    Host_Command[1] = 0x58;
+    /*VALIDATION SYSTEM ID */
+
+    Host_Command[2] = decimalToBCD(Tito.Get_Validacion_System_ID());
+    /* AMOUNT*/
+    Host_Command[3] = Tito.Get_Validacion_Number()[0];
+    Host_Command[4] = Tito.Get_Validacion_Number()[1];
+    Host_Command[5] = Tito.Get_Validacion_Number()[2];
+    Host_Command[6] = Tito.Get_Validacion_Number()[3];
+    Host_Command[7] = Tito.Get_Validacion_Number()[4];
+    Host_Command[8] = Tito.Get_Validacion_Number()[5];
+    Host_Command[9] = Tito.Get_Validacion_Number()[6];
+    Host_Command[10] = Tito.Get_Validacion_Number()[7];
+
+    /* CRC */
+    Host_Command[11] = 0x00;
+    Host_Command[12] = 0x00;
+
+    // CalcularCRC_Tmp(); // Calcula CRC
+    CalcularCRC_Transfer(Host_Command, Host_Size);
+    Buffer_Cashless.Init_Buffer_TITO_58();
+    Buffer_Cashless.Init_Buffer_TITO_3D_3E();
+    delay(1);
+
+    for (int i = 0; i < 13; i++)
+    {
+        if (i == 0)
+            sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        else
+            Transmite_Poll_Long(Host_Command[i]);
+    }
+}
+
+bool TITO::Await_Command_58(unsigned long Timeout)
+{
+
+    unsigned long Timout_Break_Response;
+    bool IsSuccess = false;
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_58()[1] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        esp_task_wdt_reset();
+        AFT.Mantiene_Comunicacion();
+        if (Buffer_Cashless.Get_Buffer_TITO_58()[1] != 0xAA)
+            break;
+        vTaskDelay(10);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO_58()[1];
+
+    if (Recv == 0x58)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+void TITO::Request_Transfer_Tito_Out(void)
+{
+    STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_EN_PROGRESO);
+
+    Serial.println("--------------------------------> Evento 57 Atendido <-----------------------------------------------");
+
+    if (Generate_Key_Ticket_Out())
+    {
+
+        /* Limpia buffer para la transaccion */
+        Buffer_Cashless.Init_Buffer_TITO();
+
+        if (Await_Command_57(2000))
+        {
+
+            Tito.Increase_Transaction_Number_ID_Tito();
+            // Serial.println("------------------------> Comando 57 Rebido por la maquina <----------------------------------");
+
+            /* Type Cashout */
+            int Type_Ticket = Buffer_Cashless.Get_Buffer_TITO()[2];
+            char Amount[6];
+            /* Amount */
+            Amount[0] = Buffer_Cashless.Get_Buffer_TITO()[3];
+            Amount[1] = Buffer_Cashless.Get_Buffer_TITO()[4];
+            Amount[2] = Buffer_Cashless.Get_Buffer_TITO()[5];
+            Amount[3] = Buffer_Cashless.Get_Buffer_TITO()[6];
+            Amount[4] = Buffer_Cashless.Get_Buffer_TITO()[7];
+
+            /* Limpia buffer de recepcion tito */
+            Buffer_Cashless.Init_Buffer_TITO();
+
+            char Host_Command[13];
+            int Host_Size = 10;
+
+            /*DIRECCION MAQUINA */
+            Host_Command[0] = 0x01;
+            /* COMANDO */
+            Host_Command[1] = 0x58;
+            /*VALIDATION SYSTEM ID */
+
+            Host_Command[2] = decimalToBCD(Tito.Get_Validacion_System_ID());
+            /* AMOUNT*/
+            Host_Command[3] = Tito.Get_Validacion_Number()[0];
+            Host_Command[4] = Tito.Get_Validacion_Number()[1];
+            Host_Command[5] = Tito.Get_Validacion_Number()[2];
+            Host_Command[6] = Tito.Get_Validacion_Number()[3];
+            Host_Command[7] = Tito.Get_Validacion_Number()[4];
+            Host_Command[8] = Tito.Get_Validacion_Number()[5];
+            Host_Command[9] = Tito.Get_Validacion_Number()[6];
+            Host_Command[10] = Tito.Get_Validacion_Number()[7];
+
+            /* CRC */
+            Host_Command[11] = 0x00;
+            Host_Command[12] = 0x00;
+
+            // CalcularCRC_Tmp(); // Calcula CRC
+            CalcularCRC_Transfer(Host_Command, Host_Size);
+            Buffer_Cashless.Init_Buffer_TITO_58();
+            Buffer_Cashless.Init_Buffer_TITO_3D_3E();
+            delay(1);
+
+            Send_Command_58(); /* Envia Comando 58 */
+
+            if (Await_Command_58(15000))
+            {
+                int Status = Buffer_Cashless.Get_Buffer_TITO_58()[2];
+                /* Recibio la data */
+                // Serial.println("------------------------> Comando 58 Rebido por la maquina <----------------------------------");
+                if (Status == 0x00)
+                {
+                    // Serial.println(" Ticket OK ");
+
+                    Tito.Update_Ticket(Status, Type_Ticket);
+                    Tito.Set_Flag_Ticket_Out_Pending(true);
+
+                    if (Waiting_for_the_printed_ticket_event(15000))
+                    {
+                        STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_PENDIENTE);
+
+                        if (Waiting_For_This_Final_Ticket_Transaction(10000))
+                        {
+                            Tito.Status_Ticket_Out(Buffer_Cashless.Get_Buffer_TITO_4D(), RTC);
+                            // Tito.Status_Process_Ticket(false);
+                        }
+                        else
+                        {
+                            STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_TIMEOUT);
+                            //Serial.println("TIEMOUT");
+                        }
+                    }
+                    else
+                    {
+                        STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_TIMEOUT);
+                        //Serial.println("EVENTO NO RECIBIDO");
+                    }
+                    /* Ticket generado parcialmente */
+                }
+                else
+                {
+
+                    STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+                    /* 0x80 y 0x81*/
+                    Serial.println("Error Generando Ticket ");
+                    Tito.Update_Ticket(0xFF, 0xAA);
+                    Tito.Set_Flag_Ticket_Out_Pending(true);
+                    Tito.Status_Process_Ticket(false);
+                }
+            }
+            else
+            {
+
+                STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+                Tito.Update_Ticket(0xFF, 0xAA);
+                Tito.Set_Flag_Ticket_Out_Pending(true);
+                Serial.println("Comando 58 no recibido ");
+                Tito.Status_Process_Ticket(false);
+            }
+        }
+        else
+        {
+            STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+        }
+    }
+    else
+    {
+        Serial.println("Error Metodo HTTP Key");
+        STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+    }
+}
+
+
+
+
+
+
+bool TITO::Awaiting_Key(unsigned long timeout)
+{
+    unsigned long Timout_Break_Response;
+    bool IsSuccess = false;
+    Timout_Break_Response = millis();
+   
+    while (!Result_Key && (millis() - Timout_Break_Response < timeout))
+    {
+        esp_task_wdt_reset();
+        AFT.Mantiene_Comunicacion();
+        if (Result_Key)
+            break;
+        vTaskDelay(10);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+    Result_Key = false;
+    return Result_RequestKey;
+}
+
+void TITO::Ticket_Mark_Pending(void)
+{
+    String Json;
+    Objeto_Ticket_Out["Trans_Tipo"] = TICKET_OUT;
+    if (Objeto_Ticket_Out["Code"] == 0x00)
+        Objeto_Ticket_Out["Codigo"] = 0x40;
+    else
+        Objeto_Ticket_Out["Codigo"] = 0xFF;
+    serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
+
+    Send_Transfer_Ticket(Json);
+    Serial.println(" ------------------------>SOLICITUD (HTTP POST) ACK TICKET OUT PENDIENTE <------------------");
+    Serial.println(Json);
+    Serial.println(" -------------------------------------------------------------------------------------------");
+    Set_Flag_Ticket_Out_Pending(false);
+}
+
+void TITO::Ticket_Marked_As_Completed(void)
+{
+    String Json;
+    serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
+    Objeto_Ticket_Out.clear();              /*  Limpia  Objeto Ack Transferencias carga */
+    New_Transfer_Ticket(Json);
+    Set_Flag_New_Ticket_Out(false);
+}
+
+void Task_Generate_Ticket(void *pvParameters)
+{
+    Serial.println("[TAREA] Iniciando generación de ticket...");
+    Result_RequestKey = Tito.Generate_Key_Ticket_Out();
+    Serial.println("[TAREA] Ticket finalizado. Eliminando tarea...");
+    Result_Key=true;
+    vTaskDelete(NULL);
+}
+
+
+
+bool Start_Ticket_Task(void)
+{
+    if (taskHandleTicket == NULL)
+    {
+        BaseType_t result = xTaskCreatePinnedToCore(
+            Task_Generate_Ticket,   // función de la tarea
+            "TicketTask_Key",       // nombre
+            5000,                   // stack size
+            NULL,                   // parámetros
+            configMAX_PRIORITIES - 10, // prioridad
+            &taskHandleTicket,      // handle
+            0                       // core
+        );
+
+        if (result == pdPASS)
+        {
+            Serial.println("[INFO] Tarea de ticket lanzada correctamente.");
+            return true;
+        }
+        else
+        {
+            Serial.println("[ERROR] No se pudo crear la tarea de ticket (memoria insuficiente).");
+            taskHandleTicket = NULL;
+            return false;
+        }
+    }
+    else
+    {
+        Serial.println("[INFO] Ya existe una tarea de ticket en ejecución.");
+        return false;
+    }
+}
+
+
+bool TITO::Waiting_for_the_printed_ticket_event(unsigned long timeout)
+{
+    unsigned long Timout_Break_Response;
+    Timout_Break_Response = millis();
+   
+    while (!Get_Confirma_Ticket() && (millis() - Timout_Break_Response < timeout))
+    {
+        esp_task_wdt_reset();
+        AFT.Mantiene_Comunicacion();
+
+        if (Get_Confirma_Ticket())
+            break;
+
+        vTaskDelay(200);
+        //Serial.println("Imprimiendo ticket......");
+    }
+
+    return Get_Confirma_Ticket();
+}
+
+bool TITO::Waiting_For_This_Final_Ticket_Transaction(unsigned long Timeout)
+{
+
+    bool IsSucess = false;
+    // Serial.println("Confirma Ticket ");
+    Buffer_Cashless.Init_Buffer_TITO_4D();
+    delay(10);
+
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x4D);
+    Transmite_Poll_Long(0x00);
+    Transmite_Poll_Long(0xC2);
+    Transmite_Poll_Long(0xAC);
+
+    unsigned long Timout_Break_Response;
+    Timout_Break_Response = millis();
+    esp_task_wdt_init(1000000, true);
+    esp_task_wdt_add(NULL);
+
+    delay(800);
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_4D()[1] == 0xAA || Buffer_Cashless.Get_Buffer_TITO_4D()[1] == 0x00) && (millis() - Timout_Break_Response < Timeout))
+    {
+        esp_task_wdt_reset();
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x4D);
+        Transmite_Poll_Long(0x00);
+        Transmite_Poll_Long(0xC2);
+        Transmite_Poll_Long(0xAC);
+        
+
+        if (Buffer_Cashless.Get_Buffer_TITO_4D()[1] != 0xAA && Buffer_Cashless.Get_Buffer_TITO_4D()[1] != 0x00)
+            break;
+
+        vTaskDelay(10);
+        //Serial.println("Esperando por la transferencia.....!");
+    }
+
+    if (Buffer_Cashless.Get_Buffer_TITO_4D()[1] == 0x4D)
+        IsSucess = true;
+    else
+        IsSucess = false;
+
+    return IsSucess;
+}
+

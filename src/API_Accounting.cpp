@@ -185,6 +185,11 @@ bool API_Accounting::Send_Handpay_Informatios(ESP32Time RTC,String Data)
             DynamicJsonDocument doc(200);
             DeserializationError error = deserializeJson(doc, Response);
 
+
+            #ifdef Debug_Premios_SAS
+            Serial.println(Response);
+            #endif
+
             if (error)
             {
 #ifdef Debug_HTTPS
@@ -377,7 +382,6 @@ bool API_Accounting::Get_Flag_Handler_Cancel_Credit(void)
 }
 
 
-
 /* Envia información de premio */
 bool API_Accounting::Send_Counter_App(void)
 {
@@ -438,8 +442,8 @@ bool API_Accounting::Send_Counter_App(void)
 
     String Output;
     serializeJson(jsonDocument, Output); /* Serializa Data */
-    Serial.println(Output);
-    Serial.println("-----------------------------------------------------------");
+    // Serial.println(Output);
+    // Serial.println("-----------------------------------------------------------");
     if (https.begin(client, fwurl))
     {
         

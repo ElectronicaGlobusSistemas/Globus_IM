@@ -12,6 +12,13 @@ unsigned long interval = 30000;
 WiFiClient clientTCP; // Declara un objeto cliente para conectarse al servidor
 WiFiUDP clientUDP;    // Declara un objeto para cliente UDP
 
+bool SocketIsConnect=false;
+
+unsigned long Socket_Timeout_Inicial=0;
+unsigned long Socket_Timeout_Final=0;
+unsigned long Socket_Timeout=0;
+
+unsigned long Counter_ResetSocket=0;
 
 
 String buffer;
@@ -425,8 +432,33 @@ void RECONECT_WIFI_ESP()
     Serial.println(WiFi.localIP());
     Serial.print("ESP Mac Address: ");
     Serial.println(WiFi.macAddress());
-    clientUDP.begin(serverPort);
-    Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+
+    
+    clientUDP.stop();
+    delay(200);
+
+    // clientUDP.begin(serverPort);
+
+    // Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+
+    if (clientUDP.begin(serverPort))
+    {
+      Serial.printf("📡 Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+      SocketIsConnect = true;
+      Counter_ResetSocket=0;
+    }
+    else
+    {
+
+      SocketIsConnect = false;
+      char errorBuffer[128];
+      snprintf(errorBuffer, sizeof(errorBuffer), "%d (%s) | IP: %s | Estado WiFi: %d",
+               errno, strerror(errno), WiFi.localIP().toString().c_str(), WiFi.status());
+      Info_Cashless.Log(RTC, "ERROR_OPEN_PORT_UDP", String(errorBuffer));
+      Counter_ResetSocket++;
+      
+    }
+
     Serial.print("Nivel Señal WIFI: ");
     Serial.println(WiFi.RSSI());
     // Selector_Modo_SD();
@@ -530,6 +562,55 @@ void RECONECT_WIFI_ESP()
   }
 }
 
+void Reset_SocketIp(unsigned long timeout)
+{
+  Socket_Timeout_Inicial = millis();
+
+  if (Socket_Timeout_Inicial - Socket_Timeout_Final >= timeout)
+  {
+
+    Socket_Timeout_Final = Socket_Timeout_Inicial;
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      if (!SocketIsConnect)
+      {
+        if (clientUDP.begin(serverPort))
+        {
+          Serial.printf("📡 Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+          SocketIsConnect = true;
+          Counter_ResetSocket = 0;
+
+          Info_Cashless.Log(RTC, "OPEN_SOCKET_UDP","APERTURA_CRITICA_SOCKET");
+        }
+        else
+        {
+
+          SocketIsConnect = false;
+          char errorBuffer[128];
+          snprintf(errorBuffer, sizeof(errorBuffer), "%d (%s) | IP: %s | Estado WiFi: %d",
+                   errno, strerror(errno), WiFi.localIP().toString().c_str(), WiFi.status());
+          Info_Cashless.Log(RTC, "ERROR_OPEN_PORT_UDP", String(errorBuffer),archivo,ERROR_);
+
+          Counter_ResetSocket++;
+        }
+      }
+    }
+
+    if (Counter_ResetSocket >= 30)
+    {
+      Counter_ResetSocket = 0;
+      Info_Cashless.Log(RTC, "TIMEOUT_SOCKET", "SE_ALCANZO_EL_LIMITE_DE_INTENTOS_DE_APERTURA_SOCKET_UDP");
+    }
+
+    /* No existe transaccion en proceso y se  alcanzo el limite */
+    if (Counter_ResetSocket >= 35&& AFT.GET_STATUS_TRANSFER()==TransaccionCashless::TRANS_IDLE)
+    {
+      ESP.restart();
+    }
+  }
+}
+
 void Task_Verifica_Conexion_Wifi(void *parameter)
 {
  // Serial.println(" Verificador WIFI Activado");
@@ -552,8 +633,20 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
       Serial.println(WiFi.localIP());
       Serial.print("ESP Mac Address: ");
       Serial.println(WiFi.macAddress());
-      clientUDP.begin(serverPort);
-      Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+
+      if (clientUDP.begin(serverPort))
+      {
+        Serial.printf("Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+        Info_Cashless.Log(RTC, "OPEN_PORT_UDP:"+String(serverPort),"OK");
+      }
+      else
+      {
+        char errorBuffer[128];
+        snprintf(errorBuffer, sizeof(errorBuffer), "%d (%s) | IP: %s | Estado WiFi: %d",
+                 errno, strerror(errno), WiFi.localIP().toString().c_str(), WiFi.status());
+        Info_Cashless.Log(RTC, "ERROR_OPEN_PORT_UDP", String(errorBuffer));
+      }
+
       Serial.print("Nivel Señal WIFI: ");
       Serial.println(WiFi.RSSI());
       // Selector_Modo_SD();
@@ -668,6 +761,8 @@ void Task_Verifica_Conexion_Wifi(void *parameter)
 /***************************************************************************************************************************/
 /***************************************************************************************************************************/
 
+
+
 void CONNECT_SERVER_TCP(void)
 {
   if (WiFi.isConnected())
@@ -702,8 +797,23 @@ void CONNECT_SERVER_TCP(void)
     }
     else
     {
-      clientUDP.begin(serverPort);
-      Serial.printf("📡 Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+      // clientUDP.begin(serverPort);
+      
+
+      if(clientUDP.begin(serverPort))
+      { 
+        Serial.printf("📡 Escuchando por la IP: %s, Puerto UDP: %d\n", WiFi.localIP().toString().c_str(), serverPort);
+        SocketIsConnect=true;
+        Counter_ResetSocket=0;
+      }else{
+
+        SocketIsConnect=false;
+        char errorBuffer[128];
+        snprintf(errorBuffer, sizeof(errorBuffer), "%d (%s) | IP: %s | Estado WiFi: %d",
+                 errno, strerror(errno), WiFi.localIP().toString().c_str(), WiFi.status());
+        Info_Cashless.Log(RTC, "ERROR_OPEN_PORT_UDP", String(errorBuffer));
+        Counter_ResetSocket++;
+      }
       
 
 //       if (ClienteUDPA.listen(serverPort))

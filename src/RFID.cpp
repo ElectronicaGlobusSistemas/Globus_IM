@@ -2097,7 +2097,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
                                 Status_Barra(CONEXION_TO_HOTS_FAILED);
                                 return;
                             }    
-
+                           
                             switch (Info_Cashless.Info_Client(contadores.Get_Client_ID_Transaccion(), RTC, LOAD_TRANSACTION, Cashless.Get_Trans_ID_Int()))
                             {
                             case REQUEST_SUCCESSFULLY_RECEIVED:
@@ -4503,14 +4503,27 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
                     String Data_Time_Response_Server = doc["Fecha_Hora"];
                     String Msgg=doc["Message"];
                     String Nombre_Cliente=doc["Cliente_Nombre"];
-                    int Cashless_ID=doc["Cashless_ID"];
+                    int Cashless_ID=0;
                     String Cashless_Estado=doc["Cashless_Estado"];
                     String Ip_Tarjeta=doc["Ip"];
                     String Key=doc["Key"];
                     String Mac=doc["MAC"];
                     String Trans_Estado=doc["Trans_Estado"];
                     String Tipo_Maq=doc["Tipo_Maq"];
-    
+
+                    
+
+                    if (Msgg.indexOf("Ya existe una transacción en proceso") != -1)
+                    {
+                        //Serial.println(" Existe palabra.....");
+                    }
+                    else
+                    {
+                        //Serial.println(Msgg);
+                        Cashless_ID = doc["Cashless_ID"];
+                        Objeto_Transfer["Cashless_ID"] = Cashless_ID;
+                    }
+
                     int Year, Month, Day, Hour, Minutes, Seconds;
                     sscanf(Data_Time_Response_Server.c_str(), "%d-%d-%d %d:%d:%d", &Year, &Month, &Day, &Hour, &Minutes, &Seconds);
 
@@ -4524,7 +4537,7 @@ int Cashless_API::Info_Client(byte Id_Client[], ESP32Time RTC, String Type_Trans
                     Objeto_Transfer["Fecha_Hora"] = Data_Time_Response_Server;
                     Objeto_Transfer["Message"] = Msgg;
                     Objeto_Transfer["Cliente_Nombre"] = Nombre_Cliente;
-                    Objeto_Transfer["Cashless_ID"] = Cashless_ID;
+                    
                     Objeto_Transfer["Cashless_Estado"] = Cashless_Estado;
                     Objeto_Transfer["Ip"] = Ip_Tarjeta;
                     Objeto_Transfer["Key"] = Key;
@@ -4758,12 +4771,24 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
                     String Data_Time_Response_Server = doc["Fecha_Hora"];
                     String Msgg=doc["Message"];
                     String Nombre_Cliente=doc["Cliente_Nombre"];
-                    int Cashless_ID=doc["Cashless_ID"];
+                    int Cashless_ID=0; 
                     String Cashless_Estado=doc["Cashless_Estado"];
                     String Ip_Tarjeta=doc["Ip"];
                     String Key=doc["Key"];
                     String Mac=doc["MAC"];
                     int Trans_Estado;
+
+
+                    if (Msgg.indexOf("Ya existe una transacción en proceso") != -1)
+                    {
+                        //Serial.println(" Existe palabra.....");
+                    }
+                    else
+                    {
+                        //Serial.println(Msgg);
+                        Cashless_ID =doc["Cashless_ID"];
+                        Objeto_Transfer_Download["Cashless_ID"] = Cashless_ID;
+                    }
 
                     if(!doc.containsKey("Trans_Estado")||doc["Trans_Estado"].isNull()||doc["Trans_Estado"]=="null")
                         Trans_Estado=-1;
@@ -4793,7 +4818,7 @@ int Cashless_API::Info_Client_Download(byte Id_Client[], ESP32Time RTC, String T
                     Objeto_Transfer_Download["Fecha_Hora"] = Data_Time_Response_Server;
                     Objeto_Transfer_Download["Message"] = Msgg;
                     Objeto_Transfer_Download["Cliente_Nombre"] = Nombre_Cliente;
-                    Objeto_Transfer_Download["Cashless_ID"] = Cashless_ID;
+                    //Objeto_Transfer_Download["Cashless_ID"] = Cashless_ID;
                     Objeto_Transfer_Download["Cashless_Estado"] = Cashless_Estado;
                     Objeto_Transfer_Download["Ip"] = Ip_Tarjeta;
                     Objeto_Transfer_Download["Key"] = Key;

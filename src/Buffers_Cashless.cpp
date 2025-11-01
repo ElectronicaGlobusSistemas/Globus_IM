@@ -3287,88 +3287,95 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     jsonDocument.clear();
     bool IsSuccess=false;
     String Msg="";
+    int status_code=AFT.GET_STATUS_TRANSFER();
 
     if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
-      if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_TIMEOUT)
+
+      IsSuccess=true;
+      if (AFT.GET_STATUS_TRANSFER()==TransaccionCashless::TRANS_TIMEOUT)
       {
         switch (Configuracion.Get_Configuracion(Tipo_Maquina, 0))
         {
         case 0:
           jsonDocument["Tipo_Maq"] = "AFT";
           App = true;
-          IsSuccess = true;
           Msg = "Proceso de consulta transaccion AFT iniciado con exito!";
           break;
         case 1:
           jsonDocument["Tipo_Maq"] = "AFT";
           App = true;
-          IsSuccess = true;
           Msg = "Proceso de consulta transaccion AFT iniciado con exito!";
           break;
         case 2:
           jsonDocument["Tipo_Maq"] = "EFT";
-          if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
-          {
-            Variables_globales.Set_Variable_Global(Event_Dowmload_Cashless_Pending, true);
-          }
-          else
-          {
-            Variables_globales.Set_Variable_Global(Event_Load_Cashless_Pending, true);
-          }
-          Msg = "Proceso de consulta transaccion EFT iniciado con exito!";
+          // if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION)
+          // {
+          //   Variables_globales.Set_Variable_Global(Event_Dowmload_Cashless_Pending, true);
+          // }
+          // else
+          // {
+          //   Variables_globales.Set_Variable_Global(Event_Load_Cashless_Pending, true);
+          // }
+          // Msg = "Proceso de consulta transaccion EFT iniciado con exito!";
+          status_code=TransaccionCashless::TRANS_IDLE;
+
+          Msg = "El tipo de maquina no es compatible para esta consulta";
           break;
         case 3:
           jsonDocument["Tipo_Maq"] = "AFT";
           App = true;
-          IsSuccess = true;
           Msg = "Proceso de consulta transaccion AFT iniciado con exito!";
           break;
 
         case 17:
           jsonDocument["Tipo_Maq"] = "EFT";
-          IsSuccess = false;
           Msg = "El tipo de maquina no es compatible para esta consulta";
+          status_code=TransaccionCashless::TRANS_IDLE;
           break;
 
         default:
           jsonDocument["Tipo_Maq"] = "";
           Msg = "El tipo de maquina no es compatible para esta consulta";
+          status_code=TransaccionCashless::TRANS_IDLE;
           break;
         }
       }
       else
       {
+
+        /* No exite transaccion pendiente.*/
         App = false;
-        IsSuccess = false;
+        Msg = "No existe transaccion pendiente de consulta";
 
-        switch (AFT.GET_STATUS_TRANSFER())
-        {
 
-        case TransaccionCashless::TRANS_IDLE:
-          Msg = "No existe transaccion pendiente de consulta";
-          break;
+        // switch (AFT.GET_STATUS_TRANSFER())
+        // {
 
-        case TransaccionCashless::TRANS_RECIBIDA:
-          Msg = "Transaccion recibida";
-          break;
+        // case TransaccionCashless::TRANS_IDLE:
+        //   Msg = "No existe transaccion pendiente de consulta";
+        //   break;
 
-        case TransaccionCashless::TRANS_EN_PROGRESO:
-          Msg = "Transaccion en proceso";
-          break;
+        // case TransaccionCashless::TRANS_RECIBIDA:
+        //   Msg = "Transaccion recibida";
+        //   break;
 
-        case TransaccionCashless::TRANS_PENDIENTE:
-          Msg = "Transaccion pendiente";
-          break;
+        // case TransaccionCashless::TRANS_EN_PROGRESO:
+        //   Msg = "Transaccion en proceso";
+        //   break;
 
-        case TransaccionCashless::TRANS_FINALIZADA:
-          Msg = "Transaccion finalizada";
-          break;
+        // case TransaccionCashless::TRANS_PENDIENTE:
+        //   Msg = "Transaccion pendiente";
+        //   break;
 
-        default:
-          Msg = "En estado no identificado";
-          break;
-        }
+        // case TransaccionCashless::TRANS_FINALIZADA:
+        //   Msg = "Transaccion finalizada";
+        //   break;
+
+        // default:
+        //   Msg = "En estado no identificado";
+        //   break;
+        // }
       }
     }
     else
@@ -3378,7 +3385,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     }
 
     jsonDocument["IsSuccess"] = IsSuccess;
-    jsonDocument["Status"] = AFT.GET_STATUS_TRANSFER();
+    jsonDocument["Status"] = status_code;
     jsonDocument["Message"] = Msg;
     //jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
     String Json;
@@ -6005,6 +6012,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     StaticJsonDocument<200> jsonDocument;
 
     // Verifica que la tarjeta SD esté montada y que el archivo exista
+
+
+    
+
     if (!Variables_globales.Get_Variable_Global(SD_INSERT))
     {
       IsSuccess = false;
@@ -6196,6 +6207,14 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     //Consulta_Result_Formatt=true;
     
     //Info_Cashless.Log(RTC,"SOLICITUD_PING_GLOBUS_RECIBIDA"+Json);
+  });
+
+
+  Server_API.on("/Inicializa_BA",HTTP_GET,[](AsyncWebServerRequest *request){
+
+
+    
+
   });
 
   Server_API.begin();

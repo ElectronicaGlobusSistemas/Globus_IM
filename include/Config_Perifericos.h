@@ -91,7 +91,7 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,6,1};
+uint8_t Version_Firmware_[]={2,1,6,3};
 uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 
@@ -327,12 +327,12 @@ static void ManagerTasks(void *parameter)
 
         TIMEOUT_WiFi_CONNECT=millis();
         //---------------------------------> Config via Serial <-----------------------------------------
-        if (Serial.available() > 0)
-        {
-            String Command = Serial.readString(); // read until timeout
-            Config_Red_Serial(Command);
-            Serial.flush();
-        }
+        // if (Serial.available() > 0)
+        // {
+        //     String Command = Serial.readString(); // read until timeout
+        //     Config_Red_Serial(Command);
+        //     Serial.flush();
+        // }
         //------------------------------------------------------------------------------------------------
         //-----------------------------> MCU piloto <-----------------------------------------------------
         Tiempo_Actual = millis();
@@ -510,6 +510,8 @@ static void ManagerTasks(void *parameter)
         Ping_Test(20000,false,false);
 
         //FtpFast();
+
+        Reset_SocketIp(20000); /* Verifica Apertura de Socket Udp*/
         
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -1889,7 +1891,7 @@ void Config_Red_Serial(String Comando)
 
     if (Comando[0] == 'J')
     {
-        Carga_Bonus_Maquina_Magic();
+       // Carga_Bonus_Maquina_Magic();
 
         // char Trama[128] = "HOLA MUNDO";
 
