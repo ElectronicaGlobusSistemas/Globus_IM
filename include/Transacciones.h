@@ -8,6 +8,18 @@
 
 #define TIMEOUT_RESULT_TRANSACCION_BA 10000
 
+#define BA_OK 0x00
+#define BA_PENDING 0x40
+#define BA_ERROR  0xFF
+#define BA_NO_INICIADO  0xAA
+#define DWN_OK 0x00
+#define DWN_PENDING 0x40
+#define ERROR_DWN 0xFF
+
+
+#define Tipo_UP 0x00
+#define Tipo_DWN 0x01
+
 
 
 class TransaccionCashless
@@ -19,9 +31,13 @@ private:
   unsigned long Start_Transfer_Timestamp_Load=0;
   unsigned long Start_Transfer_Timestamp_Download=0;
   //unsigned long TIMEOUT_TASK=10000;
- 
-
   
+  unsigned long TimeoutExc=0;
+  unsigned long TimeoutExc_Final=0;
+  int IntervExc=10000;
+
+  int IdBA;
+  String Guid;
   
 
 
@@ -95,7 +111,7 @@ public:
   // Constructor inicializa en IDLE
   TransaccionCashless() : estado(TRANS_IDLE) {};
  
-
+  String GetStatusBA();
   bool STATUS_TRANSFER(int Status)
   {
     if (Status < TRANS_IDLE || Status > TRANS_FINALIZADA)
@@ -159,26 +175,26 @@ public:
     switch (Status)
     {
     case TRANS_IDLE:
-      printf("🔵 Estado cambiado a: TRASANSACCION BA IDLE (En espera)\n");
+      //printf("🔵 Estado cambiado a: TRASANSACCION BA IDLE (En espera)\n");
       break;
     case TRANS_RECIBIDA:
-      printf("📩 Estado cambiado a: TRANSACCION BA RECIBIDA\n");
+      //printf("📩 Estado cambiado a: TRANSACCION BA RECIBIDA\n");
       break;
     case TRANS_EN_PROGRESO:
-      printf("⏳ Estado cambiado a: TRANSACCION BA EN PROGRESO\n");
+      //printf("⏳ Estado cambiado a: TRANSACCION BA EN PROGRESO\n");
       break;
     case TRANS_PENDIENTE:
-      printf("🟡 Estado cambiado a: TRANSACCION BA PENDIENTE\n");
+      //printf("🟡 Estado cambiado a: TRANSACCION BA PENDIENTE\n");
       break;
     case  TRANS_FINALIZADA:
-      printf("🏁 Estado cambiado a: TRANSACCION BA FINALIZADA\n");
+      //printf("🏁 Estado cambiado a: TRANSACCION BA FINALIZADA\n");
       break;
 
     case TRANS_TIMEOUT:
-      printf("⏰ Estado cambiado a: TIMEOUT EXPIRADO\n");
+      //printf("⏰ Estado cambiado a: TIMEOUT EXPIRADO\n");
       break;
     default:
-      printf("❓ ESTADO DESCONOCIDO\n");
+      //printf("❓ ESTADO DESCONOCIDO\n");
       break;
     }
 
@@ -235,6 +251,24 @@ public:
   }
 
 
+  int Procesa_Sesion_Duplicada(String Identificador);
+
+
+  int Get_IdBA(void)
+  {
+    return IdBA;
+  }
+
+  String Get_Guid(void)
+  {
+    return Guid;
+  }
+
+  void UPDOWNBA(int Code, String Msg, char Buffer[],ESP32Time RTC,int TYPE);
+
+  void BackupBA();
+
+  void Tracking_BA(int Id,String GuidString);
   void Task_Controller_BA(bool InProgress);
   bool Validar_Estado_AFT_OK(void);
   bool Estatus_Transaccion_AFT_Download_AFTER_BA(void);

@@ -161,6 +161,11 @@ private:
     String Token_Cashless="";
     String Hash_Cashless="";
 
+    String Token_Cashless_BA="";
+    String Hash_Cashless_BA="";
+
+    uint64_t tiempoExpiracion_ms_BA=0;
+
 
     unsigned long TimeOut_Token_Inicial;
     unsigned long TimeOut_Token_Final;
@@ -288,6 +293,11 @@ public:
     bool RemoveCashlessID();
     int GetCashlessID(int Parameter);
     bool SetCashlessID(String Type_Transaction="C");
+
+    bool Solicitud_Token_Cashless_BA(unsigned long timeout=500);
+    String Get_Token_Valido_BA(void);
+    String Get_Hash_Valido_BA(void);
+    bool Set_Token_Valido_BA(String Token_Valido,String Hash_Valido);
 
 };
 void New_Token(void*arg);

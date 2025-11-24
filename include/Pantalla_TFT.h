@@ -8,6 +8,9 @@
 #define REMOVE_IMG_TFT        15
 #define UPDATE_TFT            16
 
+#define BANNER_TFT            17
+
+
 #ifndef PANTALLA_TFT_H
 #define PANTALLA_TFT_H
 
@@ -19,6 +22,50 @@
 #define TFT_48S3_43             0
 #define TFT_UNKNOW              100
 
+class Pantalla_TFT
+{
+private:
+    String Nombre_Cliente = "";
+    float DenoCashless=100;
+
+public:
+    void Set_Saldos_TFT(uint32_t SaldoCanjeable, uint32_t SaldoRestringido, uint32_t SaldoNoRestringido);
+
+    void Set_DenoCashless(float deno)
+    {
+        DenoCashless = deno;
+    }
+
+    float Get_DenoCashless(void)
+    {
+        return DenoCashless;
+    }
+
+    bool Set_Nombre_Cliente(String Name)
+    {
+        Nombre_Cliente = Name;
+
+        if (Nombre_Cliente == Name)
+            return true;
+        else
+            return false;
+    }
+    String Get_Nombre_Cliente(void)
+    {
+        return Nombre_Cliente;
+    }
+
+    bool Reset_Nombre_Cliente(void)
+    {
+        Nombre_Cliente="";
+
+        if(Nombre_Cliente=="")
+            return true;
+            
+        return false; 
+    }
+};
+
 bool Init_TFT_Display(bool EspNow=false, uint8_t MAC[6] = nullptr);
 bool Stop_TFT_Display(void);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len);
@@ -27,7 +74,7 @@ bool Init_Player_TFT(String User_Name ="", int Total_Playertracking_Points=0, in
 bool Await_ms(bool (*condicion)(), unsigned long timeout_ms);
 
 void Prueba_TFT(void);
-bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len);
+bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len,int MaxIntentos=5);
 bool Close_Player_TFT(uint32_t Saldo_Canjeable=0, uint32_t Saldo_Sin_Restriccion=0, uint32_t Saldo_No_Canjeable=0, int Tipo_Sesion=PLAYER_TRACKING_SESION);
 bool Get_Status_Sesion_Player(void);
 bool Menssage_TFT(String Message,int timeout=1500,bool IsSuccess=true);
@@ -41,4 +88,9 @@ void Task_Conexion_TFT(int Timeout);
 void Init_Server(const char *ssid,const char *password);
 bool Reset_TFT(void);
 void RumUpdateTFT();
+void Check_TFT_Reconnect(unsigned long Timeout=10000);
+bool EnviarBannersPorEspNow();
+bool ConsultarBanners();
 #endif // PANTALLA_TFT_H
+
+

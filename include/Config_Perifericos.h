@@ -1083,6 +1083,14 @@ void Init_Configuracion_Inicial(void)
     }
 
 
+    if(!NVS.isKey("fid_post_cash"))
+    {
+        /* No inicializa  player tracking si falla cashless por defecto */
+        bool enable_fidelizacion_after_cashless_fail=false;
+        NVS.putBool("fid_post_cash",enable_fidelizacion_after_cashless_fail);
+    }
+
+
     
 
 
@@ -1772,15 +1780,14 @@ void Init_Configuracion_Inicial(void)
         Serial.println("Pantalla TFT: No existe dispositivo sincronizado");
     }else{
 
-        Adress_TFT_Display[0]=0x48;
-        Adress_TFT_Display[1]=0xCA;
-        Adress_TFT_Display[2]=0x43;
-        Adress_TFT_Display[3]=0x32;
-        Adress_TFT_Display[4]=0xD6;
-        Adress_TFT_Display[5]=0xA8;
+        // Adress_TFT_Display[0]=0x48;
+        // Adress_TFT_Display[1]=0xCA;
+        // Adress_TFT_Display[2]=0x43;
+        // Adress_TFT_Display[3]=0x32;
+        // Adress_TFT_Display[4]=0xD6;
+        // Adress_TFT_Display[5]=0xA8;
         
 
-        
 
         /* Existe un dispositivo sincronizado */
         memcpy(Address_Device_TFT_Display, Adress_TFT_Display, sizeof(Address_Device_TFT_Display) / sizeof(Address_Device_TFT_Display[0]));
@@ -1827,7 +1834,10 @@ void Init_Configuracion_Inicial(void)
     Variables_globales.Set_Variable_Global(Flag_Multiplicador_EFT_550,Multi_Bill);
 
 
-    
+    bool fid_post_cash=NVS.getBool("fid_post_cash",false);
+    Variables_globales.Set_Variable_Global(Enable_Fidelizacion_After_Cashless_Fail,fid_post_cash);
+    //Variables_globales.Set_Variable_Global(Enable_Fidelizacion_After_Cashless_Fail,true);
+
 
     Serial.println("\n");
     NVS.end();

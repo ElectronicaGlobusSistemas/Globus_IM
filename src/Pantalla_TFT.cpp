@@ -9,7 +9,7 @@
 #include "RFID.h"
 #include <WebServer.h>
 #include <HTTPClient.h>
-
+#include <vector>
 
 #define INIT_PLAYER_TRACKING  0
 #define CLOSE_PLAYER_TRACKING 1
@@ -20,17 +20,36 @@
 #define SINCRO                10
 #define COMANDO_NO_IDENTIFICADO 100
 #define UPDATE_TFT            16
-//#define  DEBUG_TFT
+#define  DEBUG_TFT
 
 
+
+std::vector<String> mensajes;
+int cantidad_mensajes = 0;
+
+extern volatile bool flag_ReiniciarEspNow;
 WebServer ServerUpdate(8080);
+
+extern Pantalla_TFT DisplayTFT;
 
 extern std::string IP_toString_(char IP_Char[]);
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 extern Configuracion_ESP32 Configuracion;
 
 
+unsigned long lastReconnectAttempt = 0;
+unsigned long lastReconnectAttemptConexion = 0;
+const unsigned long RECONNECT_INTERVAL = 10000; // cada 10 segundos
 
+
+unsigned long Current_Failed_TFT;
+unsigned long Max_Failed_TFT;
+
+
+
+volatile bool ultimoEnvioExitoso = true;
+
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 
 bool Flag_Conexion_TFT=false;
 bool Flag_Status_Init_Player_TFT=false;
@@ -63,18 +82,26 @@ unsigned long Timeout_Conexion_TFT_Final=0;
 bool Enable_Conexion=false;
 
 
-uint8_t broadcastAddress[] = {0x48, 0xCA, 0x43, 0x32, 0xD6, 0xA8};
+//uint8_t broadcastAddress[] = {0x48, 0xCA, 0x43, 0x32, 0xD6, 0xA8};
 extern uint8_t Address_Device_TFT_Display[];
 esp_now_peer_info_t peerInfo;
 
-
-bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len)
+bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len, int MaxIntentos)
 {
-    esp_err_t result = esp_now_send(MAC, Data, len);
-    if (result == ESP_OK)
-        return true;
-    else
-        return false;
+
+    for (int i = 0; i < MaxIntentos; i++)
+    {
+        esp_err_t result = esp_now_send(MAC, Data, len);
+        delay(50);
+
+        if (result == ESP_OK && ultimoEnvioExitoso)
+        {
+            // Serial.println("Envio OK");
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /* Reset de pantalla TFT*/
@@ -110,7 +137,7 @@ bool Await_ms(bool (*condicion)(), unsigned long timeout_ms) {
 
 
         #ifdef DEBUG_TFT
-        Serial.println(" Esperando respuesta  MAC.....");
+        //Serial.println(" Esperando respuesta  MAC.....");
         #endif
         vTaskDelay(10);  // No bloquea demasiado la CPU
     }
@@ -168,6 +195,76 @@ bool Stop_TFT_Display(void)
         return false;
 }
 
+void Check_TFT_Reconnect(unsigned long Timeout)
+{
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+    {
+
+        if(flag_ReiniciarEspNow)
+        {
+            if(Init_TFT_Display(true, Address_Device_TFT_Display))
+                flag_ReiniciarEspNow=false;
+            delay(50);
+        }
+
+        if (!Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+        {
+            unsigned long currentMillis = millis();
+
+            if (currentMillis - lastReconnectAttempt >= Timeout)
+            {
+                lastReconnectAttempt = currentMillis;
+                #ifdef DEBUG_TFT
+                Serial.println("♻️ Intentando reconectar pantalla TFT...");
+                #endif
+                bool Result = Init_TFT_Display();
+
+                if (Result)
+                {
+                    #ifdef DEBUG_TFT
+                    Serial.println("📺 Pantalla TFT Wireless Inicializada...✅");
+                    #endif
+                }
+                    
+                else
+                {
+                    #ifdef DEBUG_TFT
+                    Serial.print("Dispositivo no encontrado: ");
+                    #endif
+                }
+                    
+            }
+        }
+
+        unsigned long currentMillisConexion = millis();
+
+        if ((currentMillisConexion - lastReconnectAttemptConexion) >= Timeout)
+        {
+            lastReconnectAttemptConexion = currentMillisConexion;
+            StaticJsonDocument<500> doc;
+
+            String Payload;
+            int Intentos_Conexion = 3;
+            doc["IsSuccess"] = true;
+            doc["Opcion"] = PING;
+
+            serializeJson(doc, Payload);
+
+            bool Issuccess = Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+            if (Issuccess)
+            {
+                #ifdef DEBUG_TFT
+                Serial.println("Verifica conexion pantalla OK");
+                #endif
+                Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
+            }else{
+                Current_Failed_TFT++;
+            }
+           
+        }
+    }
+}
+
 bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
 {
     /* Pregunta si existe un dispositivo sincronizado */
@@ -180,12 +277,14 @@ bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
 
             if(MAC==nullptr)
             {
+                #ifdef DEBUG_TFT
                 Serial.println("No existe MAC para sincronizacion temporal");
+                #endif
                 return false;
             }
 
             esp_now_register_recv_cb(OnDataRecv);
-
+            
             memcpy(peerInfo.peer_addr, MAC, 6);
             peerInfo.channel = WiFi.channel();
             peerInfo.encrypt = false;
@@ -223,45 +322,53 @@ bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
             {
                 /* Registra Callback recepcion ESPNOW*/
                 esp_now_register_recv_cb(OnDataRecv);
-
+                esp_now_register_send_cb(OnDataSent);
 #ifdef DEBUG_TFT
-                for (int i = 0; i < 6; i++)
-                {
+                // for (int i = 0; i < 6; i++)
+                // {
 
-                    Serial.print(broadcastAddress[i], HEX);
-                    Serial.print(":");
-                }
-                Serial.println();
+                //     Serial.print(broadcastAddress[i], HEX);
+                //     Serial.print(":");
+                // }
+                // Serial.println();
 #endif
                 memcpy(peerInfo.peer_addr, Address_Device_TFT_Display, 6);
                 peerInfo.channel = WiFi.channel();
                 peerInfo.encrypt = false;
 
+
                 if(esp_now_add_peer(&peerInfo) == ESP_OK||esp_now_add_peer(&peerInfo) == ESP_ERR_ESPNOW_EXIST)
                 {
 
                     Flag_Conexion_TFT = false;
-                    StaticJsonDocument<200> doc;
+                    StaticJsonDocument<500> doc;
 
-                    String Payload = "";
+                    String Payload;
                     int Intentos_Conexion = 3;
                     doc["IsSuccess"] = true;
                     doc["Opcion"] = PING;
 
                     serializeJson(doc, Payload);
-
-                    Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+                    
+                   
+                    
+                    bool Issuccess=Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
                     /* Conexion de pantalla OK */
 
-                    if (Await_ms(get_Flag_Conexion_TFT, 1000))
+                    if (Await_ms(get_Flag_Conexion_TFT, 1000) || Issuccess)
                     {
                         Variables_globales.Set_Variable_Global(Conexion_TFT_Display, true);
-                        // #ifdef DEBUG_TFT
+                        //#ifdef DEBUG_TFT
                         Serial.println("📺 Pantalla TFT Wireless Inicializada...✅");
-                        // #endif
+                        //#endif
                         Flag_Conexion_TFT = false;
 
                         Menssage_TFT("Estableciendo conexion con dispositivo Globus IM...",2500,true);
+
+                        if(ConsultarBanners())
+                            EnviarBannersPorEspNow();
+                        
+
                         return true;
                     }
                     else
@@ -324,7 +431,7 @@ void Prueba_TFT(void)
 String formatearComoMoneda(uint32_t numero)
 {
     String resultado = "";
-    String numStr = String(numero);
+    String numStr = String(uint32_t(numero/DisplayTFT.Get_DenoCashless()));
     int len = numStr.length();
 
     // Insertar puntos cada 3 dígitos desde la derecha
@@ -387,6 +494,8 @@ bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Tota
 
 bool Close_Player_TFT(uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, int Tipo_Sesion)
 {
+
+    DisplayTFT.Reset_Nombre_Cliente();
 
     if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
@@ -665,6 +774,26 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
     }
 }
 
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+//   char macStr[18];
+//   snprintf(macStr, sizeof(macStr),
+//            "%02X:%02X:%02X:%02X:%02X:%02X",
+//            mac_addr[0], mac_addr[1], mac_addr[2],
+//            mac_addr[3], mac_addr[4], mac_addr[5]);
+
+//   Serial.print("📡 Envío a ");
+//   Serial.print(macStr);
+//   Serial.print(" -> ");
+
+//   if (status == ESP_NOW_SEND_SUCCESS) {
+//     Serial.println("✔️ Enviado correctamente");
+//   } else {
+//     Serial.println("❌ Falló el envío");
+//   }
+
+  ultimoEnvioExitoso = (status == ESP_NOW_SEND_SUCCESS);
+}
+
 void Task_Conexion_TFT(int Timeout,int Max_Intentos)
 {
 
@@ -820,3 +949,173 @@ void RumUpdateTFT()
 {
     ServerUpdate.handleClient();
 }
+
+
+
+
+bool ConsultarBanners() { 
+    HTTPClient http;
+    http.begin("http://192.168.5.110:9595/api/pantalla/banner");
+    http.setTimeout(4000);
+
+    int httpCode = http.GET();
+
+    if (httpCode != 200) {
+        Serial.println("Error consultando banners");
+        http.end();
+        return false;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    StaticJsonDocument<4096> doc;
+    DeserializationError err = deserializeJson(doc, payload);
+
+    if (err) {
+        Serial.println("Error parseando JSON");
+        return false;
+    }
+
+    JsonArray arr = doc["Mensajes"];
+    cantidad_mensajes = arr.size();
+
+    mensajes.clear();
+    mensajes.reserve(cantidad_mensajes);
+
+    for (int i = 0; i < cantidad_mensajes; i++) {
+        mensajes.push_back(arr[i].as<String>());
+        Serial.println("Banner recibido:");
+        Serial.println(mensajes[i]);
+    }
+
+    return true;
+}
+
+
+bool EnviarBannersPorEspNow()
+{
+    for (int i = 0; i < mensajes.size(); i++)
+    {
+        StaticJsonDocument<350> doc;
+        doc["Opcion"] = BANNER_TFT;
+        doc["Index"] = i;
+        doc["Total"] = mensajes.size();
+        doc["Mensaje"] = mensajes[i];
+
+        String Payload;
+        serializeJson(doc, Payload);
+
+        Serial.println(Payload);
+
+        if (Payload.length() > 250)
+        {
+            Serial.printf("Mensaje %d demasiado largo (%d bytes)\n", 
+                          i, Payload.length());
+            continue;
+        }
+
+        if (!Send_TFT(Address_Device_TFT_Display, 
+                      (uint8_t*)Payload.c_str(), Payload.length()))
+        {
+            Serial.println("Error enviando mensaje");
+            return false;
+        }
+    }
+
+    mensajes.clear();
+    mensajes.shrink_to_fit();
+    cantidad_mensajes = 0;
+
+    return true;
+}
+
+// #define MAX_MENSAJES 5
+// #define LONGITUD_MAX_MENSAJE 120
+
+// char mensajes[MAX_MENSAJES][LONGITUD_MAX_MENSAJE];
+// int cantidad_mensajes = 0;
+// bool EnviarBannersPorEspNow();
+
+// bool ConsultarBanners() { 
+//     HTTPClient http;
+//     http.begin("http://192.168.5.110:9595/api/pantalla/banner");
+//     http.setTimeout(4000);
+
+//     int httpCode = http.GET();
+
+//     if (httpCode != 200) {
+//         Serial.println("Error consultando banners");
+//         http.end();
+//         return false;
+//     }
+
+//     String payload = http.getString();
+//     http.end();
+
+//     StaticJsonDocument<2048> doc;
+//     DeserializationError err = deserializeJson(doc, payload);
+
+//     if (err) {
+//         Serial.println("Error parseando JSON");
+//         return false;
+//     }
+
+//     JsonArray arr = doc["Mensajes"];
+//     cantidad_mensajes = arr.size();
+
+//     if (cantidad_mensajes > MAX_MENSAJES) cantidad_mensajes = MAX_MENSAJES;
+
+//     for (int i = 0; i < cantidad_mensajes; i++) {
+//         const char* msg = arr[i];
+//         strncpy(mensajes[i], msg, LONGITUD_MAX_MENSAJE - 1);
+//         mensajes[i][LONGITUD_MAX_MENSAJE - 1] = '\0'; // asegurar fin de string
+
+//         Serial.println("Banner recibido: ");
+//         Serial.println(mensajes[i]);
+//     }
+   
+//     return true;
+// }
+
+// bool EnviarBannersPorEspNow()
+// {
+
+//     for (int i = 0; i < cantidad_mensajes; i++)
+//     {
+
+//         int Intentos_Conexion = 1;
+//         StaticJsonDocument<250> doc;
+//         doc["Opcion"] = BANNER_TFT;
+//         doc["Index"] = i;
+//         doc["Total"] = cantidad_mensajes;
+//         doc["Mensaje"] = mensajes[i];
+
+//         String Payload;
+//         serializeJson(doc, Payload);
+
+//         Serial.println(Payload);
+
+//         // Verificar límite ESP-NOW
+//         if (Payload.length() > 250)
+//         {
+//             Serial.printf("Mensaje %d demasiado largo (%d bytes)\n", i, Payload.length());
+//             continue;
+//         }
+
+//         for (int i = 0; i < Intentos_Conexion; i++)
+//         {
+//             if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+//                 break;
+//         }
+
+//         // esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)Payload.c_str(), Payload.length());
+
+//         // if (result != ESP_OK) {
+//         //     Serial.printf("Fallo enviando mensaje %d, error: %d\n", i, result);
+//         //     return false;
+//         // }
+//     }
+
+//     return true;
+// }

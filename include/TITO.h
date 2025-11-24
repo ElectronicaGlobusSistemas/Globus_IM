@@ -312,6 +312,18 @@ public:
   void Ticket_Marked_As_Completed(void);
   bool Waiting_for_the_printed_ticket_event(unsigned long timeout);
   bool Waiting_For_This_Final_Ticket_Transaction(unsigned long Timeout);
+
+
+
+  void Request_Transfer_Tito_In(void);
+  bool Await_Command_70(unsigned long Timeout);
+  void Send_Command_71(void);
+  bool Await_Command_71(unsigned long Timeout);
+  bool Rejected_Ticket(unsigned long Timeout);
+  bool Await_Response_Ticket_Status(unsigned long Timeout);
+
+  
+  uint64_t Generate_SEV_Validation_Number(uint32_t sequenceNumber);
 };
 bool Start_Ticket_Task(void);
 void Task_Generate_Ticket(void *pvParameters);

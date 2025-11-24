@@ -294,7 +294,7 @@ void setup()
   //Api_G.Inicializa_Cola_Tramas(true);
 
   //Tito.Request_Transfer_Tito_Out();
-  
+  ConsultarBanners();
 }
 
 
@@ -312,8 +312,6 @@ void loop()
   {
     if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Enable_Cashless))==2)
       Verifica=true;
-
-    
   }
 
   if(Variables_globales.Get_Variable_Global(Enable_Cashless)||Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
@@ -403,6 +401,14 @@ void loop()
 
   if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
     Info_Cashless.Task_Sesiones_Unknow();
+
+
+
+  if(!Variables_globales.Get_Variable_Global(Ftp_Mode))  
+    Check_TFT_Reconnect();
+
+
+  AFT.BackupBA();
 }
 
 /* Verifica comunicacion maquina */
@@ -1074,6 +1080,8 @@ void check_SD(void)
       if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
       {
 
+
+       
         
 
        // printOpenSockets();

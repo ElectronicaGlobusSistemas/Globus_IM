@@ -46,6 +46,8 @@ extern bool Actualiza_Tito_Salidas(void);
 extern bool Flag_Entradas_Tito_OK;
 extern bool Flag_Salidas_Tito_OK;
 extern TITO Tito;
+
+
 DynamicJsonDocument Objeto_Ticket_Out(800);
 DynamicJsonDocument Objeto_Ticket_In(800);
 DynamicJsonDocument Objeto_Ticket_In_Transfer(800);
@@ -135,7 +137,7 @@ bool TITO::Generate_Key_Ticket_Out(void)
    // Serial.println("Solicitud Token ticket");
     bool Code = false;
     int httpCode;
-
+    int ClientID = contadores.Get_Client_ID_Int();
     char IP_Server[4];
     memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
 
@@ -155,7 +157,7 @@ bool TITO::Generate_Key_Ticket_Out(void)
     jsonDocument.clear();
 
     jsonDocument["IsSuccess"] = true;
-    jsonDocument["Cliente_ID"] = contadores.Get_Client_ID_Transaccion_Int();
+    jsonDocument["Cliente_ID"] = ClientID;
     jsonDocument["Fecha_Hora"] = DataTime;
     jsonDocument["Ip"] = IP_toString_Ticket(Current_IP);
     jsonDocument["MAC"] = WiFi.macAddress();
@@ -440,6 +442,15 @@ bool TITO::Get_Confirma_Ticket(void)
 
 bool TITO::Update_Ticket(int Code, int Type_Ticket)
 {
+
+    int ClientID = contadores.Get_Client_ID_Int();
+
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+
+    char Current_IP[4];
+
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
     if (Code == 0x00) /* 0x80  not in cashout  0x81 improper validation rejected */
         Objeto_Ticket_Out["IsSuccess"] = false;
     else
@@ -465,6 +476,10 @@ bool TITO::Update_Ticket(int Code, int Type_Ticket)
         Objeto_Ticket_Out["Tipo_Ticket"]=Ticket_Type_Not_Identified;
         break;
     }
+
+    Objeto_Ticket_Out["Ip"]=IP_toString_(Current_IP);
+    Objeto_Ticket_Out["Cliente_ID"]=ClientID;   
+    Objeto_Ticket_Out["Fecha_Hora"]=DataTime;
 
 
     if(Code==0x00)
@@ -562,11 +577,7 @@ bool TITO::Ticket_Information_Capture(char Buffer_70[], ESP32Time)
     Serial.println(Json);
     Serial.println("-------------------------------------------------------------------------------");
     if (Consult_Ticket(Json))
-    {
-       
         return true;
-    }
-        
     else
         return false;
 }
@@ -575,9 +586,14 @@ bool TITO::Ticket_Information_Capture(char Buffer_70[], ESP32Time)
 bool TITO::Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC)
 {
 
+
+    int ClientID = contadores.Get_Client_ID_Int();
+
     String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
 
+    char Current_IP[4];
 
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
 
     int Code=Buffer_4D[3];
 
@@ -638,9 +654,10 @@ bool TITO::Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC)
     Objeto_Ticket_In_Transfer["Parsing_Code"]=Parsing_Code;
     Objeto_Ticket_In_Transfer["Numero_Validacion"]=  Validacion_Number(Validations);
     Objeto_Ticket_In_Transfer["Validation_System_ID"]=Id_System_String;
-    Objeto_Ticket_In_Transfer["Cliente_ID"]=atoi(Id_Cli);   
+    Objeto_Ticket_In_Transfer["Cliente_ID"]=ClientID;   
     Objeto_Ticket_In_Transfer["Trans_Tipo"]="0x00";
     Objeto_Ticket_In_Transfer["Fecha_Hora"]=DataTime;
+    Objeto_Ticket_In_Transfer["Ip"]=IP_toString_(Current_IP);
 
     String Json;
     serializeJson( Objeto_Ticket_In_Transfer, Json); /* Serializa Data */
@@ -662,7 +679,12 @@ bool TITO::Status_Ticket_In_Data(char Buffer_4D[], ESP32Time RTC)
 
 bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
 {
-    
+
+
+    char Current_IP[4];
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+
+    int ClientID = contadores.Get_Client_ID_Int();
     String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
     char Validation_Date[4];
@@ -792,9 +814,11 @@ bool TITO::Status_Ticket_Out(char Buffer_4D[], ESP32Time RTC)
     else
         Objeto_Ticket_Out["Expiracion_Ticket"]=Expiration_Ticket;
 
-    Objeto_Ticket_Out["Cliente_ID"]= atoi(Id_Cli);
+
+    Objeto_Ticket_Out["Ip"]=IP_toString_(Current_IP);
+    Objeto_Ticket_Out["Cliente_ID"]= ClientID;
     Objeto_Ticket_Out["Fecha_Hora"] = DataTime;
-    
+   
 
     String Json;
     serializeJson(Objeto_Ticket_Out, Json); /* Serializa Data */
@@ -1193,18 +1217,43 @@ bool TITO::Consult_Ticket(String Ticket_Informations)
     return false;
 }
 
-
 bool TITO::Requerimiento_TITO_Ticket_In(int Evento, bool Habilita_Tito)
 {
-    if (Evento == 0x67 && Habilita_Tito)
+
+    switch (Evento)
     {
-        Serial.println("Evento Ticket Insertado...");
-        if (!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
-            Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
-        return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In);
+    case 0x67:
+        if (Tito.Transfer_Tito_Is_ready())
+        {
+            if (Habilita_Tito)
+            {
+                Tito.STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_RECIBIDA);
+
+                Serial.println("Evento Ticket Insertado...");
+
+                if (!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
+                    Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
+                return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In);
+            }
+        }
+        break;
+
+    default:
+        break;
     }
-    else
-        return false;
+
+    return false;
+
+    // if (Evento == 0x67 && Habilita_Tito)
+    // {
+    //     Serial.println("Evento Ticket Insertado...");
+
+    //     if (!Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In))
+    //         Variables_globales.Set_Variable_Global(Attend_Pending_Tito_Request_In, true);
+    //     return Variables_globales.Get_Variable_Global(Attend_Pending_Tito_Request_In);
+    // }
+    // else
+    //     return false;
 }
 
 void TITO::Load_Pending_Ticket_Transactions(void)
@@ -1845,8 +1894,6 @@ void TITO::Request_Transfer_Tito_Out(void)
 
 
 
-
-
 bool TITO::Awaiting_Key(unsigned long timeout)
 {
     unsigned long Timout_Break_Response;
@@ -2003,3 +2050,527 @@ bool TITO::Waiting_For_This_Final_Ticket_Transaction(unsigned long Timeout)
     return IsSucess;
 }
 
+void TITO::Request_Transfer_Tito_In(void)
+{
+    STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_EN_PROGRESO);
+
+    Serial.println("--------------------------------> Evento 67 Atendido <-----------------------------------------------");
+
+    if (Await_Command_70(2000))
+    {
+        if (Ticket_Information_Capture(Buffer_Cashless.Get_Buffer_TITO_70(), RTC))
+        {
+
+            Serial.println("-----------------------> Envia Comando 71 <---------------------------------------------------");
+            Send_Command_71();
+
+            if (Await_Command_71(10000))
+            {
+
+                Serial.println("---------------------> Comando 71 Recibido <----------------------------------------------");
+                STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_PENDIENTE);
+
+                if (Buffer_Cashless.Get_Buffer_TITO_70()[3] == 0x40)
+                {
+                    Serial.println("---------------------> Redencion Pendiente <------------------------------------------");
+                    Tito.Status_Ticket_In_Data(Buffer_Cashless.Get_Buffer_TITO_70(), RTC);
+                }
+
+                if (Await_Response_Ticket_Status(10000))
+                {
+                    Tito.Status_Ticket_In_Data(Buffer_Cashless.Get_Buffer_TITO_70(), RTC);
+                    Serial.println("---------------------> Redimido <------------------------------------------");
+                }
+                else
+                {
+
+                    Serial.println("Timeout");
+                    STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_TIMEOUT);
+                }
+            }
+        }
+        else
+        {
+            if (Rejected_Ticket(2000))
+            {
+                Serial.println("Ticket regresado al usuario");
+                STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+            }
+            else
+            {
+                Serial.println("No se regreso el ticket");
+                STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+            }
+        }
+    }
+    else
+    {
+        Serial.println("No hay un ticket presente");
+        STATUS_TITO_TRANSFER(TITO::TRANS_TICKET_IDLE);
+    }
+}
+
+bool TITO::Await_Response_Ticket_Status(unsigned long Timeout)
+{
+
+    sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    Transmite_Poll_Long(0x71);
+    Transmite_Poll_Long(0x01);
+    Transmite_Poll_Long(0xFF);
+    Transmite_Poll_Long(0x1F);
+    Transmite_Poll_Long(0xD0);
+    delay(500);
+
+    bool IsSuccess = false;
+    unsigned long Timout_Break_Response;
+
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_70()[3] == 0x40 || Buffer_Cashless.Get_Buffer_TITO_70()[3] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        esp_task_wdt_reset();
+        AFT.Mantiene_Comunicacion();
+        delay(50);
+        /* TICKET  STATUS */
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x71);
+        Transmite_Poll_Long(0x01);
+        Transmite_Poll_Long(0xFF);
+        Transmite_Poll_Long(0x1F);
+        Transmite_Poll_Long(0xD0);
+
+        vTaskDelay(200);
+
+        // if (Buffer_Cashless.Get_Buffer_TITO_70()[1] == 0x71 && Buffer_Cashless.Get_Buffer_TITO_70()[3] != 0x40 && Buffer_Cashless.Get_Buffer_TITO_70()[3] != 0xAA)
+        //     break;
+        //Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO_70()[1];
+
+    if (Recv == 0x71)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+bool TITO::Rejected_Ticket(unsigned long Timeout)
+{
+    Serial.println("Rej");
+    char command[21];
+    int command_Size = 18; /* Without CRC */
+
+    /*Address Machine */
+    command[0] = 0x01;
+    /* COMMAND */
+    command[1] = 0x71;
+    /*LENGTH*/
+    command[2] = 0x10;
+    /* TRANSFER CODE */
+
+    command[3] = 0x82;
+
+    /* TRANSFER AMOUNT */
+    command[4] = 0x00;
+    command[5] = 0x00;
+    command[6] = 0x00;
+    command[7] = 0x00;
+    command[8] = 0x00;
+
+    /* PARSING CODE */
+    command[9] = 0x00;
+
+    /* SYSTEM ID */
+    command[10] = 0x00;
+    /*VALIDATION NUMBER*/
+    command[11] = 0x00;
+    command[12] = 0x00;
+    command[13] = 0x00;
+    command[14] = 0x00;
+    command[15] = 0x00;
+    command[16] = 0x00;
+    command[17] = 0x00;
+    command[18] = 0x00;
+
+    // /*RESTRICTED EXPIRATION*/
+    // command[19] = 0x00;
+    // command[20] = 0x00;
+    // command[21] = 0x00;
+    // command[22] = 0x00;
+    // /*POLL ID*/
+    // command[23] = 0x00;
+    // command[24] = 0x00;
+    // /*CRC*/
+    command[19] = 0x00;
+    command[20] = 0x00;
+
+    Buffer_Cashless.Init_Buffer_TITO_70();
+    CalcularCRC_Transfer(command, command_Size);
+    for (int i = 0; i < 3; i++)
+    {
+        for (int i = 0; i < 21; i++)
+        {
+            if (i == 0)
+            {
+                sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+            }
+
+            else
+            {
+
+                // Serial.println(command[i],DEC);
+                Transmite_Poll_Long(command[i]);
+            }
+        }
+    }
+
+    bool IsSuccess = false;
+    unsigned long Timout_Break_Response;
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_70()[1] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        /* Poll de espera para mantener comunicacion */
+        AFT.Mantiene_Comunicacion();
+
+        esp_task_wdt_reset();
+
+        if (Buffer_Cashless.Get_Buffer_TITO_70()[1] != 0xAA)
+            break;
+        vTaskDelay(200);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO_70()[1];
+
+    if (Recv == 0x71)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+
+
+bool TITO::Await_Command_71(unsigned long Timeout)
+{
+    bool IsSuccess = false;
+    unsigned long Timout_Break_Response;
+
+    Buffer_Cashless.Init_Buffer_TITO_70();
+
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_70()[1] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        /* Poll de espera para mantener comunicacion */
+        AFT.Mantiene_Comunicacion();
+
+        esp_task_wdt_reset();
+
+        if (Buffer_Cashless.Get_Buffer_TITO_70()[1] != 0xAA)
+            break;
+        vTaskDelay(200);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO_70()[1];
+
+    if (Recv == 0x71)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+void TITO::Send_Command_71(void)
+{
+    char command[21];
+    int command_Size = 18; /* Without CRC */
+
+    /*Address Machine */
+    command[0] = 0x01;
+    /* COMMAND */
+    command[1] = 0x71;
+    /*LENGTH*/
+    command[2] = 0x10;
+    /* TRANSFER CODE */
+
+    int Transfer_Code = Objeto_Ticket_In_Response["Transfer_Code"];
+    command[3] = Transfer_Code;
+
+    uint32_t Amount = Objeto_Ticket_In_Response["Transfer_Amount"];
+
+    Tito.Set_Amount_Ticket_Transfer(Amount);
+    /* TRANSFER AMOUNT */
+    command[4] = Tito.Get_Amount_Ticket_Transfer()[0];
+    command[5] = Tito.Get_Amount_Ticket_Transfer()[1];
+    command[6] = Tito.Get_Amount_Ticket_Transfer()[2];
+    command[7] = Tito.Get_Amount_Ticket_Transfer()[3];
+    command[8] = Tito.Get_Amount_Ticket_Transfer()[4];
+
+    /* PARSING CODE */
+
+    int Parsing_Code = Objeto_Ticket_In_Response["Parsing_Code"];
+    command[9] = Parsing_Code;
+
+    String Val_Number = Objeto_Ticket_In_Response["Numero_Validacion"];
+
+    Tito.Set_Validations_Number_Out(Val_Number);
+    // 00 22 24 28 67 51 54 15 68
+
+    /* SYSTEM ID */
+    int System_Id = Objeto_Ticket_In_Response["Validation_System_ID"];
+    command[10] = System_Id;
+    /*VALIDATION NUMBER*/
+    command[11] = Tito.Get_Validatioins_Number_Out()[0];
+    command[12] = Tito.Get_Validatioins_Number_Out()[1];
+    command[13] = Tito.Get_Validatioins_Number_Out()[2];
+    command[14] = Tito.Get_Validatioins_Number_Out()[3];
+    command[15] = Tito.Get_Validatioins_Number_Out()[4];
+    command[16] = Tito.Get_Validatioins_Number_Out()[5];
+    command[17] = Tito.Get_Validatioins_Number_Out()[6];
+    command[18] = Tito.Get_Validatioins_Number_Out()[7];
+
+    // /*RESTRICTED EXPIRATION*/
+    // command[19] = 0x00;
+    // command[20] = 0x00;
+    // command[21] = 0x00;
+    // command[22] = 0x00;
+    // /*POLL ID*/
+    // command[23] = 0x00;
+    // command[24] = 0x00;
+    // /*CRC*/
+    command[19] = 0x00;
+    command[20] = 0x00;
+
+    // Objeto_Ticket_In_Response.clear();
+    Buffer_Cashless.Init_Buffer_TITO_70();
+    CalcularCRC_Transfer(command, command_Size);
+
+    for (int i = 0; i < 21; i++)
+    {
+        if (i == 0)
+        {
+            sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        }
+
+        else
+        {
+
+            // Serial.println(command[i],DEC);
+            Transmite_Poll_Long(command[i]);
+        }
+    }
+}
+
+bool TITO::Await_Command_70(unsigned long Timeout)
+{
+
+    bool IsSuccess = false;
+    unsigned long Timout_Break_Response;
+
+    Buffer_Cashless.Init_Buffer_TITO_70();
+
+    for (int i = 0; i < 1; i++)
+    {
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x70);
+        delay(500);
+    }
+
+    Timout_Break_Response = millis();
+
+    while ((Buffer_Cashless.Get_Buffer_TITO_70()[1] == 0xAA) && (millis() - Timout_Break_Response < Timeout))
+    {
+        /* Poll de espera para mantener comunicacion */
+        AFT.Mantiene_Comunicacion();
+
+        esp_task_wdt_reset();
+        delay(200);
+        sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+        Transmite_Poll_Long(0x70);
+
+        if (Buffer_Cashless.Get_Buffer_TITO_70()[1] != 0xAA)
+            break;
+        vTaskDelay(200);
+        // Serial.println("Esperando por la transferencia.....!");
+    }
+
+    int Recv = Buffer_Cashless.Get_Buffer_TITO_70()[1];
+    int TickeStatus = Buffer_Cashless.Get_Buffer_TITO_70()[3];
+
+    if (Recv == 0x70 && TickeStatus == 0x00)
+        IsSuccess = true;
+    else
+        IsSuccess = false;
+
+    return IsSuccess;
+}
+
+
+
+
+// --------------------------------------------------------
+// CRC8 estándar usado en SAS – seed=0, polinomio 0x07
+// --------------------------------------------------------
+uint8_t crc8(uint8_t crc, uint8_t data)
+{
+    crc ^= data;
+    for (int i = 0; i < 8; i++)
+    {
+        if (crc & 0x80)
+            crc = (crc << 1) ^ 0x07;
+        else
+            crc <<= 1;
+    }
+    return crc;
+}
+
+// --------------------------------------------------------
+// Convierte número de 0–999 en 3 dígitos BCD
+// --------------------------------------------------------
+void Bin_to_BCD_3digits(uint16_t val, uint8_t *out)
+{
+    out[0] = (val / 100) % 10;
+    out[1] = (val / 10) % 10;
+    out[2] = val % 10;
+}
+
+// -----------------------------------------
+
+void Generate_SEV_Validation(uint32_t sequenceNumber, uint8_t *result16)
+{
+    const uint32_t machineID = 0x000001;   // Fijo a 1
+
+    uint8_t A[6];
+
+    //------------------------------------------------------
+    // Step 1: A = MachineID (3 bytes) + SequenceNumber (3 bytes)
+    //------------------------------------------------------
+    A[5] = 0x00;     // machineID >> 16
+    A[4] = 0x00;     // machineID >> 8
+    A[3] = 0x01;     // machineID >> 0  --> siempre 1
+
+    A[2] = (sequenceNumber >> 16) & 0xFF;
+    A[1] = (sequenceNumber >> 8) & 0xFF;
+    A[0] = (sequenceNumber >> 0) & 0xFF;
+
+    //------------------------------------------------------
+    // Step 2: XOR → B[]
+    //------------------------------------------------------
+    uint8_t B[6];
+    B[5] = A[5] ^ A[4];
+    B[4] = A[4] ^ A[3];
+    B[3] = A[3] ^ A[2];
+    B[2] = A[2] ^ A[1];
+    B[1] = A[1] ^ A[0];
+    B[0] = A[0];
+
+    //------------------------------------------------------
+    // Step 3: CRC
+    //------------------------------------------------------
+    uint8_t C[3];
+    C[2] = crc8(0, B[5]);
+    C[2] = crc8(C[2], B[4]);
+
+    C[1] = crc8(0, B[3]);
+    C[1] = crc8(C[1], B[2]);
+
+    C[0] = crc8(0, B[1]);
+    C[0] = crc8(C[0], B[0]);
+
+    //------------------------------------------------------
+    // Step 4: Bin_to_BCD → N[]
+    //------------------------------------------------------
+    uint8_t N[9];
+    Bin_to_BCD_3digits(C[2], &N[0]);
+    Bin_to_BCD_3digits(C[1], &N[3]);
+    Bin_to_BCD_3digits(C[0], &N[6]);
+
+    //------------------------------------------------------
+    // Step 5: V[]
+    //------------------------------------------------------
+    uint8_t V[16];
+
+    uint16_t sum1 = N[0] + N[1] + N[2];
+    V[7] = (C[2] - (sum1 % C[1])) & 0xFF;
+
+    uint16_t sum2 = N[3] + N[4] + N[5];
+    V[15] = (C[1] - (sum2 % C[0])) & 0xFF;
+
+    for (int k = 0; k <= 6; k++)
+        V[k] = N[k];
+
+    for (int k = 8; k <= 14; k++)
+        V[k] = N[k - 2];
+
+    memcpy(result16, V, 16);
+}
+
+
+uint64_t TITO::Generate_SEV_Validation_Number(uint32_t sequenceNumber)
+{
+    const uint32_t machineID = 0x000001;
+
+    uint8_t A[6], B[6], C[3], N[9], V[16];
+
+    // Step 1
+    A[5] = 0x00; 
+    A[4] = 0x00;
+    A[3] = 0x01;
+
+    A[2] = (sequenceNumber >> 16) & 0xFF;
+    A[1] = (sequenceNumber >> 8) & 0xFF;
+    A[0] = (sequenceNumber & 0xFF);
+
+    // Step 2
+    B[5] = A[5] ^ A[4];
+    B[4] = A[4] ^ A[3];
+    B[3] = A[3] ^ A[2];
+    B[2] = A[2] ^ A[1];
+    B[1] = A[1] ^ A[0];
+    B[0] = A[0];
+
+    // Step 3
+    C[2] = crc8(0, B[5]);
+    C[2] = crc8(C[2], B[4]);
+
+    C[1] = crc8(0, B[3]);
+    C[1] = crc8(C[1], B[2]);
+
+    C[0] = crc8(0, B[1]);
+    C[0] = crc8(C[0], B[0]);
+
+    // >>> FIX para evitar división por cero <<<
+    if (C[1] == 0) C[1] = 1;
+    if (C[0] == 0) C[0] = 1;
+
+    // Step 4
+    Bin_to_BCD_3digits(C[2], &N[0]);
+    Bin_to_BCD_3digits(C[1], &N[3]);
+    Bin_to_BCD_3digits(C[0], &N[6]);
+
+    // Step 5
+    uint16_t sum1 = N[0] + N[1] + N[2];
+    V[7] = (C[2] - (sum1 % C[1])) & 0xFF;
+
+    uint16_t sum2 = N[3] + N[4] + N[5];
+    V[15] = (C[1] - (sum2 % C[0])) & 0xFF;
+
+    for (int k = 0; k <= 6; k++)
+        V[k] = N[k];
+
+    for (int k = 8; k <= 14; k++)
+        V[k] = N[k - 2];
+
+    uint64_t number = 0;
+    for (int i = 0; i < 16; i++)
+        number = number * 10ULL + (uint64_t)V[i];
+
+    return number;
+}

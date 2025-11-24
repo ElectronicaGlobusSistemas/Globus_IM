@@ -222,6 +222,9 @@ public:
   int Get_Operador_ID_Int(char Operador_ID[]);
   bool Set_Id_Operador_Generico(char Operador[]);
   int Convert_Char_In(byte Id[]);
+
+  char *Get_Assets_BA(void);
+  bool Set_MeterBA(char res[]);
   
 };
 

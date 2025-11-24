@@ -1514,7 +1514,6 @@ int Type_Bonus(char res)
   }
 }
 
-
 /*Configura Tipo y valor de bono Para Solicitud de carga*/
 bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
 {
@@ -1540,6 +1539,32 @@ bool Contadores_SAS::Set_Meter_Legacy_Bonus_Awards(char res[])
 
   Comp = Conve_Ascii_To_Hex_LL(res[5]);
   Comp2 = Conve_Ascii_To_Hex_HH(res[4]);
+  Legacy_Bonus_Awards_[0] = (Comp2 | Comp);
+  /*--------------------------------------------------------*/
+  return true;
+}
+
+bool Contadores_SAS::Set_MeterBA(char res[])
+{
+  int Comp, Comp2;
+  /* ---------> Tipo de bono <-------------------------------*/
+  Type_Legacy_Bonus_Awards_ = 0x00;
+  /*---------------------------------------------------------*/
+  /*----------> Contador de bonus a cargar <--------------- */
+  Comp = Conve_Ascii_To_Hex_LL(res[7]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[6]);
+  Legacy_Bonus_Awards_[3] = (Comp2 | Comp);
+
+  Comp = Conve_Ascii_To_Hex_LL(res[5]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[4]);
+  Legacy_Bonus_Awards_[2] = (Comp2 | Comp);
+
+  Comp = Conve_Ascii_To_Hex_LL(res[3]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[2]);
+  Legacy_Bonus_Awards_[1] = (Comp2 | Comp);
+
+  Comp = Conve_Ascii_To_Hex_LL(res[1]);
+  Comp2 = Conve_Ascii_To_Hex_HH(res[0]);
   Legacy_Bonus_Awards_[0] = (Comp2 | Comp);
   /*--------------------------------------------------------*/
   return true;
@@ -1585,6 +1610,13 @@ int Contadores_SAS::Get_Type_Legacy_Bonus_Awards(void)
 
 {
   return Type_Legacy_Bonus_Awards_;
+}
+
+
+
+char *Contadores_SAS::Get_Assets_BA(void)
+{
+  return Legacy_Bonus_Awards_;
 }
 
 /* Genera  y retorna token  de acceso desde la API */

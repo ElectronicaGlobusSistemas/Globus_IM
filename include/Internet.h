@@ -1,6 +1,12 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+#include "ESP32Time.h"
+#include "time.h"
+
+#include "esp_now.h"
+
+extern ESP32Time RTC; // Objeto contiene hora y fecha
 
 
 #define WIFI_Status 15
@@ -78,6 +84,32 @@ unsigned long timeoutF=0;
 int intv=1000;
 bool OneF=false;
 
+
+const char* ntpServerOg = "pool.ntp.org";
+const long gmtOffset_secOg = -5 * 3600;  // UTC-5
+const int daylightOffset_secOg = 0;
+
+
+extern String string_Fecha;
+extern String string_Fecha_LOG;
+extern String string_Fecha_Eventos;
+extern String string_Fecha_Sesiones;
+extern String string_Fecha_Premios;
+
+extern char Archivo_CSV_Contadores[200];
+extern char Archivo_CSV_Eventos[200];
+extern char Archivo_LOG[200];
+extern char Archivo_CSV_Sesiones[200];
+extern char Archivo_CSV_Premios[200];
+
+
+extern int day_copy;
+extern int month_copy;
+extern int year_copy;
+
+
+volatile bool flag_ReiniciarEspNow = false;
+
 String reasonToString(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_UNSPECIFIED:              return "Motivo_no_especificado_";
@@ -120,10 +152,27 @@ String reasonToString(uint8_t reason) {
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   switch (event) {
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+
+      if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+      {
+        Serial.println("Stop ESPNOW!");
+        esp_now_deinit();
+        flag_ReiniciarEspNow = true;
+      }
       Serial.print("WiFi desconectado, razón: ");
       Serial.println(info.wifi_sta_disconnected.reason);
       Info_Cashless.Log(RTC,"WIFI_DESCONECTADO",reasonToString(info.wifi_sta_disconnected.reason));
       break;
+
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      if( Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+      {
+
+        Serial.println("Stop ESPNOW!");
+        esp_now_deinit();
+        flag_ReiniciarEspNow=true;
+      }
+    break;
     default:
       break;
   }
@@ -248,6 +297,113 @@ void Storage_Status_WIFI(void)
   }
 }
 
+
+
+bool Sincronizar_RTC_NTP(const char *ntpServer, long gmtOffset, int daylightOffset,const uint8_t intentos)
+{
+  // 1. Configurar NTP
+  configTime(gmtOffset, daylightOffset, ntpServer);
+
+  // 2. Intentar leer la hora por hasta 5 segundos
+  struct tm timeinfo;
+  // 10 intentos x 500 ms = 5 segundos
+
+  for (uint8_t i = 0; i < intentos; i++)
+  {
+    if (getLocalTime(&timeinfo))
+    {
+      // Sincronizado correctamente
+      return true;
+    }
+    delay(500);
+  }
+
+  // Si llega aquí, no logró sincronizar
+  return false;
+}
+
+bool Sincroniza_Reloj_RTC_NTP(const char *ntpServer, long gmtOffset, int daylightOffset, const uint8_t intentos)
+{
+  // 1. Configura NTP
+  configTime(gmtOffset, daylightOffset, ntpServer);
+
+  struct tm timeinfo;
+
+  // 2. Intentar sincronizar (hasta 5 segundos)
+
+  for (int i = 0; i < intentos; i++)
+  {
+    if (getLocalTime(&timeinfo))
+    {
+      Variables_globales.Set_Variable_Global(Sincronizacion_RTC, true);
+      break;
+    }
+    delay(500);
+  }
+
+  if (!Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+  {
+    Serial.println("Error: No se pudo sincronizar NTP");
+    return false;
+  }
+
+  // 3. Extraer datos de fecha/hora
+  int seconds = timeinfo.tm_sec;
+  int minutes = timeinfo.tm_min;
+  int hour = timeinfo.tm_hour;
+  int day = timeinfo.tm_mday;
+  int month = timeinfo.tm_mon + 1;    // tm_mon = 0–11
+  int year = timeinfo.tm_year + 1900; // tm_year = años desde 1900
+
+
+  Serial.println(day);
+  Serial.println(month);
+  Serial.println(year);
+  // 4. Actualizar RTC interno usando ESP32Time (igual que tu servidor)
+  RTC.setTime(seconds, minutes, hour, day, month, year);
+
+  // 5. Validar que se escribió bien
+  if ((hour == RTC.getHour(true)) &&
+      (minutes == RTC.getMinute()) &&
+      (day == RTC.getDay()) &&
+      ((month - 1) == RTC.getMonth()) &&
+      (year == RTC.getYear()))
+  {
+    Serial.println("RTC sincronizado por NTP con exito!");
+
+    // ----------- MISMA LÓGICA QUE TU FUNCIÓN ORIGINAL ------------------
+    int rtc_day = RTC.getDay();
+    int rtc_month = RTC.getMonth() + 1; // convertir 0–11 → 1–12
+    int rtc_year = RTC.getYear();
+
+    Serial.println(rtc_day);
+    Serial.println(rtc_month);
+    Serial.println(rtc_year);
+
+    string_Fecha = "Contadores-" + String(rtc_day) + String(rtc_month) + String(rtc_year) + ".CSV";
+    string_Fecha_LOG = "Log-" + String(rtc_day) + String(rtc_month) + String(rtc_year) + ".TXT";
+    string_Fecha_Eventos = "Eventos-" + String(rtc_day) + String(rtc_month) + String(rtc_year) + ".CSV";
+    string_Fecha_Sesiones = "Sesiones_RFID-" + String(rtc_day) + String(rtc_month) + String(rtc_year) + ".CSV";
+    string_Fecha_Premios = "Premios_Maquina-" + String(rtc_day) + String(rtc_month) + String(rtc_year) + ".CSV";
+
+    strncpy(Archivo_CSV_Contadores, string_Fecha.c_str(), sizeof(Archivo_CSV_Contadores));
+    strncpy(Archivo_LOG, string_Fecha_LOG.c_str(), sizeof(Archivo_LOG));
+    strncpy(Archivo_CSV_Eventos, string_Fecha_Eventos.c_str(), sizeof(Archivo_CSV_Eventos));
+    strncpy(Archivo_CSV_Sesiones, string_Fecha_Sesiones.c_str(), sizeof(Archivo_CSV_Sesiones));
+    strncpy(Archivo_CSV_Premios, string_Fecha_Premios.c_str(), sizeof(Archivo_CSV_Premios));
+
+    day_copy = day;
+    month_copy = month;
+    year_copy = year;
+
+    Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, true);
+
+    return true;
+  }
+
+  return false;
+}
+
 void CONNECT_WIFI(void)
 {
 
@@ -328,6 +484,10 @@ void CONNECT_WIFI(void)
     Serial.println("🤖 "+HostName);
     
     Reset_Config_Intentos_WIFI();
+
+
+    //Sincroniza_Reloj_RTC_NTP(ntpServerOg,gmtOffset_secOg,daylightOffset_secOg,5);
+  
   }
   else
   {

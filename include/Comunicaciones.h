@@ -1315,6 +1315,8 @@ bool Sincroniza_Reloj_RTC(char res[])
 
     if ((hour == RTC.getHour(true)) && (minutes == RTC.getMinute()) && (day == RTC.getDay()) && ((month - 1) == RTC.getMonth()) && (year == RTC.getYear()))
     {
+
+        
 #ifdef Debug_Mensajes_Server
         Serial.println("RTC sincronizado con exito!");
 #endif

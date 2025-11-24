@@ -147,8 +147,8 @@ using namespace std;
 #define Flag_Evento_Cashless_Up             123
 #define Flag_Evento_Down                    124
 #define Falg_Evento_BA                      125
-
-
+#define Enable_Fidelizacion_After_Cashless_Fail 126
+#define Flag_BA_Controller                  127
 
 class Variables_Globales
 {
@@ -275,6 +275,8 @@ private:
     bool Flag_Evento_Cashless_Up_;
     bool Flag_Evento_Down_;
     bool Falg_Evento_BA_;
+    bool Enable_Fidelizacion_After_Cashless_Fail_;
+    bool Flag_BA_Controller_;
     
 
 public:

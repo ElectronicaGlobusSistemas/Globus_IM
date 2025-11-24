@@ -410,6 +410,14 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Falg_Evento_BA:
         return Falg_Evento_BA_;
         break;
+
+    case Enable_Fidelizacion_After_Cashless_Fail:
+        return Enable_Fidelizacion_After_Cashless_Fail_;
+        break;
+
+    case Flag_BA_Controller:
+        return Flag_BA_Controller_;
+        break;
     }
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
@@ -818,6 +826,14 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Falg_Evento_BA:
         Falg_Evento_BA_=Change_estado;
         break;
+
+    case Enable_Fidelizacion_After_Cashless_Fail:
+        Enable_Fidelizacion_After_Cashless_Fail_=Change_estado;
+        break;
+
+    case Flag_BA_Controller:
+        Flag_BA_Controller_=Change_estado;
+        break;
     }
 }
 
@@ -954,6 +970,8 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Evento_Cashless_Up_=false;
     Flag_Evento_Down_=false;
     Falg_Evento_BA_=false;
+    Enable_Fidelizacion_After_Cashless_Fail_=false;
+    Flag_BA_Controller_=false;
 
     
 }
