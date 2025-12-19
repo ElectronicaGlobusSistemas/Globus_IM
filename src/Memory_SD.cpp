@@ -263,11 +263,18 @@ bool Init_FTP_SERVER()
   if (Variables_globales.Get_Variable_Global(SD_INSERT) == true && WiFi.status() == WL_CONNECTED)
   {
     RESET_SD();
-    ftpSrv.begin("GlobusAmin", "Globussistemas23", "SuperGlobusAdmin", "SuperG2023");
+    //ftpSrv.begin("GlobusAmin", "Globussistemas23", "SuperGlobusAdmin", "SuperG2023");
     return true;
   }
   else
     return false;
+}
+
+bool New_Init_FTP_SERVER()
+{
+  ftpSrv.begin("GlobusAmin", "Globussistemas23", "SuperGlobusAdmin", "SuperG2023");
+  
+  return true;
 }
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------

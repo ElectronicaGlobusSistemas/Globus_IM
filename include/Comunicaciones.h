@@ -11,7 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_task_wdt.h>
-
+#include "ESP32FtpServer.h"
 
 /*------------------------> Debug <----------------------------------*/
 //#define Debug_Mensajes_Server
@@ -112,7 +112,7 @@ int Valida_Creditos_Actuales=0;
 extern int Tiempo_Inactividad_Maquina;
 extern bool Actualizacion_datos_Ok;
 
-
+extern Pantalla_TFT DisplayTFT;
 
 #define Hopper_Enable 14
 void Task_Procesa_Comandos(void *parameter);
@@ -152,6 +152,9 @@ extern unsigned char New_Serial_Cashless_Unidades;
 
 extern DynamicJsonDocument Objeto_Transfer_Download;
 extern std::vector<String> transaccionesPendientes;
+
+
+extern FtpServer ftpSrv;           //  Objeto servidor FTP
 
 extern bool Condicion_Cumpl;
 extern int Tiempo_Transmision_En_Juego;
@@ -243,7 +246,7 @@ void init_Comunicaciones()
     xTaskCreatePinnedToCore(
         Task_Procesa_Comandos,
         "Procesa comandos server",
-        10100,
+        6144,
         NULL,
         configMAX_PRIORITIES - 3,
         &CommandProcess,
@@ -2416,6 +2419,7 @@ bool Enable_Disable_modo_Ftp_server(bool Enable_S)
     Variables_globales.Set_Variable_Global(Enable_Storage, false); // Deshabilita Guardado de Datos.
     if (!Variables_globales.Get_Variable_Global(Enable_Storage))
     {
+        ftpSrv.begin("GlobusAmin", "Globussistemas23", "SuperGlobusAdmin", "SuperG2023");
 
         Info_Cashless.Log(RTC, "MODO_FTP_INICIADO", "COMANDO_315_RECIBIDO");
         Variables_globales.Set_Variable_Global(Ftp_Mode, true); // Activa ftp
@@ -2640,6 +2644,11 @@ void Reporte_FTP(bool FtpMode)
 /*****************************************************************************************/
 void Mensajes_RFID(void)
 {
+
+
+    
+
+   
     
     /* -------------------------> Contadores Inicio sesion RFID<-----------------------------------*/
     if(Variables_globales.Get_Variable_Global(Flag_Contadores_Sesion_ON))  
@@ -3034,15 +3043,21 @@ void Mensajes_RFID(void)
                     /*-----------------------------------------------------*/
                 }
 
-                Info_Cashless.Count_Player_Sesions(false,contadores.Get_Status_Flag_Premio());
-                Variables_globales.Set_Variable_Global(Flag_Cancel_Sesiones,true);
+                if (Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta))
+                {
+                    Info_Cashless.Count_Player_Sesions(false, contadores.Get_Status_Flag_Premio());
+                    Variables_globales.Set_Variable_Global(Flag_Cancel_Sesiones, true);
+                    
+                }
                 contadores.Set_Flag_Premio(false);
             }
 
             if(contadores.Get_Status_Flag_Bill_In() && !Variable_Solicitud_Operador_Id)
             {
                 Info_Cashless.Log(RTC, "TRAMA_CONTADORES", "BILLETE_INSERTADO");
-                Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
+
+                if (Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta))
+                    Info_Cashless.Count_Player_Sesions(contadores.Get_Status_Flag_Bill_In());
 
                 if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14)
                 {
@@ -3152,7 +3167,9 @@ void completarConCeros(char buffer[], int longitudDeseada) {
 }
 
 
-
+unsigned long Timeout;
+unsigned long Timeout2;
+int Dev= 1000;
 /* Funcion  Para Recibir ACK SERVER */
 void Task_Procesa_Comandos(void *parameter)
 {
@@ -3163,11 +3180,28 @@ void Task_Procesa_Comandos(void *parameter)
    int TIMEOUT_CONECT_SERVER = 3500;
 
    int Dest;
-   char Compuesto[258];
+   static char Compuesto[258];
     bzero(Compuesto, 258);
 
     for (;;)
     {
+
+        //Timeout=millis();
+
+
+        // if((Timeout-Timeout2)>=1000)
+        // {
+        //     Timeout2=Timeout;
+
+        //     UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+
+        //     // Imprimimos la información en el monitor serial
+        //     Serial.printf("[MONITOR PILA] Tarea: %s, Pila minima libre: %u palabras (%u bytes)\n",
+        //                   pcTaskGetName(NULL), // Obtenemos el nombre de la tarea
+        //                   uxHighWaterMark,
+        //                   uxHighWaterMark * sizeof(StackType_t)); // sizeof(StackType_t) es 4 en ESP32
+
+        // }
         Verifica_Cambio_Contadores();
 
         if (Variables_globales.Get_Variable_Global(Dato_Entrante_Valido))
@@ -3176,10 +3210,10 @@ void Task_Procesa_Comandos(void *parameter)
             Variables_globales.Set_Variable_Global(Dato_Entrante_Valido, false);
             //            flag_dato_valido_recibido = false;
 
-            char res[258] = {};
+            static char res[258] = {};
             bzero(res, 258); // Pone el buffer en 0
 
-            char Tmp[258] = {};
+            static char Tmp[258] = {};
             bzero(Tmp, 258);
 
             memcpy(res, Buffer.Get_buffer_recepcion(), 258);
@@ -5651,8 +5685,8 @@ void Task_Verifica_Hopper(void *parameter)
             Conta_Poll_Cancel_Poker++;
             if (Conta_Poll_Cancel_Poker > Extern_Pulsos && Variables_globales.Get_Variable_Global(Calc_Cancel_Credit) && Convert_Char_To_Int11(CurrentCredit_Poker_Data)<=0)
             {
-
-                Info_Cashless.Count_Player_Sesions(false,Variables_globales.Get_Variable_Global(Flag_Hopper_Enable));
+                if (Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta))
+                    Info_Cashless.Count_Player_Sesions(false,Variables_globales.Get_Variable_Global(Flag_Hopper_Enable));
                 
                 Variables_globales.Set_Variable_Global(Flag_Hopper_Enable, false);
                 Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
@@ -5811,7 +5845,8 @@ void Actualiza_Contadores(void)
             Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
             Variables_globales.Set_Variable_Global(Billete_Insert, false);
 
-            Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
+            if (Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta))
+                Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
         }
     }else{
 

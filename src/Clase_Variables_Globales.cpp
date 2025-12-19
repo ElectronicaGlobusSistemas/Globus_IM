@@ -418,7 +418,21 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_BA_Controller:
         return Flag_BA_Controller_;
         break;
+
+    case Flag_Update_TFT_Globus_IM:
+        return Flag_Update_TFT_Globus_IM_;
+        break;
+
+    case Flag_UI_Init:
+        return Flag_UI_Init_;
+        break;
+
+    case Flag_Sesiones_Acumuladas_Sin_Tarjeta:
+        return Flag_Sesiones_Acumuladas_Sin_Tarjeta_;
+        break;
     }
+
+    return false;
 }
 void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
 {
@@ -834,6 +848,18 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_BA_Controller:
         Flag_BA_Controller_=Change_estado;
         break;
+
+    case Flag_Update_TFT_Globus_IM:
+        Flag_Update_TFT_Globus_IM_=Change_estado;
+        break;
+
+    case Flag_UI_Init:
+        Flag_UI_Init_=Change_estado;
+        break;
+
+    case Flag_Sesiones_Acumuladas_Sin_Tarjeta:
+        Flag_Sesiones_Acumuladas_Sin_Tarjeta_=Change_estado;
+        break;
     }
 }
 
@@ -972,8 +998,10 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Falg_Evento_BA_=false;
     Enable_Fidelizacion_After_Cashless_Fail_=false;
     Flag_BA_Controller_=false;
-
-    
+    Flag_Update_TFT_Globus_IM_=false;
+    Flag_UI_Init_=false;
+    Flag_Sesiones_Acumuladas_Sin_Tarjeta_=false;
+        
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)
@@ -1071,7 +1099,13 @@ char Variables_Globales::Get_Variable_Global_Char(int filtro)
     case Reset_Handay_OK:
         return Reset_Handay_OK_;
         break;
+
+    default:
+        return 0;
+        break;
     }
+
+    return 0;
 }
 
 void Variables_Globales::Set_Variable_Global_Int(int filtro, int Change_estado)
@@ -1099,7 +1133,9 @@ int Variables_Globales::Get_Variable_Global_Int(int filtro)
     case Sig_Estado_RFID:
         return Sig_Estado_RFID_;
         break;
-    }  
+    }
+    
+    return 0;
 }
 
 void Variables_Globales::Set_Variable_Global_Uint16(int filtro, uint16_t Change_estado)

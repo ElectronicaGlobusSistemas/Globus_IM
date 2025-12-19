@@ -5,8 +5,8 @@
 #define TIMEOUT_EVENT_TRANSACCION 10000
 #define TIMEOUT_RESULT_TRANSACCION 10000
 
-
-#define TIMEOUT_RESULT_TRANSACCION_BA 10000
+/*5 Minutos*/
+#define TIMEOUT_RESULT_TRANSACCION_BA 300000
 
 #define BA_OK 0x00
 #define BA_PENDING 0x40
@@ -39,7 +39,7 @@ private:
   int IdBA;
   String Guid;
   
-
+  volatile bool SolicitudTokenBA=false;
 
 public:
 
@@ -67,7 +67,19 @@ public:
 
 
   };
-  EstadoBA Status;  // <-- variable que guarda el estado actual
+
+  typedef struct
+  {
+    char assets[9];
+    int count;
+    int ID;
+    String GUID;
+    bool pendiente;
+  } SolicitudBA;
+
+
+  SolicitudBA solicitudBA;
+  EstadoBA Status=BA_IDLE;  // <-- variable que guarda el estado actual
 
   bool Set_Evento_Controller_Machine_Load(bool Enable);
   bool Set_Evento_Controller_Machine_Download(bool Enable);
@@ -83,7 +95,24 @@ public:
   bool Get_Evento_Controller_Machine_Load();
   bool Get_Evento_Controller_Machine_Download();
 
+  void Task_Procesa_BA(unsigned long Timeout=5000);
 
+  bool Set_ProcesarSolicitudBA(bool Enable)
+  {
+    SolicitudTokenBA = Enable;
+
+    if (SolicitudTokenBA == Enable)
+      return true;
+    else
+      return false;
+  }
+
+  bool Get_ProcesarSolicitudBA()
+  {
+    return SolicitudTokenBA;
+  }
+
+ 
   void Save_Transaccion(bool);
   bool Await_Event_AFT(unsigned long timeout);
   bool Save_Client_Transfer_Critical();
@@ -110,7 +139,7 @@ public:
   bool Await_ACK_BA(unsigned long timeout);
   // Constructor inicializa en IDLE
   TransaccionCashless() : estado(TRANS_IDLE) {};
- 
+  
   String GetStatusBA();
   bool STATUS_TRANSFER(int Status)
   {
@@ -120,31 +149,31 @@ public:
     }
     estado = static_cast<EstadoTransaccion>(Status);
 
-    // switch (estado)
-    // {
-    // case TRANS_IDLE:
-    //   printf("🔵 Estado cambiado a: IDLE (En espera)\n");
-    //   break;
-    // case TRANS_RECIBIDA:
-    //   printf("📩 Estado cambiado a: RECIBIDA\n");
-    //   break;
-    // case TRANS_EN_PROGRESO:
-    //   printf("⏳ Estado cambiado a: EN PROGRESO\n");
-    //   break;
-    // case TRANS_PENDIENTE:
-    //   printf("🟡 Estado cambiado a: PENDIENTE\n");
-    //   break;
-    // case  TRANS_FINALIZADA:
-    //   printf("🏁 Estado cambiado a: FINALIZADA\n");
-    //   break;
+    switch (estado)
+    {
+    case TRANS_IDLE:
+      printf("🔵 Estado cambiado a: IDLE (En espera)\n");
+      break;
+    case TRANS_RECIBIDA:
+      printf("📩 Estado cambiado a: RECIBIDA\n");
+      break;
+    case TRANS_EN_PROGRESO:
+      printf("⏳ Estado cambiado a: EN PROGRESO\n");
+      break;
+    case TRANS_PENDIENTE:
+      printf("🟡 Estado cambiado a: PENDIENTE\n");
+      break;
+    case  TRANS_FINALIZADA:
+      printf("🏁 Estado cambiado a: FINALIZADA\n");
+      break;
 
-    // case TRANS_TIMEOUT:
-    //   printf("⏰ Estado cambiado a: TIMEOUT EXPIRADO\n");
-    //   break;
-    // default:
-    //   printf("❓ ESTADO DESCONOCIDO\n");
-    //   break;
-    // }
+    case TRANS_TIMEOUT:
+      printf("⏰ Estado cambiado a: TIMEOUT EXPIRADO\n");
+      break;
+    default:
+      printf("❓ ESTADO DESCONOCIDO\n");
+      break;
+    }
 
     return true;
   }
@@ -178,10 +207,10 @@ public:
       //printf("🔵 Estado cambiado a: TRASANSACCION BA IDLE (En espera)\n");
       break;
     case TRANS_RECIBIDA:
-      //printf("📩 Estado cambiado a: TRANSACCION BA RECIBIDA\n");
+      printf("📩 Estado cambiado a: TRANSACCION BA RECIBIDA\n");
       break;
     case TRANS_EN_PROGRESO:
-      //printf("⏳ Estado cambiado a: TRANSACCION BA EN PROGRESO\n");
+      printf("⏳ Estado cambiado a: TRANSACCION BA EN PROGRESO\n");
       break;
     case TRANS_PENDIENTE:
       //printf("🟡 Estado cambiado a: TRANSACCION BA PENDIENTE\n");
@@ -205,9 +234,9 @@ public:
       return estado;
   }
 
-
-   EstadoBA GET_STATUS_BA() const {
-      return Status;
+  EstadoBA GET_STATUS_BA() const
+  {
+    return Status;
   }
 
   const char *GET_STATUS_TRANSFER_Str() const
@@ -292,3 +321,5 @@ public:
     return false;
   }
 };
+
+

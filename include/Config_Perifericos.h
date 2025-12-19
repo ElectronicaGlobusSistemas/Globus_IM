@@ -9,6 +9,7 @@
 #include "Web_Config.h"
 #include "Event_Real_Time.h"
 #include <ESP32Ping.h>
+#include <Pantalla_TFT.h>
 //#define Debug_Task
 //-------------------> Parametros <-------------------------------
 #define Clock_frequency  240//240//
@@ -33,7 +34,7 @@ extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
 extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader
 extern WiFiClient client;              // Declara un objeto cliente para conectarse al servidor
 //------------------------------------------------------------------
-
+extern Pantalla_TFT DisplayTFT;
 
 extern int Tipo_Display;
 
@@ -91,10 +92,9 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,6,3};
+uint8_t Version_Firmware_[]={2,1,7,4};
 uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
-
 
 unsigned long tiempoDesconexionFTP = 0;
 const unsigned long TIMEOUT_FTP_MS = 30000;  // 30 segundos
@@ -203,6 +203,8 @@ bool Wifi_State_AP = LOW;
 unsigned long Ping_Counter=0;
 unsigned long TimerPing=0;
 int Ping_Max=8;
+extern volatile bool Flag_Recupera;
+
 #define MAX_PING_TEST_HIGH      5
 #define MAX_PING_TEST_MEDIUM    5
 #define MAX_PING_TEST_LOW       5
@@ -506,12 +508,12 @@ static void ManagerTasks(void *parameter)
         // UBaseType_t uxHighWaterMark2 = uxTaskGetStackHighWaterMark(RecepcionRS232);
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
-       
-        Ping_Test(20000,false,false);
 
+        //Ping_Test(20000, false, false);
+        
         //FtpFast();
 
-        Reset_SocketIp(20000); /* Verifica Apertura de Socket Udp*/
+        //Reset_SocketIp(20000); /* Verifica Apertura de Socket Udp*/
         
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -1058,6 +1060,19 @@ void Init_Configuracion_Inicial(void)
         NVS.putBytes("Address_TFT", Adress_TFT_Display, sizeof(Adress_TFT_Display));
     }
 
+    if(!NVS.isKey("Config_TFT"))
+    {
+        /*{
+            "Timeout_Ventana_Saldos" : 3000,
+            "Timeout_Imagenes" : 30000,
+            "Timeout_Carrucel_Mensajes" : 10000,
+            "Timeout_Mensajes" : 2500
+        }
+        */
+        uint32_t Config_TFT[] = {3000,30000,10000,1500};
+        NVS.putBytes("Config_TFT", Config_TFT, sizeof(Config_TFT));
+    }
+
     if (!NVS.isKey("TimeBackup"))
     {
         uint32_t time = 15;
@@ -1088,6 +1103,12 @@ void Init_Configuracion_Inicial(void)
         /* No inicializa  player tracking si falla cashless por defecto */
         bool enable_fidelizacion_after_cashless_fail=false;
         NVS.putBool("fid_post_cash",enable_fidelizacion_after_cashless_fail);
+    }
+
+    if(!NVS.isKey("Sesiones_Ac"))
+    {
+        bool Sesiones_Acumuladas=false;
+        NVS.putBool("Sesiones_Ac",Sesiones_Acumuladas);
     }
 
 
@@ -1821,6 +1842,14 @@ void Init_Configuracion_Inicial(void)
             break;
         }
 
+        uint32_t ConfigPacketRead[4];
+        NVS.getBytes("Config_TFT", ConfigPacketRead, sizeof(ConfigPacketRead));
+
+        DisplayTFT.configtft.timeoutSaldosCONFIG=ConfigPacketRead[0];
+        DisplayTFT.configtft.timeoutImagenesCONFIG=ConfigPacketRead[1];
+        DisplayTFT.configtft.timeoutCarrucel_MensajesCONFIG=ConfigPacketRead[2];
+        DisplayTFT.configtft.timeoutMensajesCONFIG=ConfigPacketRead[3];
+        
         Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
     }
 
@@ -1839,6 +1868,14 @@ void Init_Configuracion_Inicial(void)
     //Variables_globales.Set_Variable_Global(Enable_Fidelizacion_After_Cashless_Fail,true);
 
 
+    bool Sesiones_Acumuladas=NVS.getBool("Sesiones_Ac",false);
+    Variables_globales.Set_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta,Sesiones_Acumuladas);
+
+    if(Sesiones_Acumuladas)
+        Serial.println("Sesiones sin tarjeta: Habilitadas");
+    else
+        Serial.println("Sesiones sin tarjeta: Deshabilitadas");
+        
     Serial.println("\n");
     NVS.end();
 }

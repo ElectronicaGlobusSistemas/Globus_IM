@@ -6,6 +6,8 @@
 
 #include "esp_now.h"
 
+
+
 extern ESP32Time RTC; // Objeto contiene hora y fecha
 
 
@@ -433,8 +435,12 @@ void CONNECT_WIFI(void)
   memcpy(DNS_Secundario, Configuracion.Get_Configuracion(Dns_Two_IP, 'x'), sizeof(DNS_Secundario) / sizeof(DNS_Secundario[0]));
 
   
-
+  // WiFi.persistent(false);
+  // WiFi.disconnect(true);   // borra configuración previa
   WiFi.mode(WIFI_MODE_STA);
+  delay(200);
+  
+
   pinMode(WIFI_Status, OUTPUT);
   IPAddress Local_IP(IP_Local[0], IP_Local[1], IP_Local[2], IP_Local[3]);
   IPAddress Gateway(IP_GW[0], IP_GW[1], IP_GW[2], IP_GW[3]);

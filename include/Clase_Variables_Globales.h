@@ -149,6 +149,10 @@ using namespace std;
 #define Falg_Evento_BA                      125
 #define Enable_Fidelizacion_After_Cashless_Fail 126
 #define Flag_BA_Controller                  127
+#define Flag_Update_TFT_Globus_IM           128
+#define Flag_UI_Init                        129
+#define Flag_Sesiones_Acumuladas_Sin_Tarjeta 130
+
 
 class Variables_Globales
 {
@@ -277,6 +281,9 @@ private:
     bool Falg_Evento_BA_;
     bool Enable_Fidelizacion_After_Cashless_Fail_;
     bool Flag_BA_Controller_;
+    bool Flag_Update_TFT_Globus_IM_;
+    bool Flag_UI_Init_;
+    bool Flag_Sesiones_Acumuladas_Sin_Tarjeta_;
     
 
 public:

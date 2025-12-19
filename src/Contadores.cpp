@@ -1812,7 +1812,7 @@ bool contieneNumero(const char* str) {
 }
 
 
-void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
+void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[9])
 {
   int Current_Cancel_Credit;
   int Valor_Prueba=0;
@@ -1845,11 +1845,11 @@ void Contadores_SAS::Change_Counters(char Counter_Cancel_Credit[7])
      Flag_Change_Counters_Break=true;
     }
   }else{
-    // Serial.println("Letra contador ");
+    //Serial.println("Letra contador ");
   }
 }
-
-void Contadores_SAS::Change_Counters_Bill_In(char Counter_Bill_In[7])
+/*7*/
+void Contadores_SAS::Change_Counters_Bill_In(char Counter_Bill_In[9])
 {
   int Current_Bill_In=0;
   int Valor_Prueba=0;

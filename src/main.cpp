@@ -194,6 +194,9 @@ extern SemaphoreHandle_t sd_mutex;
 bool Formateo=false;
 int Result_Formatt=0;
 
+
+extern volatile bool Flag_Recupera;
+
 void setup()
 {
 
@@ -294,7 +297,10 @@ void setup()
   //Api_G.Inicializa_Cola_Tramas(true);
 
   //Tito.Request_Transfer_Tito_Out();
-  ConsultarBanners();
+  // ConsultarBanners();
+
+  // SPIFFS.remove("/fifo.txt");
+  // SPIFFS.remove("/fifo.tmp");
 }
 
 
@@ -303,10 +309,51 @@ int Muestreo=500;
 bool Verifica=false;
 bool test=false;
 
+// #include <Arduino.h>
+
+// extern "C" {
+// #include <fcntl.h>
+// #include <errno.h>
+// }
+
+// int countOpenSockets() {
+//     int count = 0;
+
+//     // En ESP32 normalmente FD de 0 a 63
+//     for (int fd = 0; fd < 64; fd++) {
+//         errno = 0;
+//         int flags = fcntl(fd, F_GETFL, 0);
+
+//         if (flags != -1 || errno != EBADF) {
+//             count++;
+//         }
+//     }
+
+//     return count;
+// }
+
+// void printOpenSockets() {
+//     int sockets = countOpenSockets();
+//     Serial.printf("Sockets abiertos actualmente: %d\n", sockets);
+// }
+
+// void listOpenSockets() {
+//     Serial.println("----- FDs abiertos -----");
+//     for (int fd = 0; fd < 64; fd++) {
+//         errno = 0;
+//         int flags = fcntl(fd, F_GETFL, 0);
+
+//         if (flags != -1 || errno != EBADF) {
+//             Serial.printf("FD %02d abierto\n", fd);
+//         }
+//     }
+//     Serial.println("------------------------");
+// }
+
 void loop()
 {
 
- 
+
   //Tito.Request_Handle_Tito();
   if(!Verifica)
   {
@@ -340,6 +387,10 @@ void loop()
   /*------------------------> Despierta lector de inactividad <---------------------------*/
   if (Time_I - Time_P >= LongT)
   {
+
+    //printOpenSockets();
+
+    //listOpenSockets();
     if (Variables_globales.Get_Variable_Global(Conexion_RFID))
     {
       //mfrc522.PICC_IsNewCardPresent();
@@ -399,16 +450,16 @@ void loop()
   //Backup.Task_Info();
   FtpFast();
 
-  if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+  if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && !Variables_globales.Get_Variable_Global(Updating_System))
     Info_Cashless.Task_Sesiones_Unknow();
 
+  // if(!Variables_globales.Get_Variable_Global(Ftp_Mode))  
+  //   Check_TFT_Reconnect();
 
 
-  if(!Variables_globales.Get_Variable_Global(Ftp_Mode))  
-    Check_TFT_Reconnect();
-
-
-  AFT.BackupBA();
+  // AFT.BackupBA();
+  // AFT.Task_Procesa_BA();
+  DisplayTFT.Task_Handle_TFT_Display();
 }
 
 /* Verifica comunicacion maquina */
@@ -825,6 +876,14 @@ void TimeOut_Player_Tracking_Sesion(void)
           Close_Sesion_Player_Tracking();
           Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion terminada por creditos: "+String(Creditos), true);
           Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
+
+          if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+          {
+
+            Menssage_TFT("Cerrando sesion por inactividad de juego...",DisplayTFT.configtft.timeoutMensajesCONFIG,false);
+            DisplayTFT.info.Actualiza_Puntos_Finales = true;
+          }
+            
         }
         else
         {
@@ -1001,8 +1060,10 @@ void TimeOut_Player_Tracking_Sesion(void)
             Close_Sesion_Player_Tracking();
             Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion terminada por creditos: "+String(Creditos), true);
             // Info_Cashless.Unlock_Reader();
-
             Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
+
+            if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+              DisplayTFT.info.Actualiza_Puntos_Finales = true;
           }
         }
       }
@@ -1079,10 +1140,6 @@ void check_SD(void)
 
       if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
       {
-
-
-       
-        
 
        // printOpenSockets();
 

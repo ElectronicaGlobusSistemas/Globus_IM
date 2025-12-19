@@ -44,6 +44,8 @@ extern DynamicJsonDocument Objeto_Transfer_Download;
 
 DynamicJsonDocument Objeto_BA(800);
 
+extern Pantalla_TFT DisplayTFT;
+
 bool Ack_Cashless_Transfer_Load=false;
 bool Flag_Transfer_Ok=false;
 
@@ -397,7 +399,7 @@ void Init_UART2()
   ESP_ERROR_CHECK(uart_driver_install(NUMERO_PORTA_SERIALE, BUF_SIZE, BUF_SIZE, 20, &uart2_queue, 0));
   
   //-----------------------------------------------Aquí Tareas Nucleo 0 Comunicación Maquina------------------------------
-  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 5048, NULL, configMAX_PRIORITIES, &RecepcionRS232, 1); // Máx Priority principal
+  xTaskCreatePinnedToCore(UART_ISR_ROUTINE, "UART_ISR_ROUTINE", 5048, NULL, configMAX_PRIORITIES-2, &RecepcionRS232, 1); // Máx Priority principal
  // xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 2048, NULL, configMAX_PRIORITIES - 15, &Encuestas, 1);
   xTaskCreatePinnedToCore(Encuestas_Maquina, "Encuestas", 4048, NULL, configMAX_PRIORITIES - 15, &Encuestas, 1);
   //----------------------------------------------------------------------------------------------------------------------
@@ -488,10 +490,11 @@ void Init_RS232()
 //----------------------------------------------Envio de Datos UART2------------------------------------------------------
 void sendDataa(const char *datos, unsigned int tamano) //  Envia Datos por UART2
 {
-  ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 10));    //  Espera 10ms  para envio de dato anterior
+  ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 100)); //  Espera 10ms  para envio de dato anterior
+
   uart_write_bytes(NUMERO_PORTA_SERIALE, datos, tamano); // Envia Datos Sin tener en cuenta Bit de paridad
-  ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 10));    // Espera 10ms  para envio de dato actual
-  
+  ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_2, 100));   // Espera 10ms  para envio de dato actual
+  ets_delay_us(200);
 }
 //---------------------------------------------------------------------------------------------------------------------------
 
@@ -1151,19 +1154,32 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             
             if (buffer_contadores[1] > 9 && buffer_contadores[1] < 16 || buffer_contadores[1] == 46 || buffer[1] == 0x1A)
             {
-              char contador[7] = {};
-              bzero(contador, 7);
+              // char contador[7] = {};
+              // bzero(contador, 7);
+              // int j = 2;
+              // int dato = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador[i] = dato + '0';
+              //   i++;
+              //   dato = buffer_contadores[j] % 10;
+              //   contador[i] = dato + '0';
+              //   j++;
+              // }
+              char contador[9] = {};
+              bzero(contador, 9);
+
               int j = 2;
-              int dato = 0;
-              for (int i = 0; i < 7; i++)
+              for (int i = 0; i < 8; i += 2)
               {
-                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador[i] = dato + '0';
-                i++;
-                dato = buffer_contadores[j] % 10;
-                contador[i] = dato + '0';
+                contador[i] = (buffer_contadores[j] / 10) + '0';
+                contador[i + 1] = (buffer_contadores[j] % 10) + '0';
                 j++;
               }
+
+              contador[8] = '\0';
+
               #ifdef Debug_Contadores
               Serial.println(contador);
               #endif
@@ -1348,20 +1364,33 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             else if (buffer[1] == 0x2A || buffer[1] == 0x2B || (buffer[1] > 0x3B && buffer[1] < 0x44))
             {
-              char contador[7] = {};
-              bzero(contador, 7);
-              int j = 2;
-              int dato = 0;
-              for (int i = 0; i < 7; i++)
+              // char contador[7] = {};
+              // bzero(contador, 7);
+              // int j = 2;
+              // int dato = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador[i] = dato + '0';
+              //   i++;
+              //   dato = buffer_contadores[j] % 10;
+              //   contador[i] = dato + '0';
+              //   j++;
+              // }
+              char contador[9] = {}; // 8 dígitos + '\0'
+              bzero(contador, 9);
+
+              int j = 2; // donde empieza el BCD
+              for (int i = 0; i < 8; i += 2)
               {
-                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador[i] = dato + '0';
-                i++;
-                dato = buffer_contadores[j] % 10;
-                contador[i] = dato + '0';
+                contador[i] = (buffer_contadores[j] / 10) + '0';     // decenas
+                contador[i + 1] = (buffer_contadores[j] % 10) + '0'; // unidades
                 j++;
               }
-              #ifdef Debug_Contadores
+
+              contador[8] = '\0';
+
+#ifdef Debug_Contadores
               Serial.println(contador);
               #endif
 
@@ -1433,20 +1462,39 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             else if (buffer[1] == 0x1C)
             {
-              char contador[7] = {};
-              bzero(contador, 7);
-              int j = 26;
+              // char contador[7] = {};
+              // bzero(contador, 7);
+              // int j = 26;
+              // int dato = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador[i] = dato + '0';
+              //   i++;
+              //   dato = buffer_contadores[j] % 10;
+              //   contador[i] = dato + '0';
+              //   j++;
+              // }
+
+              char contador[9] = {}; // 8 dígitos + '\0'
+              bzero(contador, 9);
+
+              int j = 26; // posición inicial del byte del contador
               int dato = 0;
-              for (int i = 0; i < 7; i++)
+              int i = 0;
+
+              for (int k = 0; k < 4; k++) // 4 bytes → 8 dígitos
               {
-                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador[i] = dato + '0';
-                i++;
-                dato = buffer_contadores[j] % 10;
-                contador[i] = dato + '0';
-                j++;
+                dato = buffer_contadores[j] / 10; // decena
+                contador[i++] = dato + '0';
+
+                dato = buffer_contadores[j] % 10; // unidad
+                contador[i++] = dato + '0';
+
+                j++; // siguiente byte
               }
-              #ifdef Debug_Contadores
+              contador[8] = '\0';
+#ifdef Debug_Contadores
               Serial.println(contador);
               #endif
 
@@ -1503,7 +1551,8 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             else if (buffer[1] == 0x18)
             {
               int unidades, descenas, centenas, uni_mil, desc_mil, cent_mil, uni_millon, desc_millon = 0;
-              char contador[8] = {};
+              //char contador[8] = {};
+              char contador[9] = {};
 
               desc_millon = 0;
               contador[0] = desc_millon + '0';
@@ -1524,6 +1573,9 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               contador[6] = descenas + '0';
               unidades = buffer_contadores[3] % 10;
               contador[7] = unidades + '0';
+
+              contador[8] = '\0';
+
               contadores.Set_Contadores(Games_Since_Last_Power_Up, contador); // ? Serial.println("Guardado con exito") : Serial.println("No se pudo guardar");
               Add_Contador(contador, Games_Since_Last_Power_Up, true);
             
@@ -1725,20 +1777,37 @@ static void UART_ISR_ROUTINE(void *pvParameters)
 
             else if (buffer[1] == 0x2D)
             {
-              char contador[7] = {};
-              bzero(contador, 7);
+              // char contador[7] = {};
+              // bzero(contador, 7);
+              // int j = 4;
+              // int dato = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador[i] = dato + '0';
+              //   i++;
+              //   dato = buffer_contadores[j] % 10;
+              //   contador[i] = dato + '0';
+              //   j++;
+              // }
+
+              char contador[9] = {}; // 8 dígitos + '\0'
+              bzero(contador, sizeof(contador));
+
               int j = 4;
-              int dato = 0;
-              for (int i = 0; i < 7; i++)
+              int i = 0;
+
+              for (int k = 0; k < 4; k++) // 4 bytes => 8 dígitos
               {
-                dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador[i] = dato + '0';
-                i++;
-                dato = buffer_contadores[j] % 10;
-                contador[i] = dato + '0';
+                int dato = buffer_contadores[j];
+                contador[i++] = (dato / 10) + '0'; // decena
+                contador[i++] = (dato % 10) + '0'; // unidad
                 j++;
               }
-              #ifdef Debug_Contadores
+
+              contador[8] = '\0';
+
+#ifdef Debug_Contadores
               Serial.println(contador);
               #endif
 
@@ -1759,7 +1828,6 @@ static void UART_ISR_ROUTINE(void *pvParameters)
                 /* ----------------->Se agrego<--------------------------------- */
                 contadores.Change_Counters(contador);
                 /*---------------------------------------------------------------*/
-
                 // Serial.println("Handpay ");
               }
              
@@ -1772,110 +1840,225 @@ static void UART_ISR_ROUTINE(void *pvParameters)
               if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
               {
 
-                char contador[8] = {};
-                bzero(contador, 8);
                 int j = 2;
+
+                /* COPIA CANCEL CREDIT */
+                char contador[9] = {};
+                bzero(contador, 9);
+
                 int dato = 0;
                 for (int i = 0; i < 8; i++)
                 {
-                  dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato = (buffer_contadores[j] / 10);
                   contador[i] = dato + '0';
                   i++;
                   dato = buffer_contadores[j] % 10;
                   contador[i] = dato + '0';
                   j++;
                 }
+                contador[8] = '\0';
+
 #ifdef Debug_Contadores
                 Serial.println(contador);
 #endif
+
                 contadores.Set_Contadores(Copia_Cancel_Credit, contador);
 
-
-                /* Coin In */
-                char contador_Coin_In[7] = {};
-                bzero(contador_Coin_In, 7);
+                /* COIN IN */
+                char contador_Coin_In[9] = {};
+                bzero(contador_Coin_In, 9);
                 int dato1 = 0;
-                for (int i = 0; i < 7; i++)
+
+                for (int i = 0; i < 8; i++)
                 {
-                  dato1 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato1 = (buffer_contadores[j] / 10);
                   contador_Coin_In[i] = dato1 + '0';
                   i++;
                   dato1 = buffer_contadores[j] % 10;
                   contador_Coin_In[i] = dato1 + '0';
                   j++;
                 }
+                contador_Coin_In[8] = '\0';
+
                 contadores.Set_Contadores(Coin_In, contador_Coin_In);
 
-
-                /* Coin Out */
-                char contador_Coin_Out[7] = {};
-                bzero(contador_Coin_Out, 7);
+                /* COIN OUT */
+                char contador_Coin_Out[9] = {};
+                bzero(contador_Coin_Out, 9);
                 int dato2 = 0;
-                for (int i = 0; i < 7; i++)
+
+                for (int i = 0; i < 8; i++)
                 {
-                  dato2 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato2 = (buffer_contadores[j] / 10);
                   contador_Coin_Out[i] = dato2 + '0';
                   i++;
                   dato2 = buffer_contadores[j] % 10;
                   contador_Coin_Out[i] = dato2 + '0';
                   j++;
                 }
+                contador_Coin_Out[8] = '\0';
+
                 contadores.Set_Contadores(Coin_Out, contador_Coin_Out);
 
-
-
-                /* Total Drop */
-                char contador_Total_Drop[7] = {};
-                bzero(contador_Total_Drop, 7);
+                /* TOTAL DROP */
+                char contador_Total_Drop[9] = {};
+                bzero(contador_Total_Drop, 9);
                 int dato3 = 0;
-                for (int i = 0; i < 7; i++)
+
+                for (int i = 0; i < 8; i++)
                 {
-                  dato3 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato3 = (buffer_contadores[j] / 10);
                   contador_Total_Drop[i] = dato3 + '0';
                   i++;
                   dato3 = buffer_contadores[j] % 10;
                   contador_Total_Drop[i] = dato3 + '0';
                   j++;
                 }
+                contador_Total_Drop[8] = '\0';
+
                 contadores.Set_Contadores(Total_Drop, contador_Total_Drop);
 
-                
-                /* Total Drop */
-                char contador_Jackpot[7] = {};
-                bzero(contador_Jackpot, 7);
+                /* JACKPOT */
+                char contador_Jackpot[9] = {};
+                bzero(contador_Jackpot, 9);
                 int dato4 = 0;
-                for (int i = 0; i < 7; i++)
+
+                for (int i = 0; i < 8; i++)
                 {
-                  dato4 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato4 = (buffer_contadores[j] / 10);
                   contador_Jackpot[i] = dato4 + '0';
                   i++;
                   dato4 = buffer_contadores[j] % 10;
                   contador_Jackpot[i] = dato4 + '0';
                   j++;
                 }
+                contador_Jackpot[8] = '\0';
+
                 contadores.Set_Contadores(Jackpot, contador_Jackpot);
 
-                /* Games Played */
-                char contador_Games_Played[7] = {};
-                bzero(contador_Games_Played, 7);
+                /* GAMES PLAYED */
+                char contador_Games_Played[9] = {};
+                bzero(contador_Games_Played, 9);
                 int dato5 = 0;
-                for (int i = 0; i < 7; i++)
+
+                for (int i = 0; i < 8; i++)
                 {
-                  dato5 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                  dato5 = (buffer_contadores[j] / 10);
                   contador_Games_Played[i] = dato5 + '0';
                   i++;
                   dato5 = buffer_contadores[j] % 10;
                   contador_Games_Played[i] = dato5 + '0';
                   j++;
                 }
+                contador_Games_Played[8] = '\0';
+
                 contadores.Set_Contadores(Games_Played, contador_Games_Played);
 
-                /* Almacenamiento memoria */
+                /* ALMACENAMIENTO MEMORIA */
                 Add_Contador(contador_Coin_In, Coin_In, false);
                 Add_Contador(contador_Coin_Out, Coin_Out, false);
                 Add_Contador(contador_Total_Drop, Total_Drop, false);
                 Add_Contador(contador_Jackpot, Jackpot, false);
                 Add_Contador(contador_Games_Played, Games_Played, false);
+                //                 char contador[8] = {};
+                //                 bzero(contador, 8);
+                //                 int j = 2;
+                //                 int dato = 0;
+                //                 for (int i = 0; i < 8; i++)
+                //                 {
+                //                   dato = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador[i] = dato + '0';
+                //                   i++;
+                //                   dato = buffer_contadores[j] % 10;
+                //                   contador[i] = dato + '0';
+                //                   j++;
+                //                 }
+                // #ifdef Debug_Contadores
+                //                 Serial.println(contador);
+                // #endif
+                //                 contadores.Set_Contadores(Copia_Cancel_Credit, contador);
+
+                //                 /* Coin In */
+                //                 char contador_Coin_In[7] = {};
+                //                 bzero(contador_Coin_In, 7);
+                //                 int dato1 = 0;
+                //                 for (int i = 0; i < 7; i++)
+                //                 {
+                //                   dato1 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador_Coin_In[i] = dato1 + '0';
+                //                   i++;
+                //                   dato1 = buffer_contadores[j] % 10;
+                //                   contador_Coin_In[i] = dato1 + '0';
+                //                   j++;
+                //                 }
+                //                 contadores.Set_Contadores(Coin_In, contador_Coin_In);
+
+                //                 /* Coin Out */
+                //                 char contador_Coin_Out[7] = {};
+                //                 bzero(contador_Coin_Out, 7);
+                //                 int dato2 = 0;
+                //                 for (int i = 0; i < 7; i++)
+                //                 {
+                //                   dato2 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador_Coin_Out[i] = dato2 + '0';
+                //                   i++;
+                //                   dato2 = buffer_contadores[j] % 10;
+                //                   contador_Coin_Out[i] = dato2 + '0';
+                //                   j++;
+                //                 }
+                //                 contadores.Set_Contadores(Coin_Out, contador_Coin_Out);
+
+                //                 /* Total Drop */
+                //                 char contador_Total_Drop[7] = {};
+                //                 bzero(contador_Total_Drop, 7);
+                //                 int dato3 = 0;
+                //                 for (int i = 0; i < 7; i++)
+                //                 {
+                //                   dato3 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador_Total_Drop[i] = dato3 + '0';
+                //                   i++;
+                //                   dato3 = buffer_contadores[j] % 10;
+                //                   contador_Total_Drop[i] = dato3 + '0';
+                //                   j++;
+                //                 }
+                //                 contadores.Set_Contadores(Total_Drop, contador_Total_Drop);
+
+                //                 /* Total Drop */
+                //                 char contador_Jackpot[7] = {};
+                //                 bzero(contador_Jackpot, 7);
+                //                 int dato4 = 0;
+                //                 for (int i = 0; i < 7; i++)
+                //                 {
+                //                   dato4 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador_Jackpot[i] = dato4 + '0';
+                //                   i++;
+                //                   dato4 = buffer_contadores[j] % 10;
+                //                   contador_Jackpot[i] = dato4 + '0';
+                //                   j++;
+                //                 }
+                //                 contadores.Set_Contadores(Jackpot, contador_Jackpot);
+
+                //                 /* Games Played */
+                //                 char contador_Games_Played[7] = {};
+                //                 bzero(contador_Games_Played, 7);
+                //                 int dato5 = 0;
+                //                 for (int i = 0; i < 7; i++)
+                //                 {
+                //                   dato5 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+                //                   contador_Games_Played[i] = dato5 + '0';
+                //                   i++;
+                //                   dato5 = buffer_contadores[j] % 10;
+                //                   contador_Games_Played[i] = dato5 + '0';
+                //                   j++;
+                //                 }
+                //                 contadores.Set_Contadores(Games_Played, contador_Games_Played);
+
+                //                 /* Almacenamiento memoria */
+                //                 Add_Contador(contador_Coin_In, Coin_In, false);
+                //                 Add_Contador(contador_Coin_Out, Coin_Out, false);
+                //                 Add_Contador(contador_Total_Drop, Total_Drop, false);
+                //                 Add_Contador(contador_Jackpot, Jackpot, false);
+                //                 Add_Contador(contador_Games_Played, Games_Played, false);
               }
             }
 
@@ -1915,36 +2098,75 @@ static void UART_ISR_ROUTINE(void *pvParameters)
             if (buffer[0] == 0x01 && buffer[1] == 0x1D && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 2||buffer[0] == 0x01 && buffer[1] == 0x1D && Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17)
             {
 
-              unsigned char j=10,Contador;
+              // unsigned char j=10,Contador;
+              // /* Total Drop */
+              // char contador_cashable_In[7] = {};
+              // bzero(contador_cashable_In, 7);
+              // int dato4 = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato4 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador_cashable_In[i] = dato4 + '0';
+              //   i++;
+              //   dato4 = buffer_contadores[j] % 10;
+              //   contador_cashable_In[i] = dato4 + '0';
+              //   j++;
+              // }
+              // j=14;
+
+              // contadores.Set_Contadores(Casheable_Out,contador_cashable_In);
+
+              // char contador_cashleable_out[7] = {};
+              // bzero(contador_cashleable_out, 7);
+              // int dato5 = 0;
+              // for (int i = 0; i < 7; i++)
+              // {
+              //   dato5 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
+              //   contador_cashleable_out[i] = dato5 + '0';
+              //   i++;
+              //   dato5 = buffer_contadores[j] % 10;
+              //   contador_cashleable_out[i] = dato5 + '0';
+              //   j++;
+              // }
+              // contadores.Set_Contadores(Casheable_In, contador_cashleable_out);
+
+              unsigned char j = 10;
+
               /* Total Drop */
-              char contador_cashable_In[7] = {};
-              bzero(contador_cashable_In, 7);
-              int dato4 = 0;
-              for (int i = 0; i < 7; i++)
+              char contador_cashable_In[9];
+              bzero(contador_cashable_In, sizeof(contador_cashable_In));
+
+              int i = 0;
+              for (int k = 0; k < 4; k++) // 4 bytes = 8 dígitos
               {
-                dato4 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador_cashable_In[i] = dato4 + '0';
-                i++;
-                dato4 = buffer_contadores[j] % 10;
-                contador_cashable_In[i] = dato4 + '0';
+                int dato = buffer_contadores[j];
+                contador_cashable_In[i++] = (dato / 10) + '0';
+                contador_cashable_In[i++] = (dato % 10) + '0';
                 j++;
               }
-              j=14;
 
-              contadores.Set_Contadores(Casheable_Out,contador_cashable_In);
+              contador_cashable_In[8] = '\0';
 
-              char contador_cashleable_out[7] = {};
-              bzero(contador_cashleable_out, 7);
-              int dato5 = 0;
-              for (int i = 0; i < 7; i++)
+              contadores.Set_Contadores(Casheable_Out, contador_cashable_In);
+
+              // ------------------------
+
+              j = 14;
+
+              char contador_cashleable_out[9];
+              bzero(contador_cashleable_out, sizeof(contador_cashleable_out));
+
+              i = 0;
+              for (int k = 0; k < 4; k++) // 4 bytes = 8 dígitos
               {
-                dato5 = (buffer_contadores[j] - (buffer_contadores[j] % 10)) / 10;
-                contador_cashleable_out[i] = dato5 + '0';
-                i++;
-                dato5 = buffer_contadores[j] % 10;
-                contador_cashleable_out[i] = dato5 + '0';
+                int dato = buffer_contadores[j];
+                contador_cashleable_out[i++] = (dato / 10) + '0';
+                contador_cashleable_out[i++] = (dato % 10) + '0';
                 j++;
               }
+
+              contador_cashleable_out[8] = '\0';
+
               contadores.Set_Contadores(Casheable_In, contador_cashleable_out);
             }
 
@@ -6511,18 +6733,18 @@ void Transmite_Mistic_Lega(void)
 
       if (IsSucess)
       {
-        AFT.UPDOWNBA(BA_OK, "Ack recibido correctamente", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
+        AFT.UPDOWNBA(BA_OK, "Transaccion realizada con exito", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
         AFT.STATUS_BA(TransaccionCashless::BA_PENDIENTE);
       }
       else
       {
-        AFT.UPDOWNBA(BA_ERROR, "Ack no recibido", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
+        //AFT.UPDOWNBA(BA_ERROR, "Ack no recibido", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
         AFT.STATUS_BA(TransaccionCashless::BA_IDLE);
       }
     }
     else
     {
-      AFT.UPDOWNBA(BA_ERROR, "Ack no recibido por la maquina", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
+      //AFT.UPDOWNBA(BA_ERROR, "Ack no recibido por la maquina", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
       AFT.STATUS_BA(TransaccionCashless::BA_IDLE);
     }
   }
@@ -11813,6 +12035,9 @@ int TransaccionCashless::Procesa_Sesion_Duplicada(String Identificador)
       contadores.Close_ID_Client_Transaccion();
       Info_Cashless.Unlock_Reader(); /* Habilita lector */
       Report_Http_Code(TERMINA_SESION_MANUAL, "Sesion Cashless terminada por Usuario: ", true);
+
+      if(Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+        DisplayTFT.info.Actualiza_Puntos_Finales=true;
       break;
 
     case PLAYER_CASHLESS_SESION: /* Solicitud de cierre Sesion Player Cashless */
@@ -11895,18 +12120,10 @@ bool TransaccionCashless::Await_Transaccion_AFT_Download(unsigned long timeout)
   while (!Variables_globales.Get_Variable_Global(Machine_Receives_Load_Transfer) && (millis() - Timout_Break_Response < timeout))
   {
     esp_task_wdt_reset();
-    // Contador++;
-    // if (Contador == 1)
-    //   sendDataa(dat, sizeof(dat)); // Transmite DIR
-    // if (Contador > 1)
-    // {
-    //   Transmite_Poll(0x00);
-    //   Contador = 0;
-    // }
-    Mantiene_Comunicacion();
 
-    //Serial.println("Esperando Ack.......Transfer");
-    vTaskDelay(300);
+    Mantiene_Comunicacion(); // aquí vive todo el ritmo SAS
+
+    vTaskDelay(10 / portTICK_PERIOD_MS); // cede CPU, no afecta timing SAS
   }
   if(Variables_globales.Get_Variable_Global(Machine_Receives_Load_Transfer))
     IsSuccess=true;
@@ -12339,7 +12556,7 @@ void TransaccionCashless::Task_Controller_BA(bool InProgress)
           if (AFT.Estatus_Transaccion_AFT_Download_AFTER_BA())
           {
             IsSuccess = true;
-            AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack Pendiente", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
+            //AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack Pendiente", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
           }
           else
             IsSuccess = false;
@@ -12393,7 +12610,7 @@ void TransaccionCashless::Task_Controller_BA(bool InProgress)
       case 0x00:
         // Serial.println("Transaccion OK");
 
-        AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack OK", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
+        //AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack OK", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
         
         AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_FINALIZADA);
         AFT.STATUS_BA(TransaccionCashless::BA_FINALIZADA);
@@ -12404,7 +12621,7 @@ void TransaccionCashless::Task_Controller_BA(bool InProgress)
 
       case 0x01:
 
-        AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack OK", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
+        //AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Ack OK", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
         AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_FINALIZADA);
         AFT.STATUS_BA(TransaccionCashless::BA_FINALIZADA);
         AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_IDLE);
@@ -12414,7 +12631,7 @@ void TransaccionCashless::Task_Controller_BA(bool InProgress)
 
       default:
 
-        AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Error Ack", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
+        //AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Error Ack", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
         AFT.STATUS_BA(TransaccionCashless::BA_PENDIENTE);
         return;
         break;
@@ -12422,7 +12639,7 @@ void TransaccionCashless::Task_Controller_BA(bool InProgress)
     }
     else
     {
-      AFT.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Error Ack", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
+      //.UPDOWNBA(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], "Error Ack", Buffer_Cashless.Get_RX_AFT(Buffer_RX_Cashless), RTC, Tipo_DWN);
       AFT.STATUS_BA(TransaccionCashless::BA_PENDIENTE);
     }
       
@@ -12662,7 +12879,6 @@ void Transmite_Load_AFT_Maq(void)
   }
   else
   {
-
     // Info_Cashless.Log(RTC, "ESTADO_TRANSACCION_CARGA", "RECIBIDA_POR_CONTROLADOR");
 
     AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
@@ -12678,12 +12894,18 @@ void Transmite_Load_AFT_Maq(void)
       // delay(5);
       //  Info_Cashless.Log(RTC, "ESTADO_TRANSACCION_CARGA", "COMUNICACION_OK", archivo);
       /* Si Comunicacion OK*/
+      sendDataa(dat, sizeof(dat)); // transmite sincronización
+      delay(200);
+
       AFT.Envia_Transaccion_AFT_Load(); /* Envia Transaccion AFT */
 
+      delay(200);
       // Info_Cashless.Log(RTC, "ESTADO_TRANSACCION_CARGA", "ENVIA_TRANSACCION", archivo);
 
       if (AFT.Await_Transaccion_AFT_Load(TIMEOUT_ACK_TRANSACCION)) /* Espera Ack de transaccion Maquina */
+      {
         AFT.Estatus_Transaccion_AFT_Load();                        /*Si recibio la transaccion ejecuta tarea de consulta de estado*/
+      }
       else
       {
         // Info_Cashless.Log(RTC, "ESTADO_TRANSACCION_CARGA", "TIMEOUT_AGOTADO", archivo);
@@ -12981,14 +13203,18 @@ void TransaccionCashless::Envia_Transaccion_AFT_Load(void)
   Cashless.Set_Amount_To_Load(0, 0, 0);
   /* Inicializa Buffer de dinero */
 
-  for (int i = 0; i < 63; i++)
+  // Enviar dirección SIN paridad
+  sendDataa(&Transfer_Command[0], 1);
+
+
+  for (int i = 1; i < 63; i++)
   {
-    if (i == 0)
-      sendDataa(dat4, sizeof(dat4)); // Transmite DIR
-    else
-    {
+    // if (i == 0)
+    //   sendDataa(dat4, sizeof(dat4)); // Transmite DIR
+    // else
+    // {
       Transmite_Poll_Long(Transfer_Command[i]);
-    }
+    //}
   }
   //Serial.println("Envia Transaccion a la maquina");
 }
@@ -13018,7 +13244,7 @@ bool TransaccionCashless::Await_Transaccion_AFT_Load(unsigned long timeout)
     // }
 
     Mantiene_Comunicacion();
-    vTaskDelay(300);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     //Serial.println("Esperando respuesta......");
   }
 
@@ -13071,7 +13297,8 @@ void TransaccionCashless::Estatus_Transaccion_AFT_Load(void)
       Save_Client_Transfer_Critical(); /* Guarda id de cliente */
       /* Reporta estado pendiente de transaccion */
       Info_Cashless.Ack_Transfer_Pending(Buffer_Cashless.Get_Bufffer_Transfer_AFT()[4], Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, LOAD_TRANSACTION);
-      vTaskDelay(200);
+      delay(200);
+      delay(10);
       Save_Transaccion(true);
       Set_Evento_Controller_Machine_Load(true);
       // Info_Cashless.Log(RTC,"TRANSACCION_AFT_CARGA","TRANSACCION_PENDIENTE");
@@ -13659,57 +13886,126 @@ bool fifo_pop() {
 
 bool enviar_json_al_servididor(const String &json)
 {
+  WiFiClient client;
   HTTPClient http;
+  int httpCode;
   // String url= "http://192.168.5.109:22141/api/BonoAck/procesar";
   String url = "http://" + ipDest.toString() + ":22141/api/BonoAck/procesar"; // <<< CAMBIAR
   // 🔍 Validar si se pudo iniciar la conexión
-  if (!http.begin(url))
+
+  Serial.println(url);
+
+  http.setTimeout(10000);
+
+  if (http.begin(client, url))
   {
-    Serial.println("❌ No se pudo iniciar conexion HTTP (http.begin fallo)");
+    http.addHeader("Content-Type", "application/json");
+
+    http.addHeader("hash", Info_Cashless.Get_Hash_Valido_BA());
+    http.addHeader("gmsec", "GMaster");
+    http.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido_BA()); // Agrega el token de
+
+    int httpCode = http.POST(json);
+
+    if (httpCode == HTTP_CODE_OK)
+    {
+      String respuesta = http.getString();
+      http.end();
+
+      Serial.println("📩 Respuesta del servidor:");
+      Serial.println(respuesta);
+
+      // Parsear JSON recibido
+      StaticJsonDocument<800> doc;
+      DeserializationError err = deserializeJson(doc, respuesta);
+
+      if (err)
+      {
+        Serial.println("❌ Error parseando JSON respuesta");
+        http.end();
+        return false;
+      }
+      else
+      {
+        if (doc.containsKey("IsSuccess") && doc["IsSuccess"] == true)
+        {
+          http.end();
+          Serial.println("✅ Envio exitoso");
+          return true;
+        }
+        else
+        {
+          Serial.println("❌ Server no respondio IsSuccess en true");
+          http.end();
+          return false;
+        }
+      }
+    }
+    else
+    {
+
+      Serial.println("❌ Error de petición HTTP: "+String(httpCode));
+      http.end();
+      return false;
+    }
+  }
+  else
+  {
+    Serial.println("❌ No se establecio conexion con el servidor");
     return false;
   }
 
-  http.addHeader("Content-Type", "application/json");
-  
-  http.addHeader("hash",Info_Cashless.Get_Hash_Valido_BA());
-  http.addHeader("gmsec","GMaster");
-  http.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido_BA()); // Agrega el token de
+  // if (!http.begin(url))
+  // {
+  //   Serial.println("❌ No se pudo iniciar conexion HTTP (http.begin fallo)");
+  //   return false;
+  // }
 
-  int httpCode = http.POST(json);
+  // http.addHeader("Content-Type", "application/json");
 
-  if (httpCode <= 0)
-  {
-    Serial.print("❌ Error HTTP POST: ");
-    Serial.println(http.errorToString(httpCode));
-    http.end();
-    return false;
-  }
+  // http.addHeader("hash",Info_Cashless.Get_Hash_Valido_BA());
+  // http.addHeader("gmsec","GMaster");
+  // http.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido_BA()); // Agrega el token de
 
-  String respuesta = http.getString();
-  http.end();
+  // int httpCode = http.POST(json);
 
-  Serial.println("📩 Respuesta del servidor:");
-  Serial.println(respuesta);
+  // // WiFiClient *tcp = http.getStreamPtr();
+  // // tcp->stop();  // <--- LIBERA FD DE UNA VEZ
 
-  // Parsear JSON recibido
-  StaticJsonDocument<200> doc;
-  DeserializationError err = deserializeJson(doc, respuesta);
+  // Serial.println(httpCode);
+  // if (httpCode <= 0)
+  // {
+  //   Serial.print("❌ Error HTTP POST: ");
+  //   Serial.println(http.errorToString(httpCode));
+  //   http.end();
+  //   return false;
+  // }
 
-  if (err)
-  {
-    Serial.println("❌ Error parseando JSON respuesta");
-    return false;
-  }
+  // String respuesta = http.getString();
+  // http.end();
 
-  // Verificar campo "IsSuccess"
-  if (doc.containsKey("IsSuccess") && doc["IsSuccess"] == true)
-  {
-    Serial.println("✅ Envio exitoso");
-    return true;
-  }
+  // Serial.println("📩 Respuesta del servidor:");
+  // Serial.println(respuesta);
 
-  Serial.println("❌ Envio fallido, IsSuccess = false");
-  return false;
+  // // Parsear JSON recibido
+  // StaticJsonDocument<800> doc;
+  // DeserializationError err = deserializeJson(doc, respuesta);
+
+  // if (err)
+  // {
+  //   Serial.println("❌ Error parseando JSON respuesta");
+  //   return false;
+  // }
+
+  // // Verificar campo "IsSuccess"
+  // if (doc.containsKey("IsSuccess") && doc["IsSuccess"] == true)
+  // {
+  //   Serial.println("✅ Envio exitoso");
+  //   return true;
+  // }
+
+  // Serial.println("❌ Envio fallido, IsSuccess = false");
+  // return false;
 }
 
 void procesar_fifo()
@@ -13745,10 +14041,11 @@ bool fifo_hay_pendientes() {
 
 void TransaccionCashless::BackupBA(void)
 {
+  TimeoutExc=millis();
 
-  if ((millis() - TimeoutExc_Final) >= IntervExc)
+  if ((TimeoutExc - TimeoutExc_Final) >= IntervExc)
   {
-    TimeoutExc_Final = millis();
+    TimeoutExc_Final=TimeoutExc;
     if (fifo_hay_pendientes())
       procesar_fifo();
   }
@@ -13803,14 +14100,16 @@ void TransaccionCashless::UPDOWNBA(int Code, String Msg, char Buffer[], ESP32Tim
   // Objeto_BA["MAC"] = WiFi.macAddress();
   Objeto_BA["Fecha_Hora"] = DataTime;
 
-  Objeto_BA["ID"] = Get_IdBA();
-  Objeto_BA["GUID"] = Get_Guid();
+  Objeto_BA["ID"] = AFT.solicitudBA.ID;
+  Objeto_BA["GUID"] = AFT.solicitudBA.GUID;
 
   // Hay_BA_Pendientes = true;
 
   String JsonString;
   serializeJson(Objeto_BA, JsonString);
   fifo_push(JsonString); // Guardar en FIFO
+
+  Serial.println(JsonString);
 }
 
 bool TransaccionCashless::Validar_Estado_AFT_OK(void)
@@ -13900,26 +14199,36 @@ bool TransaccionCashless::Validar_Estado_AFT_OK(void)
 void TransaccionCashless::Mantiene_Comunicacion(void)
 {
   static uint8_t bandera = 0;
-  static uint16_t Conta_Poll = 0;
-  static uint16_t numero_encuesta = 0;
+  static uint8_t Conta_Poll = 0;
+  static uint32_t lastTick = 0;
 
-  const uint16_t Vel_Poll = 5; // o el valor que uses realmente
+  const uint8_t Vel_Poll = 5;
+  const uint32_t INTERVAL_MS = 250;
+
+  uint32_t now = millis();
+
+  if (now - lastTick < INTERVAL_MS)
+    return;
+
+  lastTick += INTERVAL_MS;
 
   if (bandera == 0 && Conta_Poll < Vel_Poll)
   {
-    sendDataa(dat, sizeof(dat)); // transmite sincronización
+    sendDataa(dat, sizeof(dat)); // SYNC
     bandera = 1;
     Conta_Poll++;
+
+    //Serial.println("Pool");
   }
   else if (bandera == 1 && Conta_Poll < Vel_Poll)
   {
-    Transmite_Poll(0x00); // transmite poll
+    Transmite_Poll(0x00);
     bandera = 0;
     Conta_Poll++;
+    //Serial.println("Long");
   }
-  else if (Conta_Poll >= Vel_Poll)
+  else
   {
-    numero_encuesta++;
     Conta_Poll = 0;
   }
 }
@@ -13958,6 +14267,48 @@ void TransaccionCashless::Tracking_BA(int Id, String GuidString)
 {
   IdBA = Id;
   Guid = GuidString;
+}
+
+void TransaccionCashless::Task_Procesa_BA(unsigned long Timeout)
+{
+  if (AFT.solicitudBA.pendiente)
+  { 
+
+    AFT.solicitudBA.pendiente = false;
+
+    if (Info_Cashless.Solicitud_Token_Cashless_BA(Timeout))
+    {
+     
+      Serial.println("Procesando BA");
+
+      Serial.print("ID: ");
+      Serial.println(AFT.solicitudBA.ID);
+
+      Serial.print("GUID: ");
+      Serial.println(AFT.solicitudBA.GUID);
+
+      Serial.print("Assets: ");
+      for (int i = 0; i < AFT.solicitudBA.count; i++)
+      {
+        Serial.print(AFT.solicitudBA.assets[i]);
+        Serial.print(" ");
+      }
+      Serial.println();
+
+      if (contadores.Set_MeterBA(AFT.solicitudBA.assets))
+      {
+        Instala_Driver_Mistic();
+      }else{
+        Serial.println("Error procesando Solicitud");
+        AFT.UPDOWNBA(BA_ERROR, "Error procesando solicitud", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
+      }
+    }
+    else
+    {
+      Serial.println("No se Genero Token de acceso");
+      AFT.UPDOWNBA(BA_ERROR, "Error no se genero token de acceso para procesar la solicitud", Buffer_Cashless.Get_Bufffer_Transfer_AFT(), RTC, Tipo_UP);
+    }
+  }
 }
 
 void TransaccionCashless::Envia_Transaccion_BA()

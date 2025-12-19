@@ -11,6 +11,8 @@
 #include <HTTPClient.h>
 #include <vector>
 
+#include "Transacciones.h"
+
 #define INIT_PLAYER_TRACKING  0
 #define CLOSE_PLAYER_TRACKING 1
 #define UPDATE_POINTS         2
@@ -20,15 +22,33 @@
 #define SINCRO                10
 #define COMANDO_NO_IDENTIFICADO 100
 #define UPDATE_TFT            16
-#define  DEBUG_TFT
+//#define  DEBUG_TFT
+#define CONFIG_TFT                18
+#define REFRESH_CONFIG            19
+#define INIT                      23
+#define STATUS_SESION         24
+#define DASHBOARD             25
 
 
+#define UPDATE_CASH           20
+#define UPDATE_POINTS         21
+#define CLOSE_PLAYER_CASHLESS 22
+#define UI_INIT               23
+
+extern TransaccionCashless AFT;
 
 std::vector<String> mensajes;
 int cantidad_mensajes = 0;
 
 extern volatile bool flag_ReiniciarEspNow;
+
+volatile bool Flag_Recupera=false;
+
 WebServer ServerUpdate(8080);
+
+unsigned long Timeout_Banner_Inicial=0;
+unsigned long Timeout_Banner_Final=0;
+int Timeout_Intv=5000;
 
 extern Pantalla_TFT DisplayTFT;
 
@@ -92,7 +112,7 @@ bool Send_TFT(uint8_t MAC[], uint8_t *Data, int len, int MaxIntentos)
     for (int i = 0; i < MaxIntentos; i++)
     {
         esp_err_t result = esp_now_send(MAC, Data, len);
-        delay(50);
+        delay(100);
 
         if (result == ESP_OK && ultimoEnvioExitoso)
         {
@@ -241,7 +261,7 @@ void Check_TFT_Reconnect(unsigned long Timeout)
         if ((currentMillisConexion - lastReconnectAttemptConexion) >= Timeout)
         {
             lastReconnectAttemptConexion = currentMillisConexion;
-            StaticJsonDocument<500> doc;
+            StaticJsonDocument<100> doc;
 
             String Payload;
             int Intentos_Conexion = 3;
@@ -341,7 +361,7 @@ bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
                 {
 
                     Flag_Conexion_TFT = false;
-                    StaticJsonDocument<500> doc;
+                    StaticJsonDocument<100> doc;
 
                     String Payload;
                     int Intentos_Conexion = 3;
@@ -364,10 +384,11 @@ bool Init_TFT_Display(bool EspNow, uint8_t MAC[6])
                         Flag_Conexion_TFT = false;
 
                         Menssage_TFT("Estableciendo conexion con dispositivo Globus IM...",2500,true);
-
-                        if(ConsultarBanners())
-                            EnviarBannersPorEspNow();
                         
+                        Config_Parameter_TFT(DisplayTFT.configtft.timeoutSaldosCONFIG,DisplayTFT.configtft.timeoutImagenesCONFIG,DisplayTFT.configtft.timeoutCarrucel_MensajesCONFIG,DisplayTFT.configtft.timeoutMensajesCONFIG);
+
+                        if (ConsultarBanners())
+                            EnviarBannersPorEspNow();
 
                         return true;
                     }
@@ -431,7 +452,7 @@ void Prueba_TFT(void)
 String formatearComoMoneda(uint32_t numero)
 {
     String resultado = "";
-    String numStr = String(uint32_t(numero/DisplayTFT.Get_DenoCashless()));
+    String numStr = String(uint32_t(numero/DisplayTFT.info.DenoCashless));
     int len = numStr.length();
 
     // Insertar puntos cada 3 dígitos desde la derecha
@@ -448,45 +469,429 @@ String formatearComoMoneda(uint32_t numero)
 
     return "$ "+resultado;
 }
+String LimitarSinCortarPalabras(const String &texto, size_t maxLen)
+{
+    if (texto.length() <= maxLen)
+        return texto;
 
-bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Total_Points_Tickets, int User_Level, uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, int Current_Playertracking_Points, int Current_Points_Tickets,int Tipo_Sesion)
+    // Buscar el último espacio antes del límite
+    int lastSpace = texto.lastIndexOf(' ', maxLen);
+
+    // Si no hay espacios, toca cortar normal (palabra gigante)
+    if (lastSpace == -1)
+        return texto.substring(0, maxLen);
+
+    return texto.substring(0, lastSpace);
+}
+String PrimerNombre_UltimoApellido(const String &nombreCompleto)
+{
+    String temp = nombreCompleto;
+    temp.trim();
+
+    int firstSpace = temp.indexOf(' ');
+    if (firstSpace == -1)
+        return temp;  // solo un nombre
+
+    // Primer nombre
+    String nombre = temp.substring(0, firstSpace);
+
+    // Buscar último espacio para obtener el apellido real
+    int lastSpace = temp.lastIndexOf(' ');
+    String apellido = temp.substring(lastSpace + 1);
+
+    return nombre + " " + apellido;
+}
+
+
+
+/* Ejecuta  transacciones asincronas con la pantalla TFT*/
+void Pantalla_TFT::Task_Handle_TFT_Display(int Timeout)
+{
+
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        DisplayTFT.handleTFT();
+
+        if ((millis() - TimeoutTaskTFT) > Timeout)
+        {
+
+            TimeoutTaskTFT = millis();
+
+            if (!Variables_globales.Get_Variable_Global(Ftp_Mode) && !Variables_globales.Get_Variable_Global(Updating_System))
+            {
+                DisplayTFT.Task_Banner_TFT(480000);
+            }
+
+            if (Variables_globales.Get_Variable_Global(Flag_Update_TFT_Globus_IM))
+            {
+                Variables_globales.Set_Variable_Global(Flag_Update_TFT_Globus_IM, false);
+
+                DisplayTFT.Actualiza_Puntos_TFT_Globus_IM(DisplayTFT.info.Usuario, DisplayTFT.info.Casino, DisplayTFT.NivelUsuario(DisplayTFT.info.Nivel_Usuario), DisplayTFT.info.Total_Fide, DisplayTFT.info.Total_Bole, DisplayTFT.info.Actual_Fide, DisplayTFT.info.Actual_Bole);
+            }
+
+            if (Flag_Recupera)
+            {
+                Flag_Recupera = false;
+
+                if (DisplayTFT.Actualiza_Puntos_TFT_Globus_IM(DisplayTFT.info.Usuario, DisplayTFT.info.Casino, DisplayTFT.NivelUsuario(DisplayTFT.info.Nivel_Usuario), DisplayTFT.info.Total_Fide, DisplayTFT.info.Total_Bole, DisplayTFT.info.Actual_Fide, DisplayTFT.info.Actual_Bole))
+                {
+                }
+
+                StaticJsonDocument<200> doc;
+                doc.clear();
+                String Payload = "";
+                int Intentos_Conexion = 3;
+
+                doc["Opcion"] = DASHBOARD;
+                doc["Message"] = "Existe sesion activa en tarjeta";
+
+                serializeJson(doc, Payload);
+
+                Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+            }
+        }
+    }
+}
+
+bool Pantalla_TFT::Actualiza_Menu_TFT_Globus_IM(int Option)
+{
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<100> doc;
+        doc.clear();
+        String Payload = "";
+        int Intentos_Conexion = 3;
+        int Op;
+        String Msg = "";
+
+        switch (Option)
+        {
+        case DASHBOARD:
+            Msg = "Inicia dashboard por inicio de sesion fidelizacion";
+            Op = Option;
+            break;
+
+        case UI_INIT:
+            Msg = "Inicia Main no existe sesion iniciada";
+            Op = Option;
+            break;
+
+        default:
+            Msg = "Inicia dashboard por inicio de sesion fidelizacion";
+            Op = Option;
+            break;
+        }
+
+        doc["Opcion"] = Op;
+        doc["Message"] = Msg;
+
+        serializeJson(doc, Payload);
+
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+        {
+            IsSuccess = true;
+        }
+        else
+        {
+            IsSuccess = false;
+        }
+    }
+
+    return IsSuccess;
+}
+
+int Pantalla_TFT::NivelUsuario(String Nivel)
+{
+  if (Nivel == "B")
+    return 0;
+  else if (Nivel == "P")
+    return 1;
+  else if (Nivel == "G")
+    return 2;
+  else if (Nivel == "L")
+    return 3;
+  else
+    return 0;
+}
+
+bool Pantalla_TFT::Actualiza_Saldos_TFT_Globus_IM(String Casino, uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable)
+{
+
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<300> doc;
+        doc.clear();
+        String Payload = "";
+
+        /*
+            CASINO
+            SALDO CANJEABLE
+            SALDO SIN RESTRICCION
+            SALDO RESTRINGIDO
+        */
+        doc["Ca"] = LimitarSinCortarPalabras(Casino, 80);
+        doc["SC"] = formatearComoMoneda(Saldo_Canjeable);
+        doc["SR"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+        doc["SNR"] = formatearComoMoneda(Saldo_No_Canjeable);
+        doc["Opcion"] = UPDATE_CASH;
+
+        serializeJson(doc, Payload);
+
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            IsSuccess = true;
+        else
+            IsSuccess = false;
+
+        return IsSuccess;
+    }
+    else
+        return IsSuccess;
+}
+
+bool Pantalla_TFT::Actualiza_Puntos_TFT_Globus_IM(String User_Name, String Casino, int User_Level, float Total_Playertracking_Points, float Total_Points_Tickets, float Current_Playertracking_Points, float Current_Points_Tickets)
+{
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<400> doc;
+        doc.clear();
+        String Payload = "";
+
+        // Serial.println(Total_Points_Tickets);
+        doc["Nc"] = PrimerNombre_UltimoApellido(User_Name);
+        doc["Ca"] = LimitarSinCortarPalabras(Casino, 25);
+        doc["TF"] = Total_Playertracking_Points;
+        doc["TB"] = Total_Points_Tickets;
+        doc["AB"] = Current_Points_Tickets;
+        doc["AF"] = Current_Playertracking_Points;
+        doc["UL"] = User_Level;
+        doc["Opcion"] = UPDATE_POINTS;
+
+        serializeJson(doc, Payload);
+        // Serial.println(Payload);
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            IsSuccess = true;
+        else
+            IsSuccess = false;
+
+        return IsSuccess;
+    }
+    else
+        return IsSuccess;
+}
+
+bool Pantalla_TFT::Cierra_Sesion_Player_Tracking_TFT_Globus_IM(void)
+{
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<100> doc;
+        doc.clear();
+        String Payload = "";
+
+        /*
+        */
+        doc["IsSuccess"] = true;
+        doc["Opcion"] = CLOSE_PLAYER_TRACKING;
+
+        serializeJson(doc, Payload);
+
+        //Serial.println(Payload);
+
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            IsSuccess = true;
+        else
+            IsSuccess = false;
+
+        return IsSuccess;
+    }
+    else
+        return IsSuccess;
+}
+
+bool Pantalla_TFT::Home_TFT_Globus_IM(void)
+{
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<100> doc;
+        doc.clear();
+        String Payload = "";
+
+        doc["IsSuccess"] = true;
+        doc["Opcion"] = UI_INIT;
+
+        serializeJson(doc, Payload);
+
+        //Serial.println(Payload);
+
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            IsSuccess = true;
+        else
+            IsSuccess = false;
+
+        return IsSuccess;
+    }
+    else
+        return IsSuccess;
+}
+
+bool Pantalla_TFT::Cierra_Sesion_Player_Cashless_TFT_Globus_IM(String Casino, uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable)
+{
+    bool IsSuccess = false;
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+        StaticJsonDocument<300> doc;
+        doc.clear();
+        String Payload = "";
+
+        doc["IsSuccess"] = true;
+        doc["Ca"] = LimitarSinCortarPalabras(Casino, 25);
+        doc["SC"] = formatearComoMoneda(Saldo_Canjeable);
+        doc["SR"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+        doc["SNR"] = formatearComoMoneda(Saldo_No_Canjeable);
+        doc["Opcion"] = CLOSE_PLAYER_CASHLESS;
+
+        serializeJson(doc, Payload);
+
+        //Serial.println(Payload);
+
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            IsSuccess = true;
+        else
+            IsSuccess = false;
+
+        return IsSuccess;
+    }
+    else
+        return IsSuccess;
+}
+
+bool Init_Player_TFT(String User_Name, float Total_Playertracking_Points, float Total_Points_Tickets, int User_Level, uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, float Current_Playertracking_Points, float Current_Points_Tickets, int Tipo_Sesion, String Casino)
 {
 
     if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
+
+        bool IsSuccess = false;
         StaticJsonDocument<1024> doc;
         doc.clear();
         String Payload = "";
+        String Payload2 = "";
         int Intentos_Conexion = 3;
 
-        doc["Nombre"] = User_Name;
-        doc["Total_Fide"] = Total_Playertracking_Points;
-        doc["Total_Bole"] = Total_Points_Tickets;
-
-        doc["Actual_Bole"] = Current_Points_Tickets;
-        doc["Actual_Fide"] = Current_Playertracking_Points;
-
-        doc["User_Level"] = User_Level;
-
-        
-
-        doc["Saldo_Canje"] = formatearComoMoneda(Saldo_Canjeable);
-        doc["Saldo_Sin_Restri"] = formatearComoMoneda(Saldo_Sin_Restriccion);
-        doc["Saldo_No_Canje"] = formatearComoMoneda(Saldo_No_Canjeable);
-        doc["Tipo_S"] = Tipo_Sesion;
-        doc["Opcion"] = UPDATE_POINTS;
-
-        serializeJson(doc, Payload);
-
-        for (int i = 0; i < Intentos_Conexion; i++)
+        if (Tipo_Sesion == PLAYER_TRACKING_CASHLESS)
         {
-            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-                return true;
-            else
-                return false;
+            doc["Nc"] = PrimerNombre_UltimoApellido(User_Name);
+            doc["Ca"] = LimitarSinCortarPalabras(Casino, 25);
+            doc["TF"] = Total_Playertracking_Points;
+            doc["TB"] = Total_Points_Tickets;
+            doc["AB"] = Current_Points_Tickets;
+            doc["AF"] = Current_Playertracking_Points;
+            doc["UL"] = User_Level;
+            doc["Ts"] = Tipo_Sesion;
+            doc["Opcion"] = UPDATE_POINTS;
 
-            delay(200);
+            // doc["Saldo_Canje"] = "0";
+            // doc["Saldo_Sin_Restri"] = "0";
+            // doc["Saldo_No_Canje"] = "0";
+
+            serializeJson(doc, Payload);
+
+            // Serial.println(Payload);
+            // Serial.println((Payload.length()));
+
+            for (int i = 0; i < Intentos_Conexion; i++)
+            {
+                if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                    return true;
+
+                vTaskDelay(200);
+            }
+
+            return false;
         }
+        else
+        {
+
+            //Serial.println("Cashlesss");
+
+            /* Informacion ventana cashless  Casino-Saldos */
+            doc["Ca"] = LimitarSinCortarPalabras(Casino, 80);
+            doc["SC"] = formatearComoMoneda(Saldo_Canjeable);
+            doc["SR"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+            doc["SNR"] = formatearComoMoneda(Saldo_No_Canjeable);
+            doc["Ts"] = Tipo_Sesion;
+            doc["Opcion"] = UPDATE_POINTS;
+
+            serializeJson(doc, Payload);
+
+            for (int i = 0; i < Intentos_Conexion; i++)
+            {
+                if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+                    IsSuccess = true;
+                else
+                    IsSuccess = false;
+
+                vTaskDelay(200);
+            }
+            doc.clear();
+
+            /* Informacion ventana  Puntos */
+
+            doc["Nc"] = PrimerNombre_UltimoApellido(User_Name);
+            doc["Ca"] = LimitarSinCortarPalabras(Casino, 25);
+            doc["TF"] = Total_Playertracking_Points;
+            doc["TB"] = Total_Points_Tickets;
+            doc["AB"] = Current_Points_Tickets;
+            doc["AF"] = Current_Playertracking_Points;
+            doc["UL"] = User_Level;
+            doc["Ts"] = Tipo_Sesion;
+            doc["Opcion"] = UPDATE_POINTS;
+
+            serializeJson(doc, Payload2);
+
+            // Serial.println(Payload2);
+            // Serial.println((Payload2.length()));
+
+            for (int i = 0; i < Intentos_Conexion; i++)
+            {
+                if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload2.c_str(), Payload2.length()))
+                    IsSuccess = true;
+                else
+                    IsSuccess = false;
+
+                vTaskDelay(200);
+            }
+        }
+
+        // doc["Tipo_S"] = Tipo_Sesion;
+        // doc["Opcion"] = UPDATE_POINTS;
+
+        // serializeJson(doc, Payload);
+
+        // Serial.println(Payload);
+        // Serial.println((Payload.length()));
+
+        // for (int i = 0; i < Intentos_Conexion; i++)
+        // {
+        //     if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+        //         return true;
+        //     else
+        //         return false;
+
+        //     delay(200);
+        // }
+
+        return IsSuccess;
     }
     else
         return false;
@@ -494,37 +899,27 @@ bool Init_Player_TFT(String User_Name, int Total_Playertracking_Points, int Tota
 
 bool Close_Player_TFT(uint32_t Saldo_Canjeable, uint32_t Saldo_Sin_Restriccion, uint32_t Saldo_No_Canjeable, int Tipo_Sesion)
 {
-
-    DisplayTFT.Reset_Nombre_Cliente();
-
     if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
-        StaticJsonDocument<200> doc;
-
+        StaticJsonDocument<800> doc;
         String Payload = "";
-        int Intentos_Conexion = 3;
-        doc["User_Name"] = "";
-        doc["Playertracking_Points"] = 0;
-        doc["Points_Tickets"] = 0;
-        doc["User_Level"] = 0;
 
-        doc["Saldo_Canje"] = formatearComoMoneda(Saldo_Canjeable);
-        doc["Saldo_Sin_Restri"] = formatearComoMoneda(Saldo_Sin_Restriccion);
-        doc["Saldo_No_Canje"] = formatearComoMoneda(Saldo_No_Canjeable);
+        doc["SC"] = formatearComoMoneda(Saldo_Canjeable);
+        doc["SR"] = formatearComoMoneda(Saldo_Sin_Restriccion);
+        doc["SNR"] = formatearComoMoneda(Saldo_No_Canjeable);
+        doc["Ts"] = Tipo_Sesion; /*0 cashless 1 fidelizacion  Este parametro se utiliza para saber si debe abrir ventana de saldos o no*/
 
-        doc["Tipo_S"] = Tipo_Sesion;
         doc["Opcion"] = CLOSE_PLAYER_TRACKING;
 
         serializeJson(doc, Payload);
 
-        for (int i = 0; i < Intentos_Conexion; i++)
-        {
-            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-                return true;
-            else
-                return false;
-        }
-    }else{
+        if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            return true;
+        else
+            return false;
+    }
+    else
+    {
         return false;
     }
 }
@@ -546,15 +941,47 @@ bool Menssage_TFT(String Message, int timeout, bool IsSuccess)
 
         serializeJson(doc, Payload);
 
-        for (int i = 0; i < Intentos_Conexion; i++)
-        {
-            if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+       
+            if(Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
                 return true;
             else
                 return false;
 
             delay(200);
-        }
+        
+    }else
+        return false;
+
+    return false;
+}
+
+bool Config_Parameter_TFT(uint32_t timeoutSaldos,uint32_t timeoutImagenes,uint32_t timeoutCarrucel_Mensajes,uint32_t timeoutMensajes)
+{
+
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+
+        bool IsSuccess=true;
+        StaticJsonDocument<500> doc;
+        doc.clear();
+        String Payload = "";
+        int Intentos_Conexion = 3;
+
+        doc["timeoutSaldos"] = timeoutSaldos;
+        doc["timeoutImagenes"] = timeoutImagenes;
+        doc["timeoutCarrucel_Mensajes"] = timeoutCarrucel_Mensajes;
+        doc["timeoutMensajes"] = timeoutMensajes;
+
+        doc["IsSuccess"] = IsSuccess;
+        doc["Opcion"] = CONFIG_TFT;
+
+        serializeJson(doc, Payload);
+
+        
+        if(Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            return true;
+        else
+            return false;
     }else
         return false;
 }
@@ -739,22 +1166,37 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingDataPtr, int len)
                 Flag_Update_TFT=false;
             break;
 
-        default:
-            StaticJsonDocument<200> doc;
-            doc.clear();
-            String Payload = "";
-            int Intentos_Conexion = 3;
+        case REFRESH_CONFIG:
+            Config_Parameter_TFT(DisplayTFT.configtft.timeoutSaldosCONFIG,DisplayTFT.configtft.timeoutImagenesCONFIG,DisplayTFT.configtft.timeoutMensajesCONFIG,DisplayTFT.configtft.timeoutMensajesCONFIG);
+            break;
 
-            doc["Opcion"] = COMANDO_NO_IDENTIFICADO;
-            doc["Message"] = "Comando no identificado recibido";
-
-            serializeJson(doc, Payload);
-
-            for (int i = 0; i < Intentos_Conexion; i++)
+        case STATUS_SESION:
+            if ((Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) ||
+                 Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless)))
             {
-                if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-                    break;
+
+                Flag_Recupera=true;
+
+                
             }
+            break;
+
+        default:
+            // StaticJsonDocument<200> doc;
+            // doc.clear();
+            // String Payload = "";
+            // int Intentos_Conexion = 3;
+
+            // doc["Opcion"] = COMANDO_NO_IDENTIFICADO;
+            // doc["Message"] = "Comando no identificado recibido";
+
+            // serializeJson(doc, Payload);
+
+            // for (int i = 0; i < Intentos_Conexion; i++)
+            // {
+            //     if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+            //         break;
+            // }
 
             break;
         }
@@ -931,7 +1373,6 @@ void handleFirmware() {
   }
 }
 
-
 void Init_Server(const char *ssid,const char *password)
 {
 
@@ -944,54 +1385,314 @@ void Init_Server(const char *ssid,const char *password)
     ServerUpdate.begin();
 }
 
-
 void RumUpdateTFT()
 {
     ServerUpdate.handleClient();
 }
 
+void Pantalla_TFT::Task_Banner_TFT(unsigned long Timeout)
+{
 
+    //AFT.STATUS_BA(TransaccionCashless::BA_EN_PROGRESO);
 
+    if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+    {
+        Timeout_Banner_Inicial = millis();
 
-bool ConsultarBanners() { 
-    HTTPClient http;
-    http.begin("http://192.168.5.110:9595/api/pantalla/banner");
-    http.setTimeout(4000);
+        if ((Timeout_Banner_Inicial - Timeout_Banner_Final) >= Timeout)
+        {
 
-    int httpCode = http.GET();
-
-    if (httpCode != 200) {
-        Serial.println("Error consultando banners");
-        http.end();
-        return false;
+            Serial.println(" Desde el task");
+            Timeout_Banner_Final = Timeout_Banner_Inicial;
+            if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && AFT.GET_STATUS_BA() == TransaccionCashless::BA_IDLE)
+            {
+                if (ConsultarBanners())
+                    EnviarBannersPorEspNow();
+            }
+        }
     }
-
-    String payload = http.getString();
-    http.end();
-
-    StaticJsonDocument<4096> doc;
-    DeserializationError err = deserializeJson(doc, payload);
-
-    if (err) {
-        Serial.println("Error parseando JSON");
-        return false;
-    }
-
-    JsonArray arr = doc["Mensajes"];
-    cantidad_mensajes = arr.size();
-
-    mensajes.clear();
-    mensajes.reserve(cantidad_mensajes);
-
-    for (int i = 0; i < cantidad_mensajes; i++) {
-        mensajes.push_back(arr[i].as<String>());
-        Serial.println("Banner recibido:");
-        Serial.println(mensajes[i]);
-    }
-
-    return true;
 }
 
+void Pantalla_TFT::handleTFT(void)
+{
+    if (DisplayTFT.info.Actualiza_Saldos_Iniciales)
+    {
+        Menssage_TFT("La sesión se ha iniciado exitosamente.", DisplayTFT.configtft.timeoutMensajesCONFIG, true);
+        // Serial.println("Actualiza Saldos Iniciales ");
+        DisplayTFT.info.Actualiza_Saldos_Iniciales = false;
+
+        DisplayTFT.Actualiza_Saldos_TFT_Globus_IM(DisplayTFT.info.Casino, DisplayTFT.info.Saldo_Canjeable, DisplayTFT.info.Saldo_No_Restrindigo, DisplayTFT.info.Saldo_Restringido);
+
+        DisplayTFT.Actualiza_Puntos_TFT_Globus_IM(DisplayTFT.info.Usuario, DisplayTFT.info.Casino, DisplayTFT.NivelUsuario(DisplayTFT.info.Nivel_Usuario), DisplayTFT.info.Total_Fide, DisplayTFT.info.Total_Bole, DisplayTFT.info.Actual_Fide, DisplayTFT.info.Actual_Bole);
+    }
+
+    if (DisplayTFT.info.Actualiza_Saldos_Finales)
+    {
+        // Serial.println("Actualiza Saldos Finales ");
+        DisplayTFT.info.Actualiza_Saldos_Finales = false;
+
+        DisplayTFT.Cierra_Sesion_Player_Cashless_TFT_Globus_IM(DisplayTFT.info.Casino, DisplayTFT.info.Saldo_Canjeable, DisplayTFT.info.Saldo_No_Restrindigo, DisplayTFT.info.Saldo_Restringido);
+    }
+
+    if (DisplayTFT.info.Actualiza_Puntos_Iniciales)
+    {
+
+        Menssage_TFT("Sesion iniciada correctamente",DisplayTFT.configtft.timeoutMensajesCONFIG,true);
+        DisplayTFT.info.Actualiza_Puntos_Iniciales = false;
+
+        DisplayTFT.Actualiza_Puntos_TFT_Globus_IM(DisplayTFT.info.Usuario, DisplayTFT.info.Casino, DisplayTFT.NivelUsuario(DisplayTFT.info.Nivel_Usuario), DisplayTFT.info.Total_Fide, DisplayTFT.info.Total_Bole, DisplayTFT.info.Actual_Fide, DisplayTFT.info.Actual_Bole);
+    }
+
+    if (DisplayTFT.info.Actualiza_Puntos_Finales)
+    {
+        Menssage_TFT("Sesion cerrada correctamente",DisplayTFT.configtft.timeoutMensajesCONFIG,true);
+        DisplayTFT.info.Actualiza_Puntos_Finales = false;
+        DisplayTFT.Cierra_Sesion_Player_Tracking_TFT_Globus_IM();
+    }
+}
+
+bool ConsultarBanners(void)
+{
+
+    // Serial.println("Consulta Banner Publicitario");
+    char IP_Server[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+
+    std::string Ip = IP_toString_(IP_Server);
+    String Ip_Server = String(Ip.c_str());
+    String Puerto = "9595";
+    String fwurl = "http://" + Ip_Server + ":" + Puerto + "/api/Fidelizacion/ConsultarMesajesPublicitarios";
+
+    WiFiClient client;
+    HTTPClient http;
+    int httpCode;
+
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(4000);
+
+    if (http.begin(client, fwurl))
+    {
+        httpCode = http.GET();
+
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String payload = http.getString();
+            StaticJsonDocument<1024> doc;
+            DeserializationError err = deserializeJson(doc, payload);
+
+            if (err)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json deserializeJson");
+#endif
+            }
+            else
+            {
+                bool IsSuccess = false;
+
+                IsSuccess = doc["IsSuccess"].as<bool>();
+
+                if (IsSuccess)
+                {
+                    // JsonArray arr = doc["Data"].as<JsonArray>();
+                    // cantidad_mensajes = arr.size();
+
+                    // mensajes.clear();
+                    // mensajes.reserve(cantidad_mensajes);
+
+                    // bool IsSu=false;
+
+                    // for (int i = 0; i < cantidad_mensajes; i++)
+                    // {
+                    //     mensajes.push_back(arr[i].as<String>());
+                    //     // Serial.println("Banner recibido:");
+                    //     // Serial.println(mensajes[i]);
+                    // }
+
+                    JsonArray arr = doc["Data"].as<JsonArray>();
+                    int nuevosCount = arr.size();
+
+                    // --- Detectar cambios ---
+                    bool huboCambio = false;
+
+                    if (mensajes.size() == 0 && nuevosCount > 0)
+                    {
+                        huboCambio = true;
+
+                        // Serial.println("Depppp");
+                    }
+                    else
+                    {
+                        // Si la cantidad es diferente, ya hay cambios
+                        if (nuevosCount != mensajes.size())
+                        {
+                            huboCambio = true;
+                        }
+
+                        // Comparar contenido uno a uno
+                        for (int i = 0; i < nuevosCount && i < mensajes.size(); i++)
+                        {
+                            String nuevo = arr[i].as<String>();
+                            if (nuevo != mensajes[i])
+                            {
+                                huboCambio = true;
+                            }
+                        }
+                    }
+
+                    // --- Actualizar mensajes si hay cambios ---
+                    if (huboCambio)
+                    {
+                        // if (mensajes.size() == 0)
+                        //     Serial.println("Primera actualizacion");
+                        // else
+                        //     Serial.println("Cambio");
+
+                        mensajes.clear();
+                        mensajes.reserve(nuevosCount);
+
+                        for (int i = 0; i < nuevosCount; i++)
+                        {
+                            mensajes.push_back(arr[i].as<String>());
+                        }
+                    }
+                    else
+                    {
+                        http.end();
+                        return false;
+                    }
+
+                    if (huboCambio)
+                    {
+                        http.end();
+                        return true;
+                    }
+                       
+                    else
+                    {
+                        http.end();
+                        return false;
+                    }
+                        
+                }else{
+                    http.end();
+                    return false;
+                }
+            }
+        }else{
+            http.end();
+            return false;
+        }
+    }else{
+        return false;
+    }
+
+    // int httpCode = http.GET();
+
+    // if (httpCode != 200)
+    // {
+    //     Serial.println("Error consultando banners");
+    //     http.end();
+    //     return false;
+    // }
+
+    // String payload = http.getString();
+    // http.end();
+
+    // StaticJsonDocument<4096> doc;
+    // DeserializationError err = deserializeJson(doc, payload);
+
+    // if (err)
+    // {
+    //     Serial.println("Error parseando JSON");
+    //     return false;
+    // }
+
+    // bool IsSuccess = false;
+
+    // IsSuccess = doc["IsSuccess"].as<bool>();
+
+    // if (IsSuccess)
+    // {
+    //     // JsonArray arr = doc["Data"].as<JsonArray>();
+    //     // cantidad_mensajes = arr.size();
+
+    //     // mensajes.clear();
+    //     // mensajes.reserve(cantidad_mensajes);
+
+    //     // bool IsSu=false;
+
+    //     // for (int i = 0; i < cantidad_mensajes; i++)
+    //     // {
+    //     //     mensajes.push_back(arr[i].as<String>());
+    //     //     // Serial.println("Banner recibido:");
+    //     //     // Serial.println(mensajes[i]);
+    //     // }
+
+    //     JsonArray arr = doc["Data"].as<JsonArray>();
+    //     int nuevosCount = arr.size();
+
+    //     // --- Detectar cambios ---
+    //     bool huboCambio = false;
+
+    //     if (mensajes.size() == 0 && nuevosCount > 0)
+    //     {
+    //         huboCambio = true;
+
+    //         // Serial.println("Depppp");
+    //     }
+    //     else
+    //     {
+    //         // Si la cantidad es diferente, ya hay cambios
+    //         if (nuevosCount != mensajes.size())
+    //         {
+    //             huboCambio = true;
+    //         }
+
+    //         // Comparar contenido uno a uno
+    //         for (int i = 0; i < nuevosCount && i < mensajes.size(); i++)
+    //         {
+    //             String nuevo = arr[i].as<String>();
+    //             if (nuevo != mensajes[i])
+    //             {
+    //                 huboCambio = true;
+    //             }
+    //         }
+    //     }
+
+    //     // --- Actualizar mensajes si hay cambios ---
+    //     if (huboCambio)
+    //     {
+    //         // if (mensajes.size() == 0)
+    //         //     Serial.println("Primera actualizacion");
+    //         // else
+    //         //     Serial.println("Cambio");
+
+    //         mensajes.clear();
+    //         mensajes.reserve(nuevosCount);
+
+    //         for (int i = 0; i < nuevosCount; i++)
+    //         {
+    //             mensajes.push_back(arr[i].as<String>());
+    //         }
+    //     }
+    //     else
+    //     {
+    //         // Serial.println("No cambio");
+    //     }
+
+    //     if (huboCambio)
+    //         return true;
+    //     else
+    //         return false;
+    // }
+    // else
+    // {
+    //     return false;
+    // }
+
+    return false;
+}
 
 bool EnviarBannersPorEspNow()
 {
@@ -1006,7 +1707,7 @@ bool EnviarBannersPorEspNow()
         String Payload;
         serializeJson(doc, Payload);
 
-        Serial.println(Payload);
+        //Serial.println(Payload);
 
         if (Payload.length() > 250)
         {
@@ -1023,9 +1724,9 @@ bool EnviarBannersPorEspNow()
         }
     }
 
-    mensajes.clear();
-    mensajes.shrink_to_fit();
-    cantidad_mensajes = 0;
+    // mensajes.clear();
+    // mensajes.shrink_to_fit();
+    // cantidad_mensajes = 0;
 
     return true;
 }
