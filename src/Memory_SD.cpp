@@ -176,7 +176,7 @@ void Init_SD(void)
 
  // formatearSD();
   
-  if(/*SD.begin( SD_ChipSelect, spiRFID, 500000)*/ SD.begin(SD_ChipSelect,SPI))
+  if(/*SD.begin( SD_ChipSelect, spiRFID, 500000)*/ SD.begin(SD_ChipSelect,SPI,500000))
   {
     Serial.println("💾 Memoria SD Inicializada... ✅");
     Variables_globales.Set_Variable_Global(SD_INSERT,true);
@@ -200,7 +200,7 @@ void Init_SD(void)
 
     
 
-    cola_logs = xQueueCreate(5, sizeof(MensajeLog));
+    cola_logs = xQueueCreate(10, sizeof(MensajeLog));
 
     // const char* criticalFiles[] = {
     //     "/Contadores-692025.csv"
@@ -589,7 +589,7 @@ void LOG_ESP(char *ARCHIVO, bool Enable)
         }
         else
         {
-          String Datos = String(Fallo);
+          String Datos = String("");
           myFile2.println(RTC.getTime() + " Error: " + Datos);
           myFile.flush();
           myFile2.close();

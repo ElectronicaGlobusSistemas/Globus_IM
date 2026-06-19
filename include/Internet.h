@@ -3,9 +3,8 @@
 
 #include "ESP32Time.h"
 #include "time.h"
-
 #include "esp_now.h"
-
+#include "esp_wifi.h"
 
 
 extern ESP32Time RTC; // Objeto contiene hora y fecha
@@ -28,7 +27,7 @@ unsigned long Socket_Timeout=0;
 
 unsigned long Counter_ResetSocket=0;
 
-
+extern uint8_t Address_Device_TFT_Display[6];
 String buffer;
 char incomingPacket[258];
 char incomingPacket2[258];
@@ -111,6 +110,7 @@ extern int year_copy;
 
 
 volatile bool flag_ReiniciarEspNow = false;
+volatile bool flag_Disconnected = false;
 
 String reasonToString(uint8_t reason) {
   switch (reason) {
@@ -154,27 +154,44 @@ String reasonToString(uint8_t reason) {
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   switch (event) {
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-
+      WiFi.reconnect();
       if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
       {
-        Serial.println("Stop ESPNOW!");
-        esp_now_deinit();
-        flag_ReiniciarEspNow = true;
+        flag_Disconnected=true;
+        //esp_wifi_set_channel(6, WIFI_SECOND_CHAN_NONE);
+        if(!flag_ReiniciarEspNow)
+        {
+          DisplayTFT.Notify_Now(EVENT_RESET_ESPNOW);
+        }
       }
+
       Serial.print("WiFi desconectado, razón: ");
       Serial.println(info.wifi_sta_disconnected.reason);
       Info_Cashless.Log(RTC,"WIFI_DESCONECTADO",reasonToString(info.wifi_sta_disconnected.reason));
+      
       break;
 
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      if( Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
-      {
+      // if( Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+      // {
 
-        Serial.println("Stop ESPNOW!");
-        esp_now_deinit();
-        flag_ReiniciarEspNow=true;
+      //   Serial.println("Stop ESPNOW!");
+      //   esp_now_deinit();
+      //   flag_ReiniciarEspNow=true;
+      // }
+
+      if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+      {
+        if (flag_Disconnected)
+        {
+          flag_Disconnected = false;
+
+          DisplayTFT.Notify_Now(EVENT_CONEXION_WIFI_ESTAB);
+        }
       }
-    break;
+
+      break;
+
     default:
       break;
   }
@@ -409,9 +426,7 @@ bool Sincroniza_Reloj_RTC_NTP(const char *ntpServer, long gmtOffset, int dayligh
 void CONNECT_WIFI(void)
 {
 
-  WiFi.onEvent(WiFiEvent);
-
-  WiFi.setHostname("Globus-IM-ESP32");
+  
   //-----------------------------------------------------------------------------------------------------------
   // Obtiene direccion IP guardada en Objeto Configuracion
   memcpy(IP_Local, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(IP_Local) / sizeof(IP_Local[0]));
@@ -438,7 +453,10 @@ void CONNECT_WIFI(void)
   // WiFi.persistent(false);
   // WiFi.disconnect(true);   // borra configuración previa
   WiFi.mode(WIFI_MODE_STA);
-  delay(200);
+  delay(100);
+  WiFi.onEvent(WiFiEvent);
+  WiFi.setHostname("Globus-IM-ESP32");
+  
   
 
   pinMode(WIFI_Status, OUTPUT);
@@ -491,7 +509,7 @@ void CONNECT_WIFI(void)
     
     Reset_Config_Intentos_WIFI();
 
-
+    flag_ReiniciarEspNow=false;
     //Sincroniza_Reloj_RTC_NTP(ntpServerOg,gmtOffset_secOg,daylightOffset_secOg,5);
   
   }
@@ -500,6 +518,7 @@ void CONNECT_WIFI(void)
     Serial.print("\nNo se puede conectar a... ");
     Serial.println(SSID_Wifi);
     digitalWrite(WIFI_Status, LOW);
+    flag_ReiniciarEspNow=false;
   }
 }
 
@@ -638,6 +657,7 @@ void RECONECT_WIFI_ESP()
     WL_DISCONNECT_OK=false;
     TIMEOUT_WiFi_CONNECT_2=TIMEOUT_WiFi_CONNECT;
     Info_Cashless.Log(RTC, "ESTADO_WIFI","RECONECTADO: "+SSID_Wifi+"-NIVEL SEÑAL:"+String(WiFi.RSSI()));
+    flag_ReiniciarEspNow=false;
   }
   else
   {

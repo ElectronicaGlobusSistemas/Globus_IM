@@ -19,7 +19,8 @@
 
 
 
-#define TICKET_OUT "0x01"
+
+#define TICKET_OUT_ "0x01"
 
 TaskHandle_t taskHandleTicket = NULL;
 
@@ -1491,7 +1492,7 @@ bool TITO::Updated_Ticket_Counters(String Type_Transaccion)
 {
 
     #define TICKET_IN   "0x00"
-    #define TICKET_OUT  "0x01"
+    //#define TICKET_OUT_  "0x01"
 
     WiFiClient client;
     HTTPClient https;
@@ -1542,7 +1543,7 @@ bool TITO::Updated_Ticket_Counters(String Type_Transaccion)
 
     }
 
-    if(Trans_Tipo==TICKET_OUT)
+    if(Trans_Tipo==TICKET_OUT_)
     {
         Actualiza_Tito_Salidas();
 
@@ -1916,7 +1917,7 @@ bool TITO::Awaiting_Key(unsigned long timeout)
 void TITO::Ticket_Mark_Pending(void)
 {
     String Json;
-    Objeto_Ticket_Out["Trans_Tipo"] = TICKET_OUT;
+    Objeto_Ticket_Out["Trans_Tipo"] = TICKET_OUT_;
     if (Objeto_Ticket_Out["Code"] == 0x00)
         Objeto_Ticket_Out["Codigo"] = 0x40;
     else
@@ -2412,9 +2413,6 @@ bool TITO::Await_Command_70(unsigned long Timeout)
     return IsSuccess;
 }
 
-
-
-
 // --------------------------------------------------------
 // CRC8 estándar usado en SAS – seed=0, polinomio 0x07
 // --------------------------------------------------------
@@ -2573,4 +2571,30 @@ uint64_t TITO::Generate_SEV_Validation_Number(uint32_t sequenceNumber)
         number = number * 10ULL + (uint64_t)V[i];
 
     return number;
+}
+
+void TITO::Print_Configuracion_Tito()
+{
+    Serial.println("---------------------> CONFIGURACION TITO 🎟 <-----------------------------");
+    Serial.print("🌐 Ip Servidor TITO: ");
+    for (int i = 0; i < 4; i++)
+    {
+        Serial.print(Tito.Tito_Config_Manager.IP_Server_Tito[i]);
+        if (i < 3)
+            Serial.print(".");
+    }
+    Serial.println();
+
+    Serial.print("🌐 Puerto Servidor TITO: ");
+    Serial.println(Tito.Tito_Config_Manager.Port_Server_Tito);
+    Serial.print("🆔 Validation System ID: ");
+    Serial.println(Tito.Get_Validacion_System_ID());
+
+    Serial.print("🎟️ TITO:");
+    Serial.println(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket) ? "Habilitado" : "Deshabilitado");
+
+    Serial.print("💵 Cobro con TITO:");
+    Serial.println(Variables_globales.Get_Variable_Global(Descarga_Solo_Tito) ? "Habilitado" : "Deshabilitado");
+
+    Serial.println("---------------------------------------------------------------------------");
 }

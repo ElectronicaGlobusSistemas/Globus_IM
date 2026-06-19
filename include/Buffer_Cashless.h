@@ -7,6 +7,10 @@
 
 using namespace std;
 
+
+#ifndef SERVER_API_H
+#define SERVER_API_H
+
 #define  Info_MQ_AFT 1
 #define   Interroga_Registro 2
 #define  Buffer_registro_Mq_ 3
@@ -228,6 +232,7 @@ class Transsaccion_Cashless
     bool Delete_ACK_Bonus(void);
 
     bool Init_API_Server(void);
+    bool Init_API_Bono(void);
     uint32_t Get_Credit_Number(int Type);
     uint32_t BCDtoUint32(char Credit_To_Load[], int Select);
     uint32_t BCDtoUint32_Pos(char Credit_To_Load[], int Select, int Inicial_Index = 0);
@@ -245,6 +250,9 @@ class Transsaccion_Cashless
     int  Get_Status_AFT_Bonus(int Update_Status=0);
     void Set_Status_AFT_Bonus(int );
 
+    uint32_t BCD4toUint32_New_Prototipo(char *buffer, int startIndex);
+
 };  
 String Token_Generator_Update(String Url);
 bool esMacValida(String mac);
+#endif

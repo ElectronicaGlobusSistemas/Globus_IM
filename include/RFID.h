@@ -43,6 +43,8 @@
 #define SESION_DEFAULT          36 /* No Change Player Cashless*/
 
 
+#define UPDATING_SYS_OTA        50
+
 #define LOAD_TRANSACTION               "C"
 #define DOWNLOAD_TRANSACTION           "D"
 #define INSUFFICIENT_BALANCE          (0x23) /* Valores C,R,NR en 0 */
@@ -60,6 +62,7 @@
 #define NOT_WIFI_CONNECTION           (0x35)
 #define TYPE_MACHINE_NOT_MACTH        (0x36)
 #define COMANDO_NO_IDENTIFICADO       (0x59)
+#define ERROR_DESEALIZE_JSON          (0x61)
 
 
 
@@ -121,7 +124,7 @@ void check_Status_Reader_Polling(void);
 
 void Report_Http_Code(int Code_Http, String Msg="", bool Status=false);
 
-
+void Inicializa_Display_TFT();
 
 std::string IP_toString_(char IP_Char[]);
 String IP_toString_String(char IP_Char[]);
@@ -155,6 +158,8 @@ private:
     bool Enable_Transfer_Load=false;
     bool Enable_Transfer_Download=false;
 
+    bool Enable_Transfer_Especial=false;
+
     bool Handle_Lector_RFID=false;
 
     unsigned long TimeOut_RT=0;
@@ -179,7 +184,19 @@ private:
     unsigned long Timeout_Sesiones_Pendientes_Final=0;
     int Timeout_Sesiones_Pendientes=30000;
 
-    
+    bool SIMULADOR_TRANSACCIONES = false;
+    bool ESTADO_SESION_SIMULADA=false;
+
+    enum EstadoSimuladorCashless
+    {
+        SIM_WAIT_CARGA,
+        SIM_CARGA,
+        SIM_SESION_ACTIVA,
+        SIM_DESCARGA
+    };
+
+    EstadoSimuladorCashless estadoSim = SIM_WAIT_CARGA;
+
 public:
 
     int Info_Client(byte Id_Client[], ESP32Time ,String Type_Transaction=LOAD_TRANSACTION, uint32_t Transaction_ID=0);
@@ -202,7 +219,7 @@ public:
     bool Envia_Sesiones_Unknown(bool Opcion);
     bool enviarTransaccion(const String &json);
 
-
+    bool Status_Transfer_Download_Especial(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client);
     
     bool Ack_Transfer_Pending_Pendiente(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion,char Saldos[15]);
     bool Status_Transfer_Download_Pendiente_AFT(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client, char Saldos[15]);
@@ -239,6 +256,13 @@ public:
     bool Set_Controller_Transfer_Download(bool Enable);
     bool Get_Controller_Transfer_Download(void);
 
+
+    bool Set_Controller_Transfer_Especial(bool Enable);
+    bool Get_Controller_Transfer_Especial(void);
+
+    bool Status_Transfer_Especial(int Code, char Buffer_Transfer[], ESP32Time RTC);
+    void nuevaTransferencia_BDA(const String& json);
+    bool enviarTransaccion_BDA(const String &json);
 
     bool Requerimiento_AFT_6A(int Evento, bool Enable);
 
@@ -301,7 +325,93 @@ public:
     String Get_Hash_Valido_BA(void);
     bool Set_Token_Valido_BA(String Token_Valido,String Hash_Valido);
 
+
+    bool  Simular_Respuesta_Maquina(bool Tipo_Transaccion);
+
+    int  Simular_Falla_Maquina();
+
+    bool Simular_Objeto_Status_Transfer(int Code);
+    bool Simular_Objeto_Status_Transfer_Dowmload();
+    bool Simular_Objeto_Pendiente(int Code,ESP32Time RTC,String Type_Transaccion);
+    bool Simular_Objeto_Status_Transfer_Dowmload(int Code,ESP32Time RTC);
+
+    bool Simular_Carga();
+    bool Simular_Descarga();
+
+    void Simulador_Cashless_Automatico(bool Enable=false);
+
+    const char *EstadoSimuladorToStr(EstadoSimuladorCashless estado)
+    {
+        switch (estado)
+        {
+        case SIM_WAIT_CARGA:
+            return "SIM_WAIT_CARGA";
+        case SIM_CARGA:
+            return "SIM_CARGA";
+        case SIM_SESION_ACTIVA:
+            return "SIM_SESION_ACTIVA";
+        case SIM_DESCARGA:
+            return "SIM_DESCARGA";
+        default:
+            return "SIM_UNKNOWN";
+        }
+    }
+
+    void SetSimulador(EstadoSimuladorCashless New)
+    {
+        estadoSim = New;
+
+        Serial.print("[SIMULADOR] Estado: ");
+        Serial.print(EstadoSimuladorToStr(estadoSim));
+        Serial.print(" -> ");
+        Serial.println(EstadoSimuladorToStr(New));
+    }
+
+    EstadoSimuladorCashless GetSimulador()
+    {
+        return estadoSim;
+    }
+
+    bool Sincroniza_Error_Backend(const String &json);
+
+
 };
+
+
+enum SESSION_CODE
+{
+    SESSION_START  = 0x00,
+    SESSION_UPDATE = 0x01,
+    SESSION_CLOSE  = 0x02,
+    SESSION_RECOVER = 0x03
+};
+
+
+enum EstadoSesion
+{
+    SESION_INDLE,
+    SESION_PROGRESS
+};
+
+
+
+class Fidelizacion
+{
+private:
+    /* data */
+    EstadoSesion Progresso = SESION_INDLE;
+public:
+    bool SesionCliente(int IdClient,SESSION_CODE Code,String Message="");
+     void SetEstadoSesion(
+        EstadoSesion Estado);
+
+    EstadoSesion GetEstadoSesion();
+};
+
+
+
+
+
 void New_Token(void*arg);
 void Resurrect_reader(void);
 void Break_Cashless_Pending(void*arg);

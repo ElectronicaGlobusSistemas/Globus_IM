@@ -430,7 +430,52 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Sesiones_Acumuladas_Sin_Tarjeta:
         return Flag_Sesiones_Acumuladas_Sin_Tarjeta_;
         break;
+
+    case Flag_Simulador_Cashless:
+        return Flag_Simulador_Cashless_;
+        break;
+
+    case Informacion_Rendimiento:
+        return Informacion_Rendimiento_;
+        break;
+
+    case Flag_Update_OTA:
+        return Flag_Update_OTA_;
+        break;
+
+
+    case Flag_Validacion_Creditos_Actuales:
+        return  Flag_Validacion_Creditos_Actuales_;
+        break;
+
+    case Flag_Log_SAS:
+        return Flag_Log_SAS_;
+        break;
+
+    case Flag_Creditos_SAS:
+        return Flag_Creditos_SAS_;
+        break;
+
+
+    case Flag_Contador_Cashable_SAS:
+        return Flag_Contador_Cashable_SAS_;
+        break;
+
+    case Flag_Contador_Restricted_SAS:
+        return Flag_Contador_Restricted_SAS_;
+        break;
+
+
+    case Flag_Contador_NON_Restricted_SAS:
+        return Flag_Contador_NON_Restricted_SAS_;
+        break;
+
+    case Flag_Mode_Descarga:
+        return Flag_Mode_Descarga_;
+        break;
     }
+
+    
 
     return false;
 }
@@ -860,7 +905,50 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Sesiones_Acumuladas_Sin_Tarjeta:
         Flag_Sesiones_Acumuladas_Sin_Tarjeta_=Change_estado;
         break;
+
+    case Flag_Simulador_Cashless:
+        Flag_Simulador_Cashless_=Change_estado;
+        break;
+
+    case Informacion_Rendimiento:
+        Informacion_Rendimiento_=Change_estado;
+        break;
+
+    case Flag_Update_OTA:
+        Flag_Update_OTA_=Change_estado;
+        break;
+
+    case Flag_Validacion_Creditos_Actuales:
+        Flag_Validacion_Creditos_Actuales_=Change_estado;
+        break;
+
+    case Flag_Log_SAS:
+        Flag_Log_SAS_=Change_estado;
+        break;
+
+    case Flag_Creditos_SAS:
+        Flag_Creditos_SAS_=Change_estado;
+        break;
+
+    case Flag_Contador_Cashable_SAS:
+        Flag_Contador_Cashable_SAS_=Change_estado;
+        break;
+
+    case Flag_Contador_Restricted_SAS:
+        Flag_Contador_Restricted_SAS_=Change_estado;
+        break;
+
+    case Flag_Contador_NON_Restricted_SAS:
+        Flag_Contador_NON_Restricted_SAS_=Change_estado;
+        break;
+
+    case Flag_Mode_Descarga:
+        Flag_Mode_Descarga_=Change_estado;
+        break;
     }
+
+
+   
 }
 
 
@@ -1001,7 +1089,18 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Update_TFT_Globus_IM_=false;
     Flag_UI_Init_=false;
     Flag_Sesiones_Acumuladas_Sin_Tarjeta_=false;
-        
+    Flag_Simulador_Cashless_=false;
+    Informacion_Rendimiento_=false;
+    Flag_Update_OTA_=false;
+    Flag_Validacion_Creditos_Actuales_=false;
+    Flag_Log_SAS_=false;
+    Flag_Creditos_SAS_=false;
+
+    Flag_Contador_Cashable_SAS_=false;     
+    Flag_Contador_Restricted_SAS_=false;
+    Flag_Contador_NON_Restricted_SAS_=false;
+    Flag_Mode_Descarga_=false;
+    
 }
 
 String Variables_Globales::Get_Encabezado_Maquina(int Filtro)

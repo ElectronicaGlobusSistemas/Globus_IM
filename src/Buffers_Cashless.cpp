@@ -29,9 +29,23 @@
 
 #include "ESP32FtpServer.h"
 #include "mbedtls/sha1.h"
+#include "TITO.h"
 
+
+
+#define MAQUINA_EN_JUEGO_ 203
+#define VERSION_YA_INSTALADA 204
+#define NO_EXISTE_DISPOSITIVO 205
+#define DISPOSITIVO_NO_CONECTADO 206
+#define ERROR_VERSION 207
+#define SIN_RESPUESTA 208
+#define EXITOSO 200
+
+#define UDATE_VIA_HTTP true
+#define UPDATE_VIA_OTA false
 
 extern DynamicJsonDocument Objeto_Transfer;
+extern DynamicJsonDocument Objeto_Transfer_Download;
 extern bool Solicitud_Carga_Cashless(void);
 
 
@@ -67,7 +81,7 @@ extern bool App;
 extern const char* LogError;
 
 
-
+extern bool Flag_Conexion_TFT;
 
 extern const char* archivo;
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
@@ -130,9 +144,10 @@ extern TaskHandle_t RecepcionRS232;
 extern TaskHandle_t Encuestas;
 extern  TaskHandle_t CommandProcess;
 extern std::vector<String> transaccionesPendientes;
-
+extern TITO Tito;
 
 IPAddress ipDest;
+
 
 std::string IP_toString_A(char IP_Char[])
 {
@@ -544,7 +559,7 @@ char* Transsaccion_Cashless::Get_Trans_ID(void)
 }
 
 
-//AsyncWebServer Server_API(22141);
+AsyncWebServer Server_Bono(22141);
 AsyncWebServer Server_API(9595);
 
 
@@ -700,6 +715,519 @@ String GenerarCodigoSHA1(String texto)
     }
 
     return String(outputHex);
+}
+
+bool Transsaccion_Cashless::Init_API_Bono(void)
+{
+  Server_Bono.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  request->send(200, "text/plain", "BUDA SERVER V1.0");
+  });
+
+   Server_Bono.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/BonoCanje", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+
+    Serial.println("Solicitud recibida");
+
+    
+    int Code=0x100;
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+    
+    bool IsSuccess_Response=false;
+    String Msg;
+
+    if (!json.is<JsonObject>()) {
+
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["IsSuccess"] = Code;
+      jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+      return;
+    }else
+    {
+
+
+      
+
+      ipDest = request->client()->remoteIP();
+
+      if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+      {
+
+
+        if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+          AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
+
+        auto &&data = json.as<JsonObject>();
+        /* Url Generica */
+
+
+        bool IsSuccess = data["IsSuccess"];
+        int Current_Cliente_ID_Server_Int = data["Cliente_ID"];
+        String Type_Trans_Server = data["Trans_Tipo"];
+        uint32_t Cashable_Server = data["Saldo_Canjeable"];
+        uint32_t Restricted_Server = data["Saldo_Restringido"];
+        uint32_t Non_Restricted_Server = data["Saldo_No_Restringido"];
+        uint32_t Trans_ID_Server = data["Trans_ID"];
+        String Data_Time_Response_Server = data["Fecha_Hora"];
+        String Msgg = data["Message"];
+        String Nombre_Cliente = data["Cliente_Nombre"];
+
+        int Cashless_ID = 0;
+
+        Objeto_Transfer["Cashless_ID"]=data["Cashless_ID"];
+        Objeto_Transfer_Download["Cashless_ID"]=data["Cashless_ID"];
+
+        String Cashless_Estado = data["Cashless_Estado"];
+        Objeto_Transfer_Download["Cashless_Estado"] = Cashless_Estado;
+        Objeto_Transfer_Download["Cliente_Nombre"]=Nombre_Cliente;
+        Objeto_Transfer_Download["Message"]=Msgg;
+
+
+
+        String Ip_Tarjeta = data["Ip"];
+        String Key = data["Key"];
+        String Mac = data["MAC"];
+        String Trans_Estado = data["Trans_Estado"];
+        String Tipo_Maq = data["Tipo_Maq"];
+
+        int Year, Month, Day, Hour, Minutes, Seconds;
+        sscanf(Data_Time_Response_Server.c_str(), "%d-%d-%d %d:%d:%d", &Year, &Month, &Day, &Hour, &Minutes, &Seconds);
+
+        Objeto_Transfer["IsSuccess"] = false;
+        Objeto_Transfer["Cliente_ID"] = Current_Cliente_ID_Server_Int;
+        Objeto_Transfer["Trans_Tipo"] = Type_Trans_Server;
+        Objeto_Transfer["Saldo_Canjeable"] = Cashable_Server;
+        Objeto_Transfer["Saldo_Restringido"] = Restricted_Server;
+        Objeto_Transfer["Saldo_No_Restringido"] = Non_Restricted_Server;
+        Objeto_Transfer["Trans_ID"] = Trans_ID_Server;
+        Objeto_Transfer["Fecha_Hora"] = Data_Time_Response_Server;
+        Objeto_Transfer["Message"] = Msgg;
+        Objeto_Transfer["Cliente_Nombre"] = Nombre_Cliente;
+
+        Objeto_Transfer["Cashless_Estado"] = Cashless_Estado;
+        Objeto_Transfer["Ip"] = Ip_Tarjeta;
+        Objeto_Transfer["Key"] = Key;
+        Objeto_Transfer["MAC"] = Mac;
+        Objeto_Transfer["Trans_Estado"] = Trans_Estado;
+        Objeto_Transfer["Tipo_Maq"] = "AFT";
+
+        if (Cashless.Set_Amount_To_Load(Cashable_Server, Restricted_Server, Non_Restricted_Server))
+        {
+          if (Info_Cashless.Set_Controller_Transfer_Especial(true))
+            IsSuccess_Response = true;
+          else
+            IsSuccess_Response = false;
+
+          if (IsSuccess_Response)
+            Msg = "Solicitud Recibida con exito!";
+          else
+            Msg = "Error  en controlador RS232";
+        }
+        else
+        {
+          IsSuccess_Response=false;
+          Msg = "Error en Conversion de saldos";
+
+          if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_RECIBIDA)
+            AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_IDLE);
+        }
+      }else
+      {
+        IsSuccess_Response=false;
+        Msg = "Dispositivo ocupado, ya existe una instancia";
+      }
+
+      jsonDocument["IsSuccess"] = IsSuccess_Response;
+      jsonDocument["Message"] = Msg;
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+
+    }
+    
+  }));
+
+
+
+  Server_Bono.addHandler(new AsyncCallbackJsonWebHandler("/ConfigBA", [](AsyncWebServerRequest* request, JsonVariant& json) 
+  {
+
+    
+    
+    String DataTime = String(RTC.getYear()) + "-" +
+                      String(RTC.getMonth() + 1) + "-" +
+                      String(RTC.getDay()) + " " +
+                      String(RTC.getHour(true)) + ":" +
+                      String(RTC.getMinute()) + ":" +
+                      String(RTC.getSecond());
+
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+    bool IsSuccess = false;
+    String Msg;
+
+    String texto = request->hasHeader("texto") ? request->getHeader("texto")->value() : "";
+    String maqIp = request->hasHeader("maqIp") ? request->getHeader("maqIp")->value() : "";
+    String widget = request->hasHeader("widget") ? request->getHeader("widget")->value() : "";
+    String time = request->hasHeader("time") ? request->getHeader("time")->value() : "";
+    String hashOnline = request->hasHeader("hash") ? request->getHeader("hash")->value() : "";
+
+    String hasInput = texto + "_^_" + maqIp + "_^_" + widget + "_^_" + time;
+    String shaLocal = GenerarCodigoSHA1(hasInput);
+
+    // Serial.println(hashOnline);
+    // Serial.println(shaLocal);
+
+    if (shaLocal.equalsIgnoreCase(hashOnline))
+    {
+
+        //Serial.println("Hash Ok");
+        if (!json.is<JsonObject>())
+        {
+          IsSuccess = false;
+          Msg="Error en los datos recibidos compruebe  la informacion";
+
+
+
+          jsonDocument["IsSuccess"] = IsSuccess;
+          jsonDocument["Message"] = Msg;
+          jsonDocument["Data"] = DataTime;
+
+          String Json;
+          serializeJson(jsonDocument, Json);
+          request->send(200, "application/json", Json);
+          Info_Cashless.Log(RTC, "COMANDO_BA" + ipDest.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
+
+//#ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+//          Serial.println("Json no es un objeto valido");
+//#endif
+
+          return;
+        }
+
+        //Serial.println("Hash Ok2222222222");
+
+        //erial.println("JSON recibido:");
+        // serializeJsonPretty(json, Serial);
+        // Serial.println();
+
+        if(Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless)||Variables_globales.Get_Variable_Global(Flag_Sesion_RFID)|| !Variables_globales.Get_Variable_Global(Comunicacion_Maq)||!Variables_globales.Get_Variable_Global(Enable_Cashless)|| Variables_globales.Get_Variable_Global(Flag_Maquina_Juego_Evento)||Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego))
+        {
+          IsSuccess = false;
+          Msg=" Dispositivo no disponible para la operacion por favor valide el estado de la maquina";
+
+
+
+          jsonDocument["IsSuccess"] = IsSuccess;
+          jsonDocument["Message"] = Msg;
+          jsonDocument["Data"] = DataTime;
+
+          String Json;
+          serializeJson(jsonDocument, Json);
+          request->send(200, "application/json", Json);
+          Info_Cashless.Log(RTC, "COMANDO_BA", ipDest.toString() + " Dispositivo no disponible para la operacion por favor valide el estado de la maquina");
+
+#ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("Json no es un objeto valido");
+
+          
+#endif
+          return;
+        }
+
+        //Serial.println("Hash Ok33333333");
+
+        if (!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+        {
+
+          IsSuccess = false;
+          Msg = "Perdida de comunicacion con la MET";
+
+          jsonDocument["IsSuccess"] = IsSuccess;
+          jsonDocument["Message"] = Msg;
+          jsonDocument["Data"] = DataTime;
+
+          String Json;
+          serializeJson(jsonDocument, Json);
+          request->send(200, "application/json", Json);
+          Info_Cashless.Log(RTC, "COMANDO_BA", ipDest.toString() + " NO HAY COMUNICACION CON LA MET");
+
+#ifdef DEBUG_CONFIG_MODE_TRAMISIONS
+          Serial.println("No hay comunicacion con la MET");
+
+#endif
+          return;
+        }
+
+
+        if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)!=3)
+        {
+          IsSuccess = false;
+          Msg = "Operacion no permitida para este tipo de maquina (NO ES AFT)";
+
+          jsonDocument["IsSuccess"] = IsSuccess;
+          jsonDocument["Message"] = Msg;
+          jsonDocument["Data"] = DataTime;
+
+          String Json;
+          serializeJson(jsonDocument, Json);
+          request->send(200, "application/json", Json);
+          Info_Cashless.Log(RTC, "COMANDO_BA", ipDest.toString() + " Operacion no permitida para este tipo de maquina");
+          return;
+        }
+
+        if (AFT.GET_STATUS_BA() == TransaccionCashless::BA_IDLE && AFT.GET_STATUS_TRANSFER()==TransaccionCashless::TRANS_IDLE)
+        {
+          // AFT.STATUS_BA(TransaccionCashless::BA_RECIBIDA);
+
+
+          //Serial.println("Hash Ok444444444444444444444");
+
+          auto &&data = json.as<JsonObject>();
+
+          if (data.containsKey("Assets") && data.containsKey("ID") && data.containsKey("GUID") && data.containsKey("Deno_Contabilidad") && data.containsKey("Deno_Cashless")) 
+          {
+
+
+            // Serial.println(data["Deno_Contabilidad"].as<float>());
+            // Serial.println(data["Deno_Cashless"].as<float>());
+
+
+            //Serial.println("Hash Ok5555555555555555555555");
+
+            IPAddress ipRemote=request->client()->remoteIP();
+
+            
+            if(ipRemote!=ipDest && ipRemote != IPAddress(0,0,0,0))
+            {
+              NVS.begin("Config_ESP32", false);
+              NVS.putUInt("Ip_BDA",(uint32_t)ipRemote);
+              NVS.end();
+
+              ipDest = ipRemote;
+            }
+
+
+            //Serial.println("Hash Ok66666666666666666666");
+
+            AFT.solicitudBA.ID = data["ID"].as<int>();
+            AFT.solicitudBA.GUID = data["GUID"].as<String>();
+
+            AFT.solicitudBA.Deno_Contabilidad_BUDA = data["Deno_Contabilidad"].as<float>();
+            AFT.solicitudBA.Deno_Cashless_BUDA = data["Deno_Cashless"].as<float>();
+
+            // --- LIMPIAR EL ARRAY COMPLETO ---
+            memset(AFT.solicitudBA.assets, 0, sizeof(AFT.solicitudBA.assets));
+
+            // Obtener lista de assets
+            JsonArray assets = data["Assets"].as<JsonArray>();
+
+            //Serial.println(assets);
+
+            //Serial.println("Hash Ok77777777777777777777");
+
+            if (assets.size() != 8)
+            {
+              //Serial.println("Assets tamaño invalido");
+              IsSuccess = false;
+              Msg = "Assets debe tener 8 digitos";
+              //return;
+            }
+            else
+            {
+              int i = 0;
+              bool error = false;
+              bool allZero = true;
+
+              for (JsonVariant v : assets)
+              {
+                // 1. Validar tipo
+                if (!v.is<const char *>())
+                {
+                  //Serial.println("Asset no es string");
+                  Msg = "Asset no es string";
+                  error = true;
+                  break;
+                }
+
+                const char *c = v.as<const char *>();
+
+                // 2. Validar NULL
+                if (c == nullptr)
+                {
+                  //Serial.println("Asset NULL");
+
+                  Msg = "Asset NULL";
+                  error = true;
+                  break;
+                }
+
+                // 3. Validar longitud (debe ser 1)
+                if (strlen(c) != 1)
+                {
+                  //Serial.println("Asset longitud invalida");
+                  Msg = "Asset longitud invalida";
+                  error = true;
+                  break;
+                }
+
+                // 4. Validar que sea dígito
+                if (!isdigit(c[0]))
+                {
+                  //Serial.println("Asset no es digito");
+                  Msg = "Asset no es digito";
+                  error = true;
+                  break;
+                }
+
+                // 5. Validar overflow
+                if (i >= sizeof(AFT.solicitudBA.assets))
+                {
+                  //Serial.println("Overflow de assets");
+                  Msg = "Overflow de assets";
+                  error = true;
+                  break;
+                }
+
+                AFT.solicitudBA.assets[i++] = c[0];
+
+                if (c[0] != '0')
+                {
+                  allZero = false;
+                }
+              }
+
+              if (error)
+              {
+                IsSuccess = false;
+                // return;
+              }
+              else if (allZero)
+              {
+                //Serial.println("Assets todos en cero");
+                IsSuccess = false;
+                Msg = "Monto invalido (todos los digitos en cero)";
+              }
+              else
+              {
+
+                for (int i = 0; i < 4; i++)
+                {
+                  uint8_t high = assets[i * 2].as<int>();
+                  uint8_t low = assets[(i * 2) + 1].as<int>();
+
+                  AFT.solicitudBA.Amount[i] = (high << 4) | low;
+                }
+
+                AFT.solicitudBA.count = i;
+                AFT.solicitudBA.pendiente = true;
+
+                IsSuccess = true;
+                Msg = "Solicitud recibida correctamente";
+
+                uint8_t BonusBCD[4];
+
+                
+              }
+
+              // int i = 0;
+
+              // // --- COPIAR EXACTAMENTE COMO LO PIDES ---
+              // for (JsonVariant v : assets)
+              // {
+              //   const char *c = v.as<const char *>();
+              //   AFT.solicitudBA.assets[i++] = c[0]; // copiando solo el primer char
+              // }
+
+              // AFT.solicitudBA.count = i;
+
+              // AFT.solicitudBA.pendiente = true;
+
+              // IsSuccess = true;
+              // Msg = "Solicitud recibida correctamente";
+            }
+          }
+          else
+          {
+            IsSuccess = false;
+            Msg = "Falta uno o mas parametros para procesar la solicitud";
+            // AFT.STATUS_BA(TransaccionCashless::BA_RECIBIDA);
+          }
+        }
+        else
+        {
+          IsSuccess = false;
+          Msg = "Dispositivo ocupado para procesar la solicitud";
+
+          IPAddress ipRemote = request->client()->remoteIP();
+
+          if (ipRemote != ipDest && ipRemote != IPAddress(0, 0, 0, 0))
+          {
+            NVS.begin("Config_ESP32", false);
+            NVS.putUInt("Ip_BDA", (uint32_t)ipRemote);
+            NVS.end();
+
+            ipDest = ipRemote;
+          }
+        }
+    }
+    else
+    {
+        IsSuccess = false;
+        Msg = "Hash no compatible para procesar la solicitud";
+    }
+
+
+
+    //Serial.println("Hash Ok888888888888888888888");
+    
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Data"] = DataTime;
+
+    String Json;
+    serializeJson(jsonDocument, Json);
+    request->send(200, "application/json", Json);
+
+    Info_Cashless.Log(RTC, "COMANDO_BA", ipDest.toString() + " " + Msg);
+
+  }));
+
+  Server_Bono.on("/Borrar_Archivo_BA", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+    static DynamicJsonDocument doc(256);
+    doc.clear();
+
+    bool eliminado = false;
+    bool renombrado = false;
+
+    // Eliminar fifo.txt si existe
+    if (SPIFFS.exists("/fifo.txt"))
+    {
+        eliminado = SPIFFS.remove("/fifo.txt");
+    }
+
+    // Renombrar fifo.tmp a fifo.txt si existe
+    if (SPIFFS.exists("/fifo.tmp"))
+    {
+        renombrado = SPIFFS.remove("/fifo.tmp");
+    }
+
+    doc["IsSuccess"] = (eliminado || renombrado);
+
+    String response;
+    serializeJson(doc, response);
+
+    request->send(200, "application/json", response);
+  });
+
+  Server_Bono.begin();
+  return true;
 }
 
 bool Transsaccion_Cashless::Init_API_Server(void)
@@ -1690,8 +2218,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     }
     Consulta_Info_Cashless();
     delay(350);
-    
 
+    
     AFT_Game_Lock = String(Hex_Ascci_HIGH(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[7])) + String(Hex_Ascci_LOW(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[7]));
     Asset_Number = String(Hex_Ascci_HIGH(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[3])) +
                    String(Hex_Ascci_LOW(Buffer_Cashless.Get_RX_AFT(Info_MQ_AFT)[3])) +
@@ -2322,10 +2850,19 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     bool IsSuccess=false;
     String Msg;
 
+    Creditos_Machine();
+    delay(250);
+    int Creditos_Actuales_Maq = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24));
+
+
     if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
       IsSuccess = false;
       Msg = "No hay comunicacion con la MET";
+    } else if(Creditos_Actuales_Maq>10)
+    {
+      IsSuccess = false;
+      Msg = "No se puede cerrar la sesion porque los creditos actuales son mayores que 10";
     }
     else
     {
@@ -2757,8 +3294,6 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   /* Metodo Web para habilitar el cobro por modulo TITO */
   Server_API.on("/Evento_57_Tito_Habilitado",HTTP_GET, [](AsyncWebServerRequest *request){
     
-    
-
     if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<4||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17)
     {
       StaticJsonDocument<500> jsonDocument;
@@ -3150,6 +3685,115 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/Ticket.txt", "text/plain", true);
     response->addHeader("Txt", "Transferencias Pendientes");
     request->send(response);
+  });
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/TITO/Configuracion_Servidor", [](AsyncWebServerRequest *request, JsonVariant &json)
+                                                        {
+    StaticJsonDocument<300> jsonDocument;
+
+            // Validar JSON
+    if (!json.is<JsonObject>())
+    {
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "JSON invalido";
+
+      String response;
+      serializeJson(jsonDocument, response);
+
+      request->send(200, "application/json", response);
+      return;
+    }
+
+    JsonObject data = json.as<JsonObject>();
+
+    // Validar keys
+    if (!data.containsKey("Puerto") ||
+        !data.containsKey("Ip_Servidor"))
+    {
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "Faltan parametros";
+
+      String response;
+      serializeJson(jsonDocument, response);
+
+      request->send(200, "application/json", response);
+      return;
+    }
+
+    uint16_t Puerto = data["Puerto"].as<uint16_t>();
+    String Ip_Servidor = data["Ip_Servidor"].as<String>();
+
+    uint8_t ip[4];
+
+    // Validar IP
+    if (sscanf(Ip_Servidor.c_str(),
+               "%hhu.%hhu.%hhu.%hhu",
+               &ip[0],
+               &ip[1],
+               &ip[2],
+               &ip[3]) != 4)
+    {
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "IP invalida";
+
+      String response;
+      serializeJson(jsonDocument, response);
+
+      request->send(200, "application/json", response);
+      return;
+    }
+
+    // Mostrar IP
+    Serial.printf("IP: %d.%d.%d.%d\n",
+                  ip[0],
+                  ip[1],
+                  ip[2],
+                  ip[3]);
+
+    Serial.printf("Puerto: %u\n", Puerto);
+
+    // Guardar en NVS
+    NVS.begin("Config_ESP32", false);
+
+    NVS.putUInt("Tito_Port", Puerto);
+    NVS.putBytes("Tito_IP", ip, sizeof(ip));
+
+    NVS.end();
+
+    // Actualizar variables en RAM
+    memcpy(Tito.Tito_Config_Manager.IP_Server_Tito,
+           ip,
+           sizeof(ip));
+
+    Tito.Tito_Config_Manager.Port_Server_Tito = Puerto;
+
+    jsonDocument["IsSuccess"] = true;
+    jsonDocument["Message"] = "Configuracion guardada correctamente";
+    jsonDocument["Puerto"] = Tito.Tito_Config_Manager.Port_Server_Tito;
+    jsonDocument["Tito_IP"] = IP_toString_Ip((char*)Tito.Tito_Config_Manager.IP_Server_Tito);  
+
+    String response;
+    serializeJson(jsonDocument, response);
+
+    request->send(200, "application/json", response); 
+  }));
+
+  Server_API.on("/api/TITO/Informacion_Configuracion", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<200> jsonDocument;
+    jsonDocument.clear();
+
+    jsonDocument["IsSuccess"] = true;
+    jsonDocument["Message"]="Informacion generada correctamente";
+    jsonDocument["Enable_Tito"]=Variables_globales.Get_Variable_Global(Enable_Tito_Ticket);
+    jsonDocument["Cobro_Tito"]=Variables_globales.Get_Variable_Global(Enable_Cashless);
+    
+    jsonDocument["Puerto"] = Tito.Tito_Config_Manager.Port_Server_Tito;
+    jsonDocument["Tito_IP"] = IP_toString_Ip((char*)Tito.Tito_Config_Manager.IP_Server_Tito); 
+
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json); 
   });
 
   /* Metodo Web configura la expiracion de ticket */
@@ -3550,6 +4194,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
     {
 
+
+      
+
       IsSuccess=true;
       if (AFT.GET_STATUS_TRANSFER()==TransaccionCashless::TRANS_TIMEOUT)
       {
@@ -3635,6 +4282,34 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         //   break;
         // }
       }
+    }
+    else
+    {
+      IsSuccess = false;
+      Msg = "No hay comunicacion con la MET";
+    }
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Status"] = status_code;
+    jsonDocument["Message"] = Msg;
+    //jsonDocument["Desc"] = "Reset Globus IM ESP32 procesado";
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    delay(1000);
+  });
+
+
+  Server_API.on("/Desbloqueo_Transaccion_en_progreso",HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<500> jsonDocument;
+    jsonDocument.clear();
+    bool IsSuccess=false;
+    String Msg="";
+    int status_code=AFT.GET_STATUS_TRANSFER();
+
+    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+    {
+      App=true;
     }
     else
     {
@@ -4072,110 +4747,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   }));
 
 
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/BonoCanje", [](AsyncWebServerRequest* request, JsonVariant& json) {
-
-    
-    int Code=0x100;
-    StaticJsonDocument<200> jsonDocument;
-    jsonDocument.clear();
-    
-    bool IsSuccess_Response=false;
-    String Msg;
-
-    if (!json.is<JsonObject>()) {
-
-      jsonDocument["IsSuccess"] = false;
-      jsonDocument["IsSuccess"] = Code;
-      jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
-      String Json;
-      serializeJson(jsonDocument, Json); /* Serializa Data */
-      request->send(200, "application/json", Json);
-
-      return;
-    }else
-    {
-
-      if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
-      {
-
-
-        if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
-          AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
-
-        auto &&data = json.as<JsonObject>();
-        /* Url Generica */
-
-        bool IsSuccess = data["IsSuccess"];
-        int Current_Cliente_ID_Server_Int = data["Cliente_ID"];
-        String Type_Trans_Server = data["Trans_Tipo"];
-        uint32_t Cashable_Server = data["Saldo_Canjeable"];
-        uint32_t Restricted_Server = data["Saldo_Restringido"];
-        uint32_t Non_Restricted_Server = data["Saldo_No_Restringido"];
-        uint32_t Trans_ID_Server = data["Trans_ID"];
-        String Data_Time_Response_Server = data["Fecha_Hora"];
-        String Msgg = data["Message"];
-        String Nombre_Cliente = data["Cliente_Nombre"];
-
-        int Cashless_ID = 0;
-        String Cashless_Estado = data["Cashless_Estado"];
-        String Ip_Tarjeta = data["Ip"];
-        String Key = data["Key"];
-        String Mac = data["MAC"];
-        String Trans_Estado = data["Trans_Estado"];
-        String Tipo_Maq = data["Tipo_Maq"];
-
-        int Year, Month, Day, Hour, Minutes, Seconds;
-        sscanf(Data_Time_Response_Server.c_str(), "%d-%d-%d %d:%d:%d", &Year, &Month, &Day, &Hour, &Minutes, &Seconds);
-
-        Objeto_Transfer["IsSuccess"] = false;
-        Objeto_Transfer["Cliente_ID"] = Current_Cliente_ID_Server_Int;
-        Objeto_Transfer["Trans_Tipo"] = Type_Trans_Server;
-        Objeto_Transfer["Saldo_Canjeable"] = Cashable_Server;
-        Objeto_Transfer["Saldo_Restringido"] = Restricted_Server;
-        Objeto_Transfer["Saldo_No_Restringido"] = Non_Restricted_Server;
-        Objeto_Transfer["Trans_ID"] = Trans_ID_Server;
-        Objeto_Transfer["Fecha_Hora"] = Data_Time_Response_Server;
-        Objeto_Transfer["Message"] = Msgg;
-        Objeto_Transfer["Cliente_Nombre"] = Nombre_Cliente;
-
-        Objeto_Transfer["Cashless_Estado"] = Cashless_Estado;
-        Objeto_Transfer["Ip"] = Ip_Tarjeta;
-        Objeto_Transfer["Key"] = Key;
-        Objeto_Transfer["MAC"] = Mac;
-        Objeto_Transfer["Trans_Estado"] = Trans_Estado;
-        Objeto_Transfer["Tipo_Maq"] = "AFT";
-
-        if (Cashless.Set_Amount_To_Load(Cashable_Server, Restricted_Server, Non_Restricted_Server))
-        {
-          Solicitud_Carga_Cashless();
-
-          IsSuccess_Response = true;
-          Msg = "Solicitud Recibida con exito!";
-        }
-        else
-        {
-          IsSuccess_Response=false;
-          Msg = "Error en Conversion de saldos";
-
-          if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_RECIBIDA)
-            AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_IDLE);
-        }
-      }else
-      {
-        IsSuccess_Response=false;
-        Msg = "Dispositivo ocupado, ya existe una instancia";
-      }
-
-      jsonDocument["IsSuccess"] = IsSuccess_Response;
-      jsonDocument["Message"] = Msg;
-
-      String Json;
-      serializeJson(jsonDocument, Json); /* Serializa Data */
-      request->send(200, "application/json", Json);
-
-    }
-    
-  }));
+ 
 
 
   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/Solicitud_Reset_Handpay", [](AsyncWebServerRequest* request, JsonVariant& json) {
@@ -4199,7 +4771,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       serializeJson(jsonDocument, Json); /* Serializa Data */
       request->send(200, "application/json", Json);
       Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
-      
+      DisplayTFT.Mensaje_TFT(
+        "[Operador App]\nLa informacion recibida no es valida para la solicitud\n"
+        "Por favor verifique",
+        true);
       return;
 
     }else
@@ -4220,6 +4795,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         serializeJson(jsonDocument, Json); /* Serializa Data */
         request->send(200, "application/json", Json);
         Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "NO_EXISTE_ID_OPERADOR");
+
+        DisplayTFT.Mensaje_TFT(
+        "[Operador App]\nNo existe tarjeta operador\n"
+        "Por favor verifique",
+        true);
         return; 
       }else
       {
@@ -4281,25 +4861,66 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       Status_Barra(TARJETA_OPERADOR_INSERT);
     Reset_Handle_LED();
 
+    
+
     if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
     {
 
       if (Variables_globales.Get_Variable_Global(Reset_Handpay_in_Process))
       {
+
+        StaticJsonDocument<200> jsonDocument;
+        jsonDocument.clear();
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Data"] = nullptr;
+        jsonDocument["Ack"] = nullptr;
+        jsonDocument["Ip"] = IP_toString_(Current_IP);
+        jsonDocument["Message"] = "Dispositivo Ocupado  Reset Handpay en proceso";
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+
+        Variable_Solicitud_Operador_Id=false;
         Info_Cashless.Log(RTC, "COMANDO_RESET_HANDPAY_RECIBIDO "+ipCliente.toString(), "RESET_HANDPAY_EN_PROCESO");
+
         return;
       }
       else
       {
+
+
+        DisplayTFT.Mensaje_TFT(
+        "[Operador App]\nVerificando condicion de pago..\n"
+        "Por favor espere..",
+        false);
+        
         Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
 
-        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
+        if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15||Variables_globales.Get_Variable_Global(Flag_Validacion_Creditos_Actuales))
         {
-          Handle_Encuesta = true;
+
+          if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 18)
+            Handle_Encuesta = true;
           delay(10);
           digitalWrite(Unlock_Machine, LOW);
           delay(250);
           digitalWrite(Unlock_Machine, HIGH);
+
+          unsigned long Timout_Break_Response_;
+          int Stop_Transaccion_Amount_Response_ = 7000; // Tiempo de espera en milisegundos (10 Seg MAX)
+          Timout_Break_Response_ = millis();
+
+          delay(10);
+          Variables_globales.Set_Variable_Global(Flag_Contadores_Sesion_ON,true);
+
+          while (millis() - Timout_Break_Response_ < Stop_Transaccion_Amount_Response_)
+          {
+            if(contadores.Get_Status_Flag_Premio())
+              break;
+
+            esp_task_wdt_reset();
+            vTaskDelay(150);
+          }
         }
         else
         {
@@ -4311,7 +4932,6 @@ bool Transsaccion_Cashless::Init_API_Server(void)
           if (Creditos_Actuales <= 0)
           {
             /* No hay condición de reset */
-
             //Serial.println("Maquina no en condicion de pago..... ");
             Ack = 0x01;
             contadores.Close_ID_Operador();
@@ -4319,7 +4939,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
             Status_Barra(ERROR_RESET_HANDPAY);
             Reset_Handle_LED();
             Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
-            
+
+            DisplayTFT.Mensaje_TFT("[Operador App]\nNo existe condicion de pago creditos en 0",true);
           }
 
           else if (Creditos_Actuales > 0)
@@ -4374,6 +4995,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
                 Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true); /* Inicia Timer Operador */
                 Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
                 Handle_Encuesta = false;
+
+                DisplayTFT.Mensaje_TFT(
+                    "[Operador App]\nPremio destildado correctamente\n"
+                    "Actualizando contadores....",
+                    true);
               }
 
               /* Si la maquina no comunica en medio del proceso se cancela */
@@ -4386,6 +5012,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
                 contadores.Close_ID_Operador();
                 Handle_Encuesta = false;
                 Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+
+                DisplayTFT.Mensaje_TFT(
+                    "[Operador App]\nNo se pudo destildar el premio\n"
+                    "Verifique la conexion o estado de la maquina",
+                    true);
               }
 
               if (!Handle_Encuesta)
@@ -4413,6 +5044,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
               contadores.Close_ID_Operador();
               Handle_Encuesta = false;
               Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, false);
+
+              DisplayTFT.Mensaje_TFT(
+                  "[Operador App]\nNo se pudo destildar el premio\n"
+                  "Verifique la conexion o estado de la maquina",
+                  true);
             }
           }
         }
@@ -4478,9 +5114,16 @@ bool Transsaccion_Cashless::Init_API_Server(void)
       request->send(200, "application/json", Json);
 
       Variable_Solicitud_Operador_Id=false;
+      Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process,false);
+
     }
     else
     {
+
+      DisplayTFT.Mensaje_TFT(
+        "[Operador App]\nVerificando condicion de pago..\n"
+        "Por favor espere..",
+        false);
 
       unsigned long Timout_Break;
       int Stop_Transaccion = 5000; // Tiempo de espera en milisegundos (10 Seg MAX)
@@ -4516,6 +5159,12 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         Reset_Handle_LED();
         Ack=0x00;
         Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true);
+
+        DisplayTFT.Mensaje_TFT(
+            "[Operador App]\nPremio destildado correctamente\n"
+            "Actualizando contadores....",
+            true);
+
         break;
       case 0x01: /*No existe condición de reset*/
         /* Guarda ID Operador */
@@ -4527,6 +5176,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
           Status_Barra(ERROR_RESET_HANDPAY);
         Reset_Handle_LED();
         Ack=0x01;
+
+        DisplayTFT.Mensaje_TFT("[Operador App]\nNo se pudo destildar el premio\n Por favor Revise conexion o estado de la maquina",true);
+
         break;
       case 0x02: /*Imposible realizar reset*/
         contadores.Close_ID_Operador();
@@ -4539,6 +5191,8 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         Reset_Handle_LED();
 
         Ack=0x02;
+
+        DisplayTFT.Mensaje_TFT("[Operador App]\nLa maquina no tiene premio pendiente\n Por favor Verifique condicion de pago",true);
         break;
       case 0x04: /* No  hay respuesta de la maquina*/
         //Transmite_Confirmacion('C', '4');
@@ -4549,6 +5203,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         Reset_Handle_LED();
         Variables_globales.Set_Variable_Global(MARCA_OPERADOR_VALIDO, true);
         Ack=0x04;
+
+        DisplayTFT.Mensaje_TFT(
+            "[Operador App]\nNo se pudo destildar el premio\n"
+            "Verifique la conexion o estado de la maquina",
+            true);
         break;
 
       default:
@@ -4556,6 +5215,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
         Variables_globales.Set_Variable_Global_Char(Reset_Handay_OK, 0x04);
         Reset_Handle_LED();
         Ack=0x04;
+
+        DisplayTFT.Mensaje_TFT(
+            "[Operador App]\nNo se pudo destildar el premio\n"
+            "Verifique la conexion o estado de la maquina",
+            true);
         break;
       }
 
@@ -5598,7 +6262,9 @@ bool Transsaccion_Cashless::Init_API_Server(void)
           Permitir_Ultima_Actualizacion = true;
       }
 
-      Variables_globales.Set_Variable_Global(Flag_Update_TFT_Globus_IM, true);
+
+      DisplayTFT.Notify_Now(EVENT_ACTUALIZA_PUNTOS);
+      //Variables_globales.Set_Variable_Global(Flag_Update_TFT_Globus_IM, true);
 
       String Json;
       serializeJson(jsonDocument, Json);
@@ -5606,6 +6272,67 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     }
  
   }));
+
+
+
+  Server_API.on("/api/Fidelizacion/Consulta_Informacion_Puntos", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    if(Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
+      StaticJsonDocument<500> jsonDocument;
+      jsonDocument.clear();
+
+
+
+      if(!(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless)))
+      {
+        jsonDocument["IsSuccess"] = false;
+        jsonDocument["Message"] = "Dispositivo no tiene una sesión activa";
+        jsonDocument["Cliente_Nombre"] = DisplayTFT.info.Usuario;
+        jsonDocument["Casino"] = DisplayTFT.info.Casino;
+        jsonDocument["Deno_Cashless"] = DisplayTFT.info.DenoCashless;
+        jsonDocument["Total_Fide"] = DisplayTFT.info.Total_Fide;
+        jsonDocument["Total_Bole"] = DisplayTFT.info.Total_Bole;
+        jsonDocument["Nivel_Usuario"] = DisplayTFT.info.Nivel_Usuario;
+        jsonDocument["Actual_Fide"] = DisplayTFT.info.Actual_Fide;
+        jsonDocument["Actual_Bole"] = DisplayTFT.info.Actual_Bole;
+
+        String Json;
+        serializeJson(jsonDocument, Json); /* Serializa Data */
+        request->send(200, "application/json", Json);
+
+        Info_Cashless.Log(RTC,"COMANDO_CONSULTA_INFORMACION_PUNTOS_FIDELIZACION_RECIBIDO","El dispositivo no tiene sesión activa");
+        return;
+      }
+    
+      jsonDocument["IsSuccess"] = true;
+      jsonDocument["Message"] = "Consulta realizada con exito";
+      jsonDocument["Cliente_Nombre"] = DisplayTFT.info.Usuario;
+      jsonDocument["Casino"] = DisplayTFT.info.Casino;
+      jsonDocument["Deno_Cashless"] = DisplayTFT.info.DenoCashless;
+      jsonDocument["Total_Fide"] = DisplayTFT.info.Total_Fide;
+      jsonDocument["Total_Bole"] = DisplayTFT.info.Total_Bole;
+      jsonDocument["Nivel_Usuario"] = DisplayTFT.info.Nivel_Usuario;
+      jsonDocument["Actual_Fide"] = DisplayTFT.info.Actual_Fide;
+      jsonDocument["Actual_Bole"] = DisplayTFT.info.Actual_Bole;
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+    }
+    else
+    {
+      StaticJsonDocument<200> jsonDocument;
+      jsonDocument.clear();
+      jsonDocument["IsSuccess"] = false;
+      jsonDocument["Message"] = "No existe dispositivo sincronizado";
+
+      String Json;
+      serializeJson(jsonDocument, Json); /* Serializa Data */
+      request->send(200, "application/json", Json);
+    }
+  });
 
   Server_API.on("/api/Fidelizacion/Desincro_TFT_Display", HTTP_GET, [](AsyncWebServerRequest *request)
   {
@@ -6094,89 +6821,218 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
   }));
 
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/Update_Firmware_TFT", [](AsyncWebServerRequest* request, JsonVariant& json)
-  {
+  // Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/Update_Firmware_TFT", [](AsyncWebServerRequest* request, JsonVariant& json)
+  // {
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+
+  //   bool IsSuccess = false;
+  //   String Message = "";
+
+  //   if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+  //   {
+
+  //     auto &&data = json.as<JsonObject>();
+
+  //     if(data.containsKey("Url") &&data.containsKey("Api_Token")&& data.containsKey("Api_Bin")&&data.containsKey("Api_Respuesta"))
+  //     {
+  //       String Url = data["Url"].as<String>();
+  //       String Api_Token = data["Api_Token"].as<String>();
+  //       String Api_Bin = data["Api_Bin"].as<String>();
+  //       String Api_Respuesta = data["Api_Respuesta"].as<String>();
+  //       String Version_Programa = data["Version_Act"].as<String>();
+  //       String Api_Version = data["Api_Version"].as<String>();
+
+  //       String SSID_Wifi = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+  //       String Password_Wifi = Configuracion.Get_Configuracion(Password, "Password_red");
+
+  //       StaticJsonDocument<200> doc;
+  //       doc.clear();
+  //       String Payload = "";
+  //       int Intentos_Conexion = 3;
+
+  //       doc["Opcion"] = UPDATE_TFT;
+  //       doc["Ssid"] = SSID_Wifi;
+  //       doc["password"] = Password_Wifi;
+  //       doc["Url"] = Url;
+        
+
+  //       // doc["Api_Token"] = Api_Token;
+  //       // doc["Api_Bin"] = Api_Bin;
+  //       // doc["Api_Respuesta"] = Api_Respuesta;
+  //       // doc["Version_Act"] = Version_Programa;
+  //       // doc["Api_Version"] = Api_Version;
+
+  //       doc["Message"] = "Comando de actualizacion de pantalla TFT";
+
+  //       serializeJson(doc, Payload);
+
+  //       Serial.println("Comando de solicitud de actualizacion TFT recibida");
+  //       Serial.println(Payload);
+
+  //       for (int i = 0; i < Intentos_Conexion; i++)
+  //       {
+  //         if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+  //           break;
+  //       }
+
+  //       if (Await_ms(get_Flag_Update_TFT, 1000))
+  //         IsSuccess = true;
+  //       else
+  //         IsSuccess = false;
+
+  //       if (IsSuccess)
+  //         Message = "Pantalla TFT conectada a " + SSID_Wifi;
+  //       else
+  //         Message = "Sin respuesta de la pantalla TFT";
+  //     }else{
+  //       IsSuccess = false;
+  //       Message = "Falta uno o mas parametros para la solicitud";
+  //     }
+  //   }
+  //   else
+  //   {
+  //     IsSuccess = false;
+  //     Message = "No existe pantalla TFT Sincronizada";
+  //   }
+
+  //   jsonDocument["IsSuccess"] = IsSuccess;
+  //   jsonDocument["Message"] = Message;
+
+  //   String Json;
+  //   serializeJson(jsonDocument, Json); /* Serializa Data */
+  //   request->send(200, "application/json", Json);
+  // }));
+
+  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/Update_Firmware_TFT", [](AsyncWebServerRequest *request, JsonVariant &json)
+                                                        {
     StaticJsonDocument<200> jsonDocument;
     jsonDocument.clear();
 
     bool IsSuccess = false;
     String Message = "";
+    int Codigo;
 
-    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+    String VersionTFT;
+    
+    if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
     {
 
-      auto &&data = json.as<JsonObject>();
-
-      if(data.containsKey("Url") &&data.containsKey("Api_Token")&& data.containsKey("Api_Bin")&&data.containsKey("Api_Respuesta"))
+      if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) || Variables_globales.Get_Variable_Global(Flag_Sesion_Cashless))
       {
-        String Url = data["Url"].as<String>();
-        String Api_Token = data["Api_Token"].as<String>();
-        String Api_Bin = data["Api_Bin"].as<String>();
-        String Api_Respuesta = data["Api_Respuesta"].as<String>();
-        String Version_Programa = data["Version_Act"].as<String>();
-        String Api_Version = data["Api_Version"].as<String>();
 
-        String SSID_Wifi = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
-        String Password_Wifi = Configuracion.Get_Configuracion(Password, "Password_red");
-
-        StaticJsonDocument<200> doc;
-        doc.clear();
-        String Payload = "";
-        int Intentos_Conexion = 3;
-
-        doc["Opcion"] = UPDATE_TFT;
-        doc["Ssid"] = SSID_Wifi;
-        doc["password"] = Password_Wifi;
-        doc["Url"] = Url;
-        
-
-        doc["Api_Token"] = Api_Token;
-        doc["Api_Bin"] = Api_Bin;
-        doc["Api_Respuesta"] = Api_Respuesta;
-        doc["Version_Act"] = Version_Programa;
-        doc["Api_Version"] = Api_Version;
-
-        doc["Message"] = "Comando de actualizacion de pantalla TFT";
-
-        serializeJson(doc, Payload);
-
-        Serial.println("Comando de solicitud de actualizacion TFT recibida");
-        Serial.println(Payload);
-
-        for (int i = 0; i < Intentos_Conexion; i++)
-        {
-          if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
-            break;
-        }
-
-        if (Await_ms(get_Flag_Update_TFT, 1000))
-          IsSuccess = true;
-        else
-          IsSuccess = false;
-
-        if (IsSuccess)
-          Message = "Pantalla TFT conectada a " + SSID_Wifi;
-        else
-          Message = "Sin respuesta de la pantalla TFT";
-      }else{
         IsSuccess = false;
-        Message = "Falta uno o mas parametros para la solicitud";
+        Message = "No se puede iniciar actualizacion porque la maquina esta en una sesion";
+        Codigo=MAQUINA_EN_JUEGO_;
+      }
+      else
+      {
+
+        /* No hay Sesion de juego */
+        auto &&data = json.as<JsonObject>();
+
+        if (data.containsKey("version_firmware_tft"))
+        {
+          /* Actualiza Version */
+          Flag_Conexion_TFT = false;
+          StaticJsonDocument<100> doc;
+
+          String Payload;
+          int Intentos_Conexion = 3;
+          doc["IsSuccess"] = true;
+          doc["Opcion"] = PING;
+
+          serializeJson(doc, Payload);
+
+          bool Issuccess = Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length());
+          /* Conexion de pantalla OK */
+
+          if (Await_ms(get_Flag_Conexion_TFT, 1000) || Issuccess)
+          {
+
+            String VersionUpdate = data["version_firmware_tft"].as<String>();
+            if (DisplayTFT.info.Version_Firmware_tft != VersionUpdate && DisplayTFT.info.Version_Firmware_tft != ""&& VersionUpdate!="")
+            {
+
+              StaticJsonDocument<200> doc;
+              doc.clear();
+              String Payload = "";
+              int Intentos_Conexion = 3;
+
+              String SSID_Wifi = Configuracion.Get_Configuracion(SSID, "Nombre_Red");
+              String Password_Wifi = Configuracion.Get_Configuracion(Password, "Password_red");
+
+              char Ip[4];
+              char IpServer[4];
+              memcpy(Ip, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Ip) / sizeof(Ip[0]));
+              memcpy(IpServer, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IpServer) / sizeof(IpServer[0]));
+
+              IPAddress IPString(Ip[0], Ip[1], Ip[2], Ip[3]);
+              IPAddress IPServerString(IpServer[0], IpServer[1], IpServer[2], IpServer[3]);
+
+              doc["Opcion"] = UPDATE_OTA;
+              doc["Ssid"] = SSID_Wifi;
+              doc["password"] = Password_Wifi;
+              doc["Ip"] = IPString.toString();
+              doc["Ip_Server"] = IPServerString.toString();
+              doc["Type_Update"] = UDATE_VIA_HTTP;
+
+              serializeJson(doc, Payload);
+
+              if (Send_TFT(Address_Device_TFT_Display, (uint8_t *)Payload.c_str(), Payload.length()))
+              {
+                IsSuccess = true;
+                Message = "Comando de actualizacion recibido con exito";
+                Codigo = EXITOSO;
+              }
+              else
+              {
+                IsSuccess = false;
+                Message = "No se recibio respuesta del dispositivo";
+                Codigo = SIN_RESPUESTA;
+              }
+            }
+            else if (DisplayTFT.info.Version_Firmware_tft == VersionUpdate)
+            {
+              IsSuccess = false;
+              Message = "Version de actualizacion igual a version instalada";
+              Codigo = VERSION_YA_INSTALADA;
+            }
+            else
+            {
+              IsSuccess = false;
+              Message = "No se pudo obtener la version de la pantalla TFT";
+              Codigo = ERROR_VERSION;
+            }
+          }else{
+            IsSuccess = false; 
+            Message = "Error dispositivo no re";
+            Codigo = ERROR_VERSION;
+          }
+        }
+        else
+        {
+          IsSuccess = false;
+          Message = "Version de actualizacion no especificada";
+          Codigo = ERROR_VERSION;
+        }
       }
     }
     else
     {
       IsSuccess = false;
-      Message = "No existe pantalla TFT Sincronizada";
+      Message = "No existe dispositivo sincronizado o conectado";
+      Codigo = NO_EXISTE_DISPOSITIVO;
     }
 
     jsonDocument["IsSuccess"] = IsSuccess;
     jsonDocument["Message"] = Message;
+    jsonDocument["Codigo"] = Codigo;
 
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
-    request->send(200, "application/json", Json);
-  }));
-  
+    request->send(200, "application/json", Json); }));
+
   /*------------------------------------------------------------------------------------------------------*/
   /* ------------------------------------> CONFIGURA <---------------------------------------------------*/
   /* COMANDO SOCKET-API */
@@ -6608,7 +7464,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
     IPAddress ipCliente = request->client()->remoteIP();
     String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
-    StaticJsonDocument<800> jsonDocument;
+    StaticJsonDocument<512> jsonDocument;
 
     // /* Estados Maquina */
     jsonDocument["Comunicacion_Maq"] = Variables_globales.Get_Variable_Global(Comunicacion_Maq);
@@ -6696,9 +7552,11 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
     jsonDocument["Firmware_Version"] = version_str;
 
-
     if(Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+    {
       jsonDocument["Conexion_TFT"] = true;
+      jsonDocument["Firmware_Version_TFT"] = DisplayTFT.info.Version_Firmware_tft;
+    }
     else
       jsonDocument["Conexion_TFT"] = false;
 
@@ -6708,7 +7566,7 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     else
       jsonDocument["Mac_TFT"] = NULL;
 
-
+    
     if(Variables_globales.Get_Variable_Global(Conexion_RFID))
       jsonDocument["Lector_RFID"] = true;
     else
@@ -6736,9 +7594,10 @@ bool Transsaccion_Cashless::Init_API_Server(void)
 
     String Json;
     serializeJson(jsonDocument, Json); /* Serializa Data */
+
+    jsonDocument.clear();
     request->send(200, "application/json", Json);
     //Consulta_Result_Formatt=true;
-    
     //Info_Cashless.Log(RTC,"SOLICITUD_PING_GLOBUS_RECIBIDA"+Json);
   });
 
@@ -6833,119 +7692,116 @@ bool Transsaccion_Cashless::Init_API_Server(void)
     //Info_Cashless.Log(RTC,"SOLICITUD_PING_GLOBUS_RECIBIDA"+Json);
   });
 
-  Server_API.addHandler(new AsyncCallbackJsonWebHandler("/ConfigBA", [](AsyncWebServerRequest* request, JsonVariant& json) 
-{
+ 
 
-    ipDest = request->client()->remoteIP();
-    
-    String DataTime = String(RTC.getYear()) + "-" +
-                      String(RTC.getMonth() + 1) + "-" +
-                      String(RTC.getDay()) + " " +
-                      String(RTC.getHour(true)) + ":" +
-                      String(RTC.getMinute()) + ":" +
-                      String(RTC.getSecond());
 
-    StaticJsonDocument<500> jsonDocument;
-    jsonDocument.clear();
-    bool IsSuccess = false;
-    String Msg;
 
-    String texto = request->hasHeader("texto") ? request->getHeader("texto")->value() : "";
-    String maqIp = request->hasHeader("maqIp") ? request->getHeader("maqIp")->value() : "";
-    String widget = request->hasHeader("widget") ? request->getHeader("widget")->value() : "";
-    String time = request->hasHeader("time") ? request->getHeader("time")->value() : "";
-    String hashOnline = request->hasHeader("hash") ? request->getHeader("hash")->value() : "";
+  Server_API.on("/api/Configuracion/Habilitar_Simulador", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
 
-    String hasInput = texto + "_^_" + maqIp + "_^_" + widget + "_^_" + time;
-    String shaLocal = GenerarCodigoSHA1(hasInput);
+    bool IsSuccess=false;
+    String Msg="";
 
-    Serial.println(hashOnline);
-    Serial.println(shaLocal);
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
 
-    if (shaLocal.equalsIgnoreCase(hashOnline))
+
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("Simulador",true);
+    bool test=NVS.getBool("Simulador",true);
+    NVS.end();
+
+    if (test)
     {
+      IsSuccess = true;
+      Msg="Simulador habilitado con exito";
+    }else{
+      IsSuccess = false;
+      Msg="Error habilitando Simulador";
+    }
 
-        Serial.println("Hash Ok");
-        if (!json.is<JsonObject>())
-        {
-            jsonDocument["IsSuccess"] = false;
-            String Json;
-            serializeJson(jsonDocument, Json);
-            request->send(200, "application/json", Json);
-            Info_Cashless.Log(RTC, "COMANDO_BA" + ipDest.toString(), "JSON_NO_ES_UN_OBJETO_VALIDO");
+    // Verifica que la tarjeta SD esté montada y que el archivo exista
+    
 
-#ifdef DEBUG_CONFIG_MODE_TRAMISIONS
-            Serial.println("Json no es un objeto valido");
-#endif
-            return;
-        }
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Fecha_Hora"] = DataTime;
+
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+
+    delay(1000);
+    ESP.restart();
+
+    });
+
+  Server_API.on("/api/Configuracion/Inhabilitar_Simulador", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    bool IsSuccess=false;
+    String Msg="";
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    StaticJsonDocument<200> jsonDocument;
 
 
-        if (AFT.GET_STATUS_BA() == TransaccionCashless::BA_IDLE)
-        {
-          // AFT.STATUS_BA(TransaccionCashless::BA_RECIBIDA);
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("Simulador",false);
+    bool test=NVS.getBool("Simulador",false);
+    NVS.end();
 
-          auto &&data = json.as<JsonObject>();
+    if (!test)
+    {
+      IsSuccess = true;
+      Msg="Simulador inhabilido con exito";
+    }else{
+      IsSuccess = false;
+      Msg="Error inhabilitando simulador";
+    }
 
-          if (data.containsKey("Assets") && data.containsKey("ID") && data.containsKey("GUID"))
-          {
+    // Verifica que la tarjeta SD esté montada y que el archivo exista
+    
 
-            
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    jsonDocument["Fecha_Hora"] = DataTime;
 
-            AFT.solicitudBA.ID = data["ID"].as<int>();
-            AFT.solicitudBA.GUID = data["GUID"].as<String>();
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
 
-            // --- LIMPIAR EL ARRAY COMPLETO ---
-            memset(AFT.solicitudBA.assets, 0, sizeof(AFT.solicitudBA.assets));
+    delay(1000);
+    ESP.restart();
 
-            // Obtener lista de assets
-            JsonArray assets = data["Assets"].as<JsonArray>();
+    });
 
-            int i = 0;
 
-            // --- COPIAR EXACTAMENTE COMO LO PIDES ---
-            for (JsonVariant v : assets)
-            {
-              const char *c = v.as<const char *>();
-              AFT.solicitudBA.assets[i++] = c[0]; // copiando solo el primer char
-            }
-
-            AFT.solicitudBA.count = i;
-
-            AFT.solicitudBA.pendiente = true;
-
-            IsSuccess = true;
-            Msg = "Solicitud recibida correctamente";
-          }
-          else
-          {
-            IsSuccess = false;
-            Msg = "Falta uno o mas parametros para procesar la solicitud";
-            // AFT.STATUS_BA(TransaccionCashless::BA_RECIBIDA);
-          }
-        }
-        else
-        {
-            IsSuccess = false;
-            Msg = "Dispositivo ocupado para procesar la solicitud";
-        }
+  Server_API.on("/sas_log", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+    if (SPIFFS.exists("/sas_log.txt"))
+    {
+        request->send(SPIFFS, "/sas_log.txt", "text/plain");
     }
     else
     {
-        IsSuccess = false;
-        Msg = "Hash no compatible para procesar la solicitud";
+        request->send(404, "text/plain", "Log no encontrado");
     }
+  });
 
-    
-    jsonDocument["IsSuccess"] = IsSuccess;
-    jsonDocument["Message"] = Msg;
-    jsonDocument["Data"] = DataTime;
 
-    String Json;
-    serializeJson(jsonDocument, Json);
-    request->send(200, "application/json", Json);
+  Server_API.on("/borrar_sas_log", HTTP_GET, [](AsyncWebServerRequest *request) {
 
-}));
+    if (SPIFFS.remove("/sas_log.txt"))
+        request->send(200, "text/plain", "Log borrado");
+    else
+        request->send(500, "text/plain", "Error al borrar");
+
+  });
+
+
 
 //     Server_API.addHandler(new AsyncCallbackJsonWebHandler("/ConfigBA", [](AsyncWebServerRequest* request, JsonVariant& json) 
 //     {
@@ -7048,9 +7904,195 @@ bool Transsaccion_Cashless::Init_API_Server(void)
   
 //   }));
 
-    Server_API.begin();
+    //Server_API.begin();
 
-    return true;
+  //   Server_API.addHandler(new AsyncCallbackJsonWebHandler("/api/Fidelizacion/BonoCanje", [](AsyncWebServerRequest* request, JsonVariant& json) {
+
+    
+  //   int Code=0x100;
+  //   StaticJsonDocument<200> jsonDocument;
+  //   jsonDocument.clear();
+    
+  //   bool IsSuccess_Response=false;
+  //   String Msg;
+
+  //   if (!json.is<JsonObject>()) {
+
+  //     jsonDocument["IsSuccess"] = false;
+  //     jsonDocument["IsSuccess"] = Code;
+  //     jsonDocument["IsSuccess"] = "Tipo de dato no identificado JSON";
+  //     String Json;
+  //     serializeJson(jsonDocument, Json); /* Serializa Data */
+  //     request->send(200, "application/json", Json);
+
+  //     return;
+  //   }else
+  //   {
+
+  //     if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+  //     {
+
+
+  //       if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+  //         AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
+
+  //       auto &&data = json.as<JsonObject>();
+  //       /* Url Generica */
+
+        
+
+
+  //       bool IsSuccess = data["IsSuccess"];
+  //       int Current_Cliente_ID_Server_Int = data["Cliente_ID"];
+  //       String Type_Trans_Server = data["Trans_Tipo"];
+  //       uint32_t Cashable_Server = data["Saldo_Canjeable"];
+  //       uint32_t Restricted_Server = data["Saldo_Restringido"];
+  //       uint32_t Non_Restricted_Server = data["Saldo_No_Restringido"];
+  //       uint32_t Trans_ID_Server = data["Trans_ID"];
+  //       String Data_Time_Response_Server = data["Fecha_Hora"];
+  //       String Msgg = data["Message"];
+  //       String Nombre_Cliente = data["Cliente_Nombre"];
+
+  //       int Cashless_ID = 0;
+  //       String Cashless_Estado = data["Cashless_Estado"];
+  //       String Ip_Tarjeta = data["Ip"];
+  //       String Key = data["Key"];
+  //       String Mac = data["MAC"];
+  //       String Trans_Estado = data["Trans_Estado"];
+  //       String Tipo_Maq = data["Tipo_Maq"];
+
+  //       int Year, Month, Day, Hour, Minutes, Seconds;
+  //       sscanf(Data_Time_Response_Server.c_str(), "%d-%d-%d %d:%d:%d", &Year, &Month, &Day, &Hour, &Minutes, &Seconds);
+
+  //       Objeto_Transfer["IsSuccess"] = false;
+  //       Objeto_Transfer["Cliente_ID"] = Current_Cliente_ID_Server_Int;
+  //       Objeto_Transfer["Trans_Tipo"] = Type_Trans_Server;
+  //       Objeto_Transfer["Saldo_Canjeable"] = Cashable_Server;
+  //       Objeto_Transfer["Saldo_Restringido"] = Restricted_Server;
+  //       Objeto_Transfer["Saldo_No_Restringido"] = Non_Restricted_Server;
+  //       Objeto_Transfer["Trans_ID"] = Trans_ID_Server;
+  //       Objeto_Transfer["Fecha_Hora"] = Data_Time_Response_Server;
+  //       Objeto_Transfer["Message"] = Msgg;
+  //       Objeto_Transfer["Cliente_Nombre"] = Nombre_Cliente;
+
+  //       Objeto_Transfer["Cashless_Estado"] = Cashless_Estado;
+  //       Objeto_Transfer["Ip"] = Ip_Tarjeta;
+  //       Objeto_Transfer["Key"] = Key;
+  //       Objeto_Transfer["MAC"] = Mac;
+  //       Objeto_Transfer["Trans_Estado"] = Trans_Estado;
+  //       Objeto_Transfer["Tipo_Maq"] = "AFT";
+
+  //       if (Cashless.Set_Amount_To_Load(Cashable_Server, Restricted_Server, Non_Restricted_Server))
+  //       {
+  //         Solicitud_Carga_Cashless();
+
+  //         IsSuccess_Response = true;
+  //         Msg = "Solicitud Recibida con exito!";
+  //       }
+  //       else
+  //       {
+  //         IsSuccess_Response=false;
+  //         Msg = "Error en Conversion de saldos";
+
+  //         if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_RECIBIDA)
+  //           AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_IDLE);
+  //       }
+  //     }else
+  //     {
+  //       IsSuccess_Response=false;
+  //       Msg = "Dispositivo ocupado, ya existe una instancia";
+  //     }
+
+  //     jsonDocument["IsSuccess"] = IsSuccess_Response;
+  //     jsonDocument["Message"] = Msg;
+
+  //     String Json;
+  //     serializeJson(jsonDocument, Json); /* Serializa Data */
+  //     request->send(200, "application/json", Json);
+
+  //   }
+    
+  // }));
+
+  Server_API.on("/api/Configuracion/Deshabilitar_Validacion_Creditos_Del_Rele", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    bool IsSuccess=false;
+    String Msg="";
+
+    StaticJsonDocument<200> jsonDocument;
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("V_Creditos",true);
+    bool Test=NVS.getBool("V_Creditos",false);
+    NVS.end();
+
+    if(Test)
+    {
+      IsSuccess=true;
+      Msg="Validacion de creditos del rele deshabilitada correctamente";
+    }else{
+      IsSuccess=false;
+      Msg="Error deshabilitando validacion de creditos del rele";
+    }
+
+    // /* Estados Maquina */
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    //Consulta_Result_Formatt=true;
+
+    delay(1000);
+    ESP.restart();
+
+  });
+
+
+  Server_API.on("/api/Configuracion/Habilitar_Validacion_Creditos_Del_Rele", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+
+    bool IsSuccess=false;
+    String Msg="";
+
+    StaticJsonDocument<200> jsonDocument;
+
+    IPAddress ipCliente = request->client()->remoteIP();
+    String DataTime=String (RTC.getYear())+"-"+String(RTC.getMonth() + 1)+"-"+String(RTC.getDay())+" "+String(RTC.getHour(true))+":"+String (RTC.getMinute())+":"+String(RTC.getSecond());
+    
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("V_Creditos",false);
+    bool Test=NVS.getBool("V_Creditos",false);
+    NVS.end();
+
+    if(!Test)
+    {
+      IsSuccess=true;
+      Msg="Validacion de creditos del rele habilitada correctamente";
+    }else{
+      IsSuccess=false;
+      Msg="Error habilitando validacion de creditos del rele";
+    }
+
+    // /* Estados Maquina */
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Msg;
+    
+    String Json;
+    serializeJson(jsonDocument, Json); /* Serializa Data */
+    request->send(200, "application/json", Json);
+    //Consulta_Result_Formatt=true;
+
+    delay(1000);
+    ESP.restart();
+  });
+
+  return true;
 }
 
 
@@ -7251,6 +8293,28 @@ uint32_t Transsaccion_Cashless::BCDtoUint32(char Credit_To_Load[], int Select)
     return Credit_Cashables;
     break;
   }
+}
+
+uint32_t Transsaccion_Cashless::BCD4toUint32_New_Prototipo(char *buffer, int startIndex)
+{
+  char str[9];
+
+  for (int i = 0; i < 4; i++)
+  {
+    str[i * 2] =
+        ((buffer[startIndex + i] >> 4) & 0x0F) + '0';
+
+    str[i * 2 + 1] =
+        (buffer[startIndex + i] & 0x0F) + '0';
+  }
+
+  str[8] = '\0';
+
+  uint32_t value;
+
+  sscanf(str, "%u", &value);
+
+  return value;
 }
 
 uint32_t Transsaccion_Cashless::BCDtoUint32_Pos(char Credit_To_Load[], int Select,int Inicial_Index)
@@ -7489,7 +8553,7 @@ int Transsaccion_Cashless::Get_Status_AFT_Bonus(int Update_Status)
   return Status_AFT_B;
 }
 
-void Transsaccion_Cashless::Set_Status_AFT_Bonus(int Status )
+void Transsaccion_Cashless::Set_Status_AFT_Bonus(int Status)
 {
   Status_AFT_B=Status;
 }

@@ -272,41 +272,41 @@ void AutoUpdate::firmwareUpdate(void)
   String Ip_Local=String(Ip.c_str());
 
   String URL_Complet=URL_GENERIC+API_BIN+"?"+"Mac="+WiFi.macAddress()+"&Ver="+VERSION_FIR_LOCAL+"&Ip="+Ip_Local;
-
-  httpUpdate.onStart([]() {
+  
+  // httpUpdate.onStart([]() {
     
-    Variables_globales.Set_Variable_Global(Updating_System,true);
-    Serial.println("🔄 Iniciando actualización de firmware...");
-    vTaskDelete(Check_Comunication_Maq);
-    vTaskDelete(CommandProcess);
-    //vTaskDelete(ManagerTask);
-    vTaskDelete(Mensajes_Server);
-    Variables_globales.Set_Variable_Global(Comunicacion_Maq,false);
-  });
+  //   Variables_globales.Set_Variable_Global(Updating_System,true);
+  //   Serial.println("🔄 Iniciando actualización de firmware...");
+  //   vTaskDelete(Check_Comunication_Maq);
+  //   vTaskDelete(CommandProcess);
+  //   //vTaskDelete(ManagerTask);
+  //   vTaskDelete(Mensajes_Server);
+  //   Variables_globales.Set_Variable_Global(Comunicacion_Maq,false);
+  // });
 
-  httpUpdate.onEnd([]() {
+  // httpUpdate.onEnd([]() {
 
-    Serial.println("✅ Actualizacion  finalizada con exito!");
-    UpdateOTA.Confirmacion_ACK_HTTPS(INSTALL_OK,INS_OK);
-    UpdateOTA.DateTime_Update(true);
-  });
+  //   Serial.println("✅ Actualizacion  finalizada con exito!");
+  //   UpdateOTA.Confirmacion_ACK_HTTPS(INSTALL_OK,INS_OK);
+  //   UpdateOTA.DateTime_Update(true);
+  // });
 
-  httpUpdate.onProgress([](int cur, int total) {
-    int percent = (cur * 100) / total;
-    Serial.printf("Progreso: %d%%\r", percent);
-    UpdateOTA.Confirmacion_ACK_HTTPS(String(percent),DES_OK);
+  // httpUpdate.onProgress([](int cur, int total) {
+  //   int percent = (cur * 100) / total;
+  //   Serial.printf("Progreso: %d%%\r", percent);
+  //   UpdateOTA.Confirmacion_ACK_HTTPS(String(percent),DES_OK);
 
-    if (Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
-    {
-      Status_Barra(UPDATING_SYS);
-    }
-  });
+  //   if (Variables_globales.Get_Variable_Global(Updating_System) && !Variables_globales.Get_Variable_Global(Access_Point_Mode))
+  //   {
+  //     Status_Barra(UPDATING_SYS);
+  //   }
+  // });
 
 
   client.setTimeout(8000); // 30 segundos
   http.setTimeout(8000); // 30 segundos
   http.addHeader("Authorization", "Bearer " + String(TOKEN_VALI));
-  t_httpUpdate_return ret = httpUpdate.update(client, URL_Complet,"",TOKEN_VALI);
+  t_httpUpdate_return ret = httpUpdate.update(client, URL_Complet);
   
   
   switch (ret) {

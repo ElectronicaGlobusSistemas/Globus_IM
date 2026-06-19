@@ -44,10 +44,14 @@ Tabla_Eventos Tabla_Evento;
 
 #include "Persistenca_Info.h"
 #include "ScanWiFi.h"
+#include "lwip/stats.h"
+
 
 API_Accounting Accounting;
 extern Persistenca_Info Backup;
 
+
+extern Fidelizacion Fideliza;
 
 /*--------------------------------------->Debug Comunicación Maquina <------------------------------*/
 //#define Debug_Comunicacion_MQ
@@ -197,6 +201,8 @@ int Result_Formatt=0;
 
 extern volatile bool Flag_Recupera;
 
+
+
 void setup()
 {
 
@@ -215,6 +221,9 @@ void setup()
         &Check_Comunication_Maq,
         1); // Core donde se ejecutara la tarea
   }
+
+  if(Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+    DisplayTFT.Init_Handle();
 
   if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS) || Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
   {
@@ -291,9 +300,20 @@ void setup()
   // Info_Cashless.Log(RTC,"INICIO_OPERACION_DISPOSITIVO_GLOBUS_IM_ESP32");
   sd_mutex = xSemaphoreCreateMutex();
 
+  if (AFT.IsCashlessMachine())
+  {
+    if (AFT.checkLogSAS())
+      Variables_globales.Set_Variable_Global(Flag_Log_SAS, true);
+    else
+      Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
+  }else
+    Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
+
   // ScanWiFi();
   Info_Cashless.Log(RTC, "DISPOSITIVO_INICIADO");
 
+
+  
   //Api_G.Inicializa_Cola_Tramas(true);
 
   //Tito.Request_Transfer_Tito_Out();
@@ -301,6 +321,22 @@ void setup()
 
   // SPIFFS.remove("/fifo.txt");
   // SPIFFS.remove("/fifo.tmp");
+
+//   const char* testLine = 
+// "{\"Cashless_ID\":0,\"IsSuccess\":false,\"Cliente_ID\":13152,\"Trans_Tipo\":\"D\","
+// "\"Saldo_Canjeable\":0,\"Saldo_Restringido\":0,\"Saldo_No_Restringido\":0,"
+// "\"Trans_ID\":0,\"Fecha_Hora\":\"2026-1-22 15:17:56\",\"Message\":\"null\","
+// "\"Cliente_Nombre\":\"Jose manuel\",\"Cashless_Estado\":\"0\",\"Ip\":\"192.168.5.116\","
+// "\"Key\":\"10001000841fe8998681804121126\",\"MAC\":\"84:1F:E8:09:98:68\","
+// "\"Trans_Estado\":129,\"Tipo_Maq\":\"AFT\"}";
+
+//   File file = SPIFFS.open("/transacciones.txt", FILE_APPEND);
+//   for (int i = 0; i < 11; i++)
+//   {
+//     file.println(testLine);
+//   }
+//   file.close();
+
 }
 
 
@@ -350,72 +386,90 @@ bool test=false;
 //     Serial.println("------------------------");
 // }
 
+
 void loop()
 {
 
+  if(Handle_Bootloader())
+    return;
+  
 
-  //Tito.Request_Handle_Tito();
-  if(!Verifica)
+  // Tito.Request_Handle_Tito();
+  if (!Verifica)
   {
-    if(Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(),contadores.Get_Type_Sesion(),Variables_globales.Get_Variable_Global(Enable_Cashless))==2)
-      Verifica=true;
+    if (Info_Cashless.Recovery_Player_Sesion(contadores.Get_Client_Recovery(), contadores.Get_Type_Sesion(), Variables_globales.Get_Variable_Global(Enable_Cashless)) == 2)
+      Verifica = true;
   }
 
-  if(Variables_globales.Get_Variable_Global(Enable_Cashless)||Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+  if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
     Info_Cashless.Genera_Token_Cashless();
 
- // Cashless.Registra_Maquina_Auto();
+  // Cashless.Registra_Maquina_Auto();
 
-  if(Variables_globales.Get_Variable_Global(Enable_Cashless))
+  if (Variables_globales.Get_Variable_Global(Enable_Cashless))
     Info_Cashless.Reporting_Pending_Transfers(25000);
 
-  if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
-    Tito.Available_Ticket_Transfer();
+  // if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+  //   Tito.Available_Ticket_Transfer();
 
   eventos.TimeOut_Capture_Event();
-  Time_I=millis();
-  TimeOut_Conect_RFID=millis();
-  Timer_Error_Wifi_Inicial=millis();
-  //Mensajes_RFID();
+  Time_I = millis();
+  TimeOut_Conect_RFID = millis();
+  Timer_Error_Wifi_Inicial = millis();
+  // Mensajes_RFID();
   TimeOut_Marca_Operador();
   /*------------------------> Verifica Inactividad de Cliente <---------------------------*/
   TimeOut_Player_Tracking_Sesion();
   /*--------------------------------------------------------------------------------------*/
   /*102*/
   /*---------------------> Lectura Tarjetas  <--------------------------------------------*/
- 
+
   /*------------------------> Despierta lector de inactividad <---------------------------*/
   if (Time_I - Time_P >= LongT)
   {
 
-    //printOpenSockets();
+    // printOpenSockets();
 
-    //listOpenSockets();
+    if (Variables_globales.Get_Variable_Global(Informacion_Rendimiento))
+    {
+      Serial.printf(
+          "[SYS] Heap:%u Min:%u MaxBlk:%u | Tasks:%u | CPU:%uMHz | Up:%lus\n",
+          ESP.getFreeHeap(),
+          ESP.getMinFreeHeap(),
+          ESP.getMaxAllocHeap(),
+          uxTaskGetNumberOfTasks(),
+          ESP.getCpuFreqMHz(),
+          millis() / 1000);
+    }
+
+    // listOpenSockets();
     if (Variables_globales.Get_Variable_Global(Conexion_RFID))
     {
-      //mfrc522.PICC_IsNewCardPresent();
+      // mfrc522.PICC_IsNewCardPresent();
     }
     Time_P = millis();
   }
 
   Lee_Tarjeta();
   /*--------------------------------------------------------------------------------------*/
-  
+
   /*---------------------> Ejecuta Servidor FTP & Funciones de Memoria <------------------*/
-  check_SD();
+
+  if(!Variables_globales.Get_Variable_Global(Flag_Update_OTA))
+    check_SD();
   /*--------------------------------------------------------------------------------------*/
-   
+
   /*---------------------> Reset Handpay Maquinas No SAS <--------------------------------*/
   if (Variables_globales.Get_Variable_Global(Type_Hanpay_Reset))
   {
-      if (millis() - Sample_Time_ >= Time_Ejecutions)
-      {
+    if (millis() - Sample_Time_ >= Time_Ejecutions)
+    {
       RESET_HANDPAY_NOT_SAS();
       Sample_Time_ = millis();
-      }
+    }
   }
 
-    /*---------------------------> Conecta módulo RFID <------------------------------------*/
+  /*---------------------------> Conecta módulo RFID <------------------------------------*/
 
   if (!Variables_globales.Get_Variable_Global(Verify_Modulo_RFID))
   {
@@ -433,33 +487,45 @@ void loop()
   }
 
   /* -----------------------------> Premios SAS <---------------------------------------------------- */
-  if(Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
+  if (Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
     Accounting.Report_Handpay_Informations_SAS(Variables_globales.Get_Variable_Global(Token_Cashless_Solicitud));
   /*--------------------------------------------------------------------------------------------------*/
 
   Resurrect_reader();
-  //check_Status_Reader_Polling();
-  // if(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
-  //   Prueba_TFT();
-  // if(Variables_globales.Get_Variable_Global(Comunicacion_Maq)&&!test)
-  // {
-  //   Backup.enviarInformacionMaquina(Backup.Test());
-  //   test=true;
-  // }
+  // check_Status_Reader_Polling();
+  //  if(Variables_globales.Get_Variable_Global(Flag_Sesion_RFID))
+  //    Prueba_TFT();
+  //  if(Variables_globales.Get_Variable_Global(Comunicacion_Maq)&&!test)
+  //  {
+  //    Backup.enviarInformacionMaquina(Backup.Test());
+  //    test=true;
+  //  }
 
-  //Backup.Task_Info();
+  // Backup.Task_Info();
   FtpFast();
 
-  if(Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && !Variables_globales.Get_Variable_Global(Updating_System))
+  if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && !Variables_globales.Get_Variable_Global(Updating_System))
     Info_Cashless.Task_Sesiones_Unknow();
 
-  // if(!Variables_globales.Get_Variable_Global(Ftp_Mode))  
+  // if(!Variables_globales.Get_Variable_Global(Ftp_Mode))
   //   Check_TFT_Reconnect();
 
+  AFT.BackupBA();
+  AFT.Task_Procesa_BA();
 
-  // AFT.BackupBA();
-  // AFT.Task_Procesa_BA();
+  if(!AFT.solicitudBA.Flag_Attend_Transaccion_BA && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+  {
+    AFT.solicitudBA.Flag_Attend_Transaccion_BA=true;
+
+    if(AFT.solicitudBA.Ack_Pendiente_Recv)
+      Variables_globales.Set_Variable_Global(Flag_BA_Controller,true);
+
+  }
   DisplayTFT.Task_Handle_TFT_Display();
+
+  Info_Cashless.Simulador_Cashless_Automatico(Variables_globales.Get_Variable_Global(Flag_Simulador_Cashless));
+
+  
 }
 
 /* Verifica comunicacion maquina */
@@ -830,6 +896,9 @@ static void Check_Comunicacion_Maq(void *parameter)
 void TimeOut_Player_Tracking_Sesion(void)
 {
   currentTime = millis();
+  static bool aviso20 = false;
+  static bool aviso10 = false;
+  static bool aviso5  = false;
 
   if (!Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)) < 10)
   {
@@ -839,7 +908,13 @@ void TimeOut_Player_Tracking_Sesion(void)
       startTime = currentTime;
       condicionCumplida = true;
       // Serial.println("Reinicia Tiempout por primera activacion ");
+      // Reset avisos
+      aviso20 = false;
+      aviso10 = false;
+      aviso5 = false;
     }
+
+    
 
     if ((currentTime - startTime) >= Inactividad_Usuario_Player_Tracking)
     {
@@ -862,12 +937,12 @@ void TimeOut_Player_Tracking_Sesion(void)
 
       if (consistentCreditos)
       {
-        // Serial.println();
-        // Serial.print("Creditos: ");
-        // Serial.println(Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)));
-        // Serial.println("Cierra sesion por inactividad ");
-        // Serial.print("Timeout: ");
-        // Serial.println(currentTime - startTime);
+        Serial.println();
+        Serial.print("Creditos: ");
+        Serial.println(Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)));
+        Serial.println("Cierra sesion por inactividad ");
+        Serial.print("Timeout: ");
+        Serial.println(currentTime - startTime);
 
         /* Maquina  No Cashless */
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3 && Configuracion.Get_Configuracion(Tipo_Maquina, 0)!=17)
@@ -877,11 +952,16 @@ void TimeOut_Player_Tracking_Sesion(void)
           Report_Http_Code(TERMINA_SESION_CREDITOS, "Sesion terminada por creditos: "+String(Creditos), true);
           Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
 
+          DisplayTFT.Notify_Now(EVENT_ACTUALIZAR_INFO_FINAL_SESION_FIDELIZACION);
+          DisplayTFT.Mensaje_TFT(
+              "Tiempo de inactividad superado\n Cerrando sesion...",
+              true);
+
           if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
           {
 
-            Menssage_TFT("Cerrando sesion por inactividad de juego...",DisplayTFT.configtft.timeoutMensajesCONFIG,false);
-            DisplayTFT.info.Actualiza_Puntos_Finales = true;
+            // Menssage_TFT("Cerrando sesion por inactividad de juego...",DisplayTFT.configtft.timeoutMensajesCONFIG,false);
+            // DisplayTFT.info.Actualiza_Puntos_Finales = true;
           }
             
         }
@@ -891,8 +971,17 @@ void TimeOut_Player_Tracking_Sesion(void)
           if (Variables_globales.Get_Variable_Global(Enable_Cashless))
           {
 
-            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && (Configuracion.Get_Configuracion(Tipo_Maquina, 0) <= 3) || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+            //if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+
+            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && (Configuracion.Get_Configuracion(Tipo_Maquina, 0) <= 3) || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
             {
+
+              //if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+              //  AFT.STATUS_TRANSFER(TransaccionCashless::TRANS_RECIBIDA);
+              DisplayTFT.info.Mensaje = " Timeout de inactividad alcanzado\nComprobando saldo\nPor favor espere...";
+              DisplayTFT.info.Ocultar = false;
+              DisplayTFT.Notify_Now(EVENT_MENSAJES);
+
 
               Info_Cashless.Log(RTC, "TRANSACCION_DESCARGA_AUTOMATICA","TIMEOUT_ALCANZADO_PROCESANDO_DESCARGA",archivo,WARN_);
 
@@ -912,6 +1001,11 @@ void TimeOut_Player_Tracking_Sesion(void)
 
               case 401:
                 // Info_Cashless.Log(RTC,"TOKEN_NO_AUTORIZADO");
+
+                DisplayTFT.info.Mensaje = "Acceso no autorizado\nContacte al operador";
+                DisplayTFT.info.Ocultar = true;
+                DisplayTFT.Notify_Now(EVENT_MENSAJES);
+
                 Status_Barra(ERROR_LECTURA);
                 Info_Cashless.Unlock_Reader();
                 Handle = false;
@@ -920,6 +1014,11 @@ void TimeOut_Player_Tracking_Sesion(void)
 
               default:
                 // Info_Cashless.Log(RTC,"ERROR_SOLICITUD_DESCARGA_AUTOMATICA");
+
+                DisplayTFT.info.Mensaje = "Error al conectar con el servidor\nPor favor intente nuevamente";
+                DisplayTFT.info.Ocultar = true;
+                DisplayTFT.Notify_Now(EVENT_MENSAJES);
+
                 Status_Barra(ERROR_LECTURA);
                 Info_Cashless.Unlock_Reader();
                 Handle = false;
@@ -1062,8 +1161,9 @@ void TimeOut_Player_Tracking_Sesion(void)
             // Info_Cashless.Unlock_Reader();
             Info_Cashless.Log(RTC,"CIERRE_SESION_AUTOMATICO_FIDELIZACION_CREDITOS",String(Creditos));
 
-            if (Variables_globales.Get_Variable_Global(Conexion_TFT_Display) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
-              DisplayTFT.info.Actualiza_Puntos_Finales = true;
+            DisplayTFT.info.Mensaje = " Timeout de inactividad alcanzado\nCerrando sesion\nPor favor espere...";
+            DisplayTFT.info.Ocultar = true;
+            DisplayTFT.Notify_Now(EVENT_MENSAJES);
           }
         }
       }
@@ -1223,6 +1323,8 @@ void check_SD(void)
             Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, false);
           }
         }
+
+        AFT.checkAndCleanLogSAS();
         Timer_SD_Previous = millis();
       }
     }

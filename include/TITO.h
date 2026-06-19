@@ -93,6 +93,10 @@ extern ESP32Time RTC; // Objeto contiene hora y fecha
 #define TIMEOUT_TICKET  1000
 
 
+
+
+
+
 class TITO
 {
 
@@ -128,8 +132,13 @@ private:
     
 
 public:
+  struct Tito_Config
+  {
+    uint16_t Port_Server_Tito = 0;
+    uint8_t IP_Server_Tito[4] = {0};
+  };
 
-
+  Tito_Config Tito_Config_Manager;
 
     enum EstadoTransacciontito {
     TRANS_TICKET_IDLE = 0,          // En espera: sin transacción activa
@@ -151,7 +160,7 @@ public:
    bool Varify_Support_Custom_Ticket(void); /* Verificacion de ticket */
 
    bool Pending_Cashout_Information_Response(char Info[]);
-   void Ticket_Out(int Evento);
+   void Ticket_Out_(int Evento);
 
    int  Check_Ticket_In(void);
    bool Generate_Key_Ticket_Out(void);
@@ -322,7 +331,7 @@ public:
   bool Rejected_Ticket(unsigned long Timeout);
   bool Await_Response_Ticket_Status(unsigned long Timeout);
 
-  
+  void Print_Configuracion_Tito(void);
   uint64_t Generate_SEV_Validation_Number(uint32_t sequenceNumber);
 };
 bool Start_Ticket_Task(void);

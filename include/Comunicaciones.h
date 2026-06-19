@@ -1475,6 +1475,10 @@ bool Configura_Tipo_Maquina(char res[])
         {
             ID_Maq_Server=17;
         }
+        else if(res[4]-48==1 && res[5]-48==8)
+        {
+            ID_Maq_Server=18;
+        }
     }
     
     if (ID_Maq != ID_Maq_Server)
@@ -2266,31 +2270,35 @@ bool Inicializa_modo_bootloader(void)
     char res[258] = {};
     bzero(res, 258); // Pone el buffer en 0
 
-    Variables_globales.Set_Variable_Global(Bootloader_Mode, true);
-    if (Variables_globales.Get_Variable_Global(Bootloader_Mode))
-    {
-        res[0] = 'L';
-        res[1] = '|';
-        res[2] = 'S';
-        res[3] = 'B';
-        res[4] = '|';
-        res[5] = 'O';
-        res[6] = 'K';
+    // if (Variables_globales.Get_Variable_Global(Bootloader_Mode))
+    //{
+    res[0] = 'L';
+    res[1] = '|';
+    res[2] = 'S';
+    res[3] = 'B';
+    res[4] = '|';
+    res[5] = 'O';
+    res[6] = 'K';
 
-        for (int i = 7; i < 256; i++)
-        {
-            res[i] = '0';
-        }
-        #ifdef Debug_Mensajes_Server 
-        Serial.println("Set buffer general OK");
-        #endif
-        int len = sizeof(res);
-        Transmite_A_Servidor(res, len);
-        return true;
-    }else{ 
-        return false;
+    for (int i = 7; i < 256; i++)
+    {
+        res[i] = '0';
     }
-    
+#ifdef Debug_Mensajes_Server
+    Serial.println("Set buffer general OK");
+#endif
+    int len = sizeof(res);
+    Transmite_A_Servidor(res, len); 
+
+    NVS.begin("Config_ESP32", false);
+    NVS.putBool("Modo_OTA", true);
+    NVS.end();
+
+    Variables_globales.Set_Variable_Global(Bootloader_Mode, true);
+    delay(1050);
+    ESP.restart();
+    return true;
+  
 }
 
 bool Consulta_Conexion_To_Server(void)
@@ -2857,6 +2865,13 @@ void Mensajes_RFID(void)
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                         Info_Cashless.Unlock_Reader();
+                        
+
+                        DisplayTFT.Mensaje_TFT(
+                            "[Operador]\nPremio destildado correctamente\n"
+                            "Actualizando contadores....",
+                            true);
+                       
                         break;
                     case 0x01: /*Imposible realizar el reset*/
                         /* Guarda ID Operador */
@@ -2871,6 +2886,8 @@ void Mensajes_RFID(void)
                         Reset_Handle_LED();
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                         Info_Cashless.Unlock_Reader();
+
+                        DisplayTFT.Mensaje_TFT("[Operador]\nNo se pudo destildar el premio\n Por favor Revise conexion o estado de la maquina",true);
                         break;
                     case 0x02: /*No existe condicion de pago*/
                         
@@ -2895,6 +2912,12 @@ void Mensajes_RFID(void)
 
                         if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && !Variables_globales.Get_Variable_Global(Event_Dowmload_Cashless_Pending) && !Variables_globales.Get_Variable_Global(Event_Load_Cashless_Pending) &&(Configuracion.Get_Configuracion(Tipo_Maquina, 0)<=3||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==17) && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int()>0 && Info_Cashless.Get_Status_Transfer()==TRANSFER_IDLE && !Info_Cashless.Get_Status_Handpay_EFT())
                         {
+
+                            DisplayTFT.Mensaje_TFT(
+                                    "[Operador]\n"
+                                    "Sesión de cliente detectada\n"
+                                    "Cerrando sesión...",
+                                    false);
                             int ClientID=contadores.Get_Client_ID_Transaccion_Int();
                             switch (Info_Cashless.Info_Client_Download(contadores.Get_Client_ID_Transaccion(), RTC, "D", Cashless.Get_Trans_ID_Int(),ClientID))
                             {
@@ -2907,6 +2930,8 @@ void Mensajes_RFID(void)
                                 Status_Barra(ERROR_LECTURA);
                                 Info_Cashless.Unlock_Reader();
                                 Reset_Handle_LED();
+
+                                DisplayTFT.Mensaje_TFT("[Operador]\n No se pudo cerrar la sesión del cliente",true);
                                 break;
                             }
                         }
@@ -2914,13 +2939,27 @@ void Mensajes_RFID(void)
                         {
 
                             if(Info_Cashless.Get_Status_Handpay_EFT())
+                            {
                                 Report_Http_Code(DESCARGA_EFT_BLOQUEADA, "Maquina en condicion de pago no puede realizar descarga EFT por Operador :");
+
+
+                                DisplayTFT.Mensaje_TFT("[Operador]\n No se pudo cerrar la sesión del cliente\n No compatible con EFT",true);
+                                
+                            }
+                                
 
                             if (Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && Info_Cashless.Type_Sesion() != PLAYER_CASHLESS_SESION)
                             {
+                                
                                 Transmite_Contadores_Accounting();
                                 Close_Sesion_Player_Tracking();
                                 Report_Http_Code(TERMINA_SESION_POR_TARJETA_OPERADOR, "Sesion terminada por operador Id :" + String(Op), true);
+                                DisplayTFT.Notify_Now(EVENT_ACTUALIZAR_INFO_FINAL_SESION_FIDELIZACION);
+                                DisplayTFT.Mensaje_TFT(
+                                    "[Operador]\n"
+                                    "Sesion de cliente detectada\n"
+                                    "Cerrando sesion...",
+                                    true);
                             }
                             else
                             {
@@ -2929,6 +2968,8 @@ void Mensajes_RFID(void)
                                 if (Variables_globales.Get_Variable_Global(Conexion_RFID))
                                     Status_Barra(ERROR_RESET_HANDPAY);
                                 Reset_Handle_LED();
+
+                                DisplayTFT.Mensaje_TFT("[Operador]\nLa maquina no tiene premio pendiente\n Por favor Verifique condicion de pago",true);
                             }
 
                             Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
@@ -2946,12 +2987,22 @@ void Mensajes_RFID(void)
                         /*  Maquinas sin rele y sin comando */
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                         Info_Cashless.Unlock_Reader();
+
+                        DisplayTFT.Mensaje_TFT(
+                            "[Operador]\nNo se pudo destildar el premio\n"
+                            "Verifique la conexion o estado de la maquina",
+                            true);
                         break;
 
                     default:
                         Variables_globales.Set_Variable_Global(Handle_RFID_Lector, false);
                         Info_Cashless.Unlock_Reader();
                         Reset_Handle_LED();
+
+                        DisplayTFT.Mensaje_TFT(
+                            "[Operador]\nNo se pudo destildar el premio\n"
+                            "Respuesta no identificada por el servidor",
+                            true);
                         break;
                     }
                 }
@@ -3233,7 +3284,7 @@ void Task_Procesa_Comandos(void *parameter)
 
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                 {
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==14||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4|| Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0)==6 || Configuracion.Get_Configuracion(Tipo_Maquina, 0)==14||Configuracion.Get_Configuracion(Tipo_Maquina, 0)==4|| Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 18)
                     {
 
                         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 4||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 16)
@@ -3267,13 +3318,18 @@ void Task_Procesa_Comandos(void *parameter)
                         }
                         else
                         {
-                            if (Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == false)
+
+                            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 18)
                             {
-                                if (Calcula_First_Cancel_Credit(true))
+                                if (Variables_globales.Get_Variable_Global(Primer_Cancel_Credit) == false)
                                 {
-                                    Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+                                    if (Calcula_First_Cancel_Credit(true))
+                                    {
+                                        Variables_globales.Set_Variable_Global(Primer_Cancel_Credit, true);
+                                    }
                                 }
                             }
+
                             if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
                             {
                                 Trasmite_Contadores_Accounting_API_Gmaster(true); /* Envia por Socket en modo - API */
@@ -3283,7 +3339,7 @@ void Task_Procesa_Comandos(void *parameter)
                                 Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
                         }
                     }
-                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4 &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 16)
+                    if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4 &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 16 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 18)
                     {
                         if(Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE) /* ¿ Esta en modo Api? */
                         {
@@ -3390,8 +3446,21 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Solicitud Reset ESP32");
                 #endif
                 Transmite_Confirmacion('A', 'F');
-                delay(200);
-                ESP.restart();
+
+                if(Variables_globales.Get_Variable_Global(Conexion_TFT_Display)&& Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+                {
+
+                    DisplayTFT.Reset_Pantalla_TFT();
+                    delay(500);
+                    ESP.restart();
+
+                }else{
+
+                    delay(200);
+                    ESP.restart();
+                }
+
+                
                 break;
 
             case 15:
@@ -5378,7 +5447,7 @@ void RESET_HANDPAY_NOT_SAS(void)
         {
             Variables_globales.Set_Variable_Global(Reset_Handpay_in_Process, true);
 
-            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15)
+            if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 13 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 14 ||Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 9 || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 15||Variables_globales.Get_Variable_Global(Flag_Validacion_Creditos_Actuales))
             {
                 Activa_Encuesta = true;
                 delay(10);

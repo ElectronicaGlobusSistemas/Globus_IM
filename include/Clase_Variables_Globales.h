@@ -152,7 +152,22 @@ using namespace std;
 #define Flag_Update_TFT_Globus_IM           128
 #define Flag_UI_Init                        129
 #define Flag_Sesiones_Acumuladas_Sin_Tarjeta 130
+#define Flag_Simulador_Cashless              131
+#define Informacion_Rendimiento              132
+#define Flag_Update_OTA                      133
+#define Flag_Validacion_Creditos_Actuales    134
+#define Flag_Log_SAS                         135
+#define Flag_Creditos_SAS                    136
 
+#define Flag_Contador_Cashable_SAS           137
+#define Flag_Contador_Restricted_SAS         138
+#define Flag_Contador_NON_Restricted_SAS     139
+
+#define Flag_No Flag
+
+#define Flag_Mode_Descarga                   140
+
+#define Flag_Debug_OnOff                     141
 
 class Variables_Globales
 {
@@ -284,6 +299,20 @@ private:
     bool Flag_Update_TFT_Globus_IM_;
     bool Flag_UI_Init_;
     bool Flag_Sesiones_Acumuladas_Sin_Tarjeta_;
+    bool Flag_Simulador_Cashless_;
+    bool Informacion_Rendimiento_;
+    bool Flag_Update_OTA_;
+    bool Flag_Validacion_Creditos_Actuales_;
+    bool Flag_Log_SAS_;
+    bool Flag_Creditos_SAS_;
+
+
+    bool Flag_Contador_Cashable_SAS_;     
+    bool Flag_Contador_Restricted_SAS_;
+    bool Flag_Contador_NON_Restricted_SAS_;
+    bool Flag_Mode_Descarga_;
+    bool Flag_Debug_OnOff_;
+   
     
 
 public:

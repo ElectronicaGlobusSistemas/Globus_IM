@@ -92,7 +92,11 @@ Menor (Minor): Se incrementa cuando se añaden nuevas funcionalidades de forma c
 Parche (Patch): Se incrementa cuando se corrigen errores o se hacen mejoras menores.
 Build: Se puede usar para identificar compilaciones específicas o revisiones menores que no afectan al comportamiento del software.
 */
-uint8_t Version_Firmware_[]={2,1,7,4};
+//uint8_t Version_Firmware_[]={0,0,0,0};
+
+uint8_t Version_Firmware_[]={2,1,9,9};
+
+
 uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //------------------------------------------------------------------
 
@@ -104,6 +108,8 @@ const unsigned long TIMEOUT_SD_MS = 15000;  // 15 segundos sin SD para reiniciar
 
 void Fecha_Update(bool Enable);
 
+extern AsyncWebServer Server_API;
+extern AsyncWebServer Server_Bono;
 
 void Init_Config(void)
 {
@@ -147,13 +153,20 @@ void Init_Config(void)
     //--------------------> Init NVS Datos <-------------------------
     Init_Configuracion_Inicial(); // Inicializa Config de Memoria
     //---------------------------------------------------------------
-    
+   
     //--------------------> Config  WIFI <---------------------------
     CONNECT_WIFI();        // Inicializa  Modulo WIFI
-    //------------------> Init Memoria SD <--------------------------
-    Init_RFID(); /* Inicializa Modulo RFID*/
-    Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
+
+
+    Modo_Mantenimiento(Variables_globales.Get_Variable_Global(Flag_Mode_Descarga)); // Verifica Modo Mantenimiento OTA
     
+    //------------------> Init Memoria SD <--------------------------
+    Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
+    Init_RFID(); /* Inicializa Modulo RFID*/
+    Inicializa_Display_TFT(); /* Inicializa Display TFT*/
+    
+    Server_API.begin();
+    Cashless.Init_API_Bono();
     
     //------------------> AutoUpdate <-------------------------------
   //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
@@ -174,11 +187,13 @@ void Init_Config(void)
     Init_Wifi();
     //---------------------------------------------------------------
     //--------------------> Task Update  <---------------------------
-    Init_Bootloader();
+    //Init_Bootloader();
     //---------------------------------------------------------------
     //--------------------> Task Manager <---------------------------
     TaskManager(); // Inicia Manejador de Tareas de Verificación
-    //---------------------------------------------------------------  
+    //--------------------------------------------------------------- 
+    
+    //Setup_Bootloader();
 }
 
 void TaskManager()
@@ -272,7 +287,7 @@ void PuntoAcceso_On(int Reset_Pin)
         lastButtonState = reading;
 }
 
-void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
+void  Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
 {
 
     if (WiFi.status() == WL_CONNECTED)
@@ -344,6 +359,7 @@ static void ManagerTasks(void *parameter)
             MCU_State = !MCU_State;
             digitalWrite(MCU_Status, !MCU_State);
             digitalWrite(MCU_Status_2,!MCU_State);
+            
         }
         //--------------------------------------------------------------------------------------------------
 
@@ -468,16 +484,16 @@ static void ManagerTasks(void *parameter)
         //-------------------------------------------------------------------------------------------------------
 
         //---------------------------------> Activa Actualizacion Manual <---------------------------------------
-        if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
-        {
-            if(!Update_Enable_DTime)
-            {
-                Fecha_Update(true);
-                Update_Enable_DTime=true;
-            }
-           ArduinoOTA.handle();
+        // if (WiFi.status() == WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
+        // {
+        //     if(!Update_Enable_DTime)
+        //     {
+        //         Fecha_Update(true);
+        //         Update_Enable_DTime=true;
+        //     }
+        //    //ArduinoOTA.handle();
         
-        }
+        // }
 
         if(WiFi.status()!=WL_CONNECTED && Variables_globales.Get_Variable_Global(Bootloader_Mode))
         {
@@ -509,7 +525,7 @@ static void ManagerTasks(void *parameter)
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
 
-        //Ping_Test(20000, false, false);
+        Ping_Test(20000, false, false);
         
         //FtpFast();
 
@@ -831,6 +847,11 @@ void Init_Configuracion_Inicial(void)
         // 13 = Poker_Ertech_Plus (Simple-No creditos)
         // 14 = Poker_Ertech_Slot (IGT)
         // 15 = Mecanicas 4 contadores 
+        // 16 = IRT No bloqueo  no bloqueo de juego
+        // 17 = Aristocrat EFT
+        // 18 = Encuensta 0F no bloqueo de juego
+
+
         uint16_t tipo_maq = 5;
         NVS.putUInt("TYPE_MAQ", tipo_maq);
     }
@@ -1020,6 +1041,18 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Enable_Tito",testTito);
     }
 
+    if(!NVS.isKey("Tito_Port"))
+    {
+        uint16_t port = 0;
+        NVS.putUInt("Tito_Port", port);
+    }
+
+    if(!NVS.isKey("Tito_IP"))
+    {
+        uint8_t ip_tito[] = {0, 0, 0, 0};
+        NVS.putBytes("Tito_IP", ip_tito, sizeof(ip_tito));
+    }
+
     if(!NVS.isKey("Cash_Pending"))
     {
         /* Recupera estado transacción pendiente Cashless */
@@ -1111,9 +1144,40 @@ void Init_Configuracion_Inicial(void)
         NVS.putBool("Sesiones_Ac",Sesiones_Acumuladas);
     }
 
+    if (!NVS.isKey("Simulador"))
+    {
+        bool Simulador = false;
+        NVS.putBool("Simulador", Simulador);
+    }
 
-    
+    if(!NVS.isKey("V_Creditos"))
+    {
+        bool Validacion=false;
+        NVS.putBool("V_Creditos",Validacion);
+    }
+    if(!NVS.isKey("Ip_BDA"))
+    {
+        Serial.println("Guardando IP BDA por defecto...");
+        NVS.putUInt("Ip_BDA",0);
+    }
 
+    if(!NVS.isKey("Estado_BA")) /* Descarga */
+    {
+        Serial.println("Guardando Estado BA por defecto...");
+        NVS.putUInt("Estado_BA",0); // BA_IDLE
+    }
+
+    if(!NVS.isKey("Estado_BAC")) /* Carga */
+    {
+        Serial.println("Guardando Estado BAC por defecto...");
+        NVS.putBool("Estado_BAC",false); 
+    }
+
+    if(!NVS.isKey("Modo_OTA"))
+    {
+        Serial.println("Guardando estado OTA por defecto...");
+        NVS.putBool("Modo_OTA",false);
+    }
 
     /*--------------------------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------------------------------------------------------------------------------------------*/
@@ -1338,6 +1402,10 @@ void Init_Configuracion_Inicial(void)
 
     case 17:
         Serial.println("Aristocrat EFT");
+    break;
+
+    case 18:
+        Serial.println("Encuesta 0F");
     break;
 
     default:
@@ -1747,30 +1815,29 @@ void Init_Configuracion_Inicial(void)
     }
 
 
-    
-
     bool Test_Formatt_Spiffs=NVS.getBool("Spiffs",true);
     Variables_globales.Set_Variable_Global(Default_Formatt,Test_Formatt_Spiffs);
 
 
     int Validations_System_ID_Rec=NVS.getInt("ID_Tito",0);
     Tito.Set_Inicial_Trans_ID_Tito(Validations_System_ID_Rec);
-    Serial.print("Trasaccion ID Tito: ");
-    Serial.println(Validations_System_ID_Rec);
+    // Serial.print("Trasaccion ID Tito: ");
+    // Serial.println(Validations_System_ID_Rec);
     
     bool Tito_Test=NVS.getBool("Only_Tito",false);
-
     Variables_globales.Set_Variable_Global(Descarga_Solo_Tito,Tito_Test);
-
     bool Test_Enable_Tito=NVS.getBool("Enable_Tito");
-
     Variables_globales.Set_Variable_Global(Enable_Tito_Ticket,Test_Enable_Tito);
+    // if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
+    //     Serial.println("Tito: Habilitado");
+    // else
+    //     Serial.println("Tito: Deshabilitado");
+    size_t AdressIp_Server_Len= NVS.getBytesLength("Tito_IP");
+    NVS.getBytes("Tito_IP",Tito.Tito_Config_Manager.IP_Server_Tito,AdressIp_Server_Len);
+    Tito.Tito_Config_Manager.Port_Server_Tito=NVS.getUInt("Tito_Port",0);
+   
 
-    if(Variables_globales.Get_Variable_Global(Enable_Tito_Ticket))
-        Serial.println("Tito: Habilitado");
-    else
-        Serial.println("Tito: Deshabilitado");
-
+    Tito.Print_Configuracion_Tito();
 
     bool Test_Premios_SAS=NVS.getBool("P_SAS");
     Variables_globales.Set_Variable_Global(Handle_Premios_SAS,Test_Premios_SAS);
@@ -1876,6 +1943,54 @@ void Init_Configuracion_Inicial(void)
     else
         Serial.println("Sesiones sin tarjeta: Deshabilitadas");
         
+
+    Variables_globales.Set_Variable_Global(Flag_Simulador_Cashless,NVS.getBool("Simulador",false));
+
+    if(Variables_globales.Get_Variable_Global(Flag_Simulador_Cashless))
+        Serial.println("Simulador Cashless: Habilitado");
+    else
+        Serial.println("Simulador Cashless: Deshabilitado");
+
+
+    Variables_globales.Set_Variable_Global(Flag_Validacion_Creditos_Actuales,NVS.getBool("V_Creditos",false));
+
+    if(Variables_globales.Get_Variable_Global(Flag_Validacion_Creditos_Actuales))
+        Serial.println("Omite validacion de creditos del rele");
+    else
+        Serial.println("Valida creditos del rele");
+
+
+
+    ipDest=IPAddress(NVS.getUInt("Ip_BDA", 0));
+    Serial.print("IP BDA: ");
+    Serial.println(ipDest);
+
+    AFT.solicitudBA.Ack_Pendiente_Recv = NVS.getBool("Estado_BAC", 0);
+
+    if (!AFT.solicitudBA.Ack_Pendiente_Recv)
+    {
+        TransaccionCashless::EstadoBA EstadoBa = (TransaccionCashless::EstadoBA)NVS.getUInt("Estado_BA", 0);
+
+        switch (EstadoBa)
+        {
+        case TransaccionCashless::BA_PENDIENTE:
+            AFT.STATUS_BA(TransaccionCashless::BA_PENDIENTE);
+            break;
+
+        default:
+
+            Serial.println(EstadoBa);
+            Serial.println("No Existe transaccion BA pendiente");
+            break;
+        }
+    }else{
+
+        Serial.println("Esperando respuesta de transaccion BA");
+    }
+
+    bool ModoDescarga=NVS.getBool("Modo_OTA",false);
+    Variables_globales.Set_Variable_Global(Flag_Mode_Descarga,ModoDescarga);
+
     Serial.println("\n");
     NVS.end();
 }
@@ -1936,6 +2051,13 @@ void Config_Red_Serial(String Comando)
     unsigned long Tf=0;
     int inter_v=20000;
 
+
+    // if(Comando[0]=='1')
+    // {
+    //     Fideliza.SesionCliente(11125,SESSION_START,"Solicitud de inicio de sesion");
+    // }
+
+
     if (Comando[0] == 'J')
     {
        // Carga_Bonus_Maquina_Magic();
@@ -1945,6 +2067,8 @@ void Config_Red_Serial(String Comando)
         // Api_G.Guarda_Trama(Trama);
 
         // Api_G.Procesa_Cola_Tramas_Pendientes();
+        //Info_Cashless.Solicitud_Token_Cashless_BA(1000);
+        WiFi.disconnect();
     }
 
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
