@@ -3261,7 +3261,7 @@ void Cliente_VS_Operador(byte MEMORIA[],byte INFO[])
             else
             {
 
-
+                
                 DisplayTFT.info.Mensaje = "Consultando puntos de sesion\nPor favor espere...";
                 DisplayTFT.info.Ocultar = false;
                 DisplayTFT.Notify_Now(EVENT_MENSAJES);
