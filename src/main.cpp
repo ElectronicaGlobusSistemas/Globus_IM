@@ -2,6 +2,7 @@
 #include "Errores.h"
 #include "Bootloader.h"
 #include "TITO.h"
+#include "esp_log.h"
 /* Definir las clases que haran uso de los metodos */
 #include "Preferences.h"
 Preferences NVS;
@@ -45,11 +46,13 @@ Tabla_Eventos Tabla_Evento;
 #include "Persistenca_Info.h"
 #include "ScanWiFi.h"
 #include "lwip/stats.h"
+#include "esp_heap_caps.h"
+
 
 
 API_Accounting Accounting;
 extern Persistenca_Info Backup;
-
+  
 
 extern Fidelizacion Fideliza;
 
@@ -104,7 +107,7 @@ extern int Contador_Escrituras;
 
 unsigned long Timer_SD_CHECK=0;
 unsigned long Timer_SD_Previous=0;
-unsigned long SD_CHECK_Timer=10000;
+unsigned long SD_CHECK_Timer=50000;
 bool Handle_SD=false;
 bool extern Datos_OK;
 bool Carga_Datos_Iniciales=false;
@@ -138,6 +141,8 @@ void check_SD(void);
 void TimeOut_Player_Tracking_Sesion(void);
 void TimeOut_Marca_Operador(void);
 static void Task_RFID(void *parameter);
+
+extern String QuitarTildes(String texto);
 bool Comunica_=false;
 extern int Host_;
 extern unsigned long TimeOut_Automatico;
@@ -203,24 +208,50 @@ extern volatile bool Flag_Recupera;
 
 
 
+String ResetReasonToString(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+        case ESP_RST_POWERON:   return "POWERON";
+        case ESP_RST_EXT:       return "EXTERNAL_RESET";
+        case ESP_RST_SW:        return "SOFTWARE_RESET";
+        case ESP_RST_PANIC:     return "PANIC";
+        case ESP_RST_INT_WDT:   return "INT_WDT";
+        case ESP_RST_TASK_WDT:  return "TASK_WDT";
+        case ESP_RST_WDT:       return "WDT";
+        case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+    }
+}
+
 void setup()
 {
 
   Variables_globales.Init_Variables_Globales();
   Tabla_Evento.Init_Tabla_Eventos();
+  Accounting.Init_Cola_Accounting();
+  Info_Cashless.SPT_Inicializar(90000);
   Init_Config(); // Config Perifericos
+  Cumplimiento_Cache_Boot(); // Certificacion: borra acta previa si cambio el tipo de maquina
+
+  //Accounting.Init_Mutex_Accounting();
   /*--------------------> Verifica la Comunicación Maquina<------------------------- */
   if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 9)
   {
     xTaskCreatePinnedToCore(
         Check_Comunicacion_Maq,
         "verificaComunica",
-        6000, /*8000*/
+        4096, /*8000*/
         NULL,
         configMAX_PRIORITIES - 15,
         &Check_Comunication_Maq,
         1); // Core donde se ejecutara la tarea
   }
+
+  esp_log_level_set("wifi", ESP_LOG_VERBOSE);
+  
 
   if(Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
     DisplayTFT.Init_Handle();
@@ -292,7 +323,7 @@ void setup()
   // else
   //   Serial.println("No se inicio el sistema de archivos");
 
-  Cashless.Init_API_Server();                       /* Inicializa Server Globus IM ESP32 */
+                        /* Inicializa Server Globus IM ESP32 */
   Buffer_Cashless.Init_Buffer_Transfer_AFT(true);   /* Inicializa Buffer de transferencias AFT*/
   Buffer_Cashless.Clear_Buffer(Buffer_RX_Cashless); /* Inicializa Buffer Creditos*/
   Cashless.Set_Amount_To_Load(0, 0, 0);             /* Setea Valores de carga en 0 */
@@ -300,19 +331,20 @@ void setup()
   // Info_Cashless.Log(RTC,"INICIO_OPERACION_DISPOSITIVO_GLOBUS_IM_ESP32");
   sd_mutex = xSemaphoreCreateMutex();
 
-  if (AFT.IsCashlessMachine())
-  {
-    if (AFT.checkLogSAS())
-      Variables_globales.Set_Variable_Global(Flag_Log_SAS, true);
-    else
-      Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
-  }else
-    Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
+  // if (AFT.IsCashlessMachine())
+  // {
+  //   if (AFT.checkLogSAS())
+  //     Variables_globales.Set_Variable_Global(Flag_Log_SAS, true);
+  //   else
+  //     Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
+  // }else
+  //   Variables_globales.Set_Variable_Global(Flag_Log_SAS, false);
 
   // ScanWiFi();
-  Info_Cashless.Log(RTC, "DISPOSITIVO_INICIADO");
-
-
+  esp_reset_reason_t reason = esp_reset_reason();
+  Info_Cashless.Log(RTC,"DISPOSITIVO_INICIADO - RESET: " + ResetReasonToString(reason));
+  Serial.println(ResetReasonToString(reason));
+ 
   
   //Api_G.Inicializa_Cola_Tramas(true);
 
@@ -393,7 +425,6 @@ void loop()
   if(Handle_Bootloader())
     return;
   
-
   // Tito.Request_Handle_Tito();
   if (!Verifica)
   {
@@ -401,11 +432,17 @@ void loop()
       Verifica = true;
   }
 
+    
+  // if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+  //   Info_Cashless.Genera_Token_Accounting();
+
   if (Variables_globales.Get_Variable_Global(Enable_Cashless) || Variables_globales.Get_Variable_Global(Handle_Premios_SAS))
     Info_Cashless.Genera_Token_Cashless();
 
-  // Cashless.Registra_Maquina_Auto();
+  // if(Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+  //   Info_Cashless.Genera_Token_Fidelizacion();
 
+  // Cashless.Registra_Maquina_Auto();
   if (Variables_globales.Get_Variable_Global(Enable_Cashless))
     Info_Cashless.Reporting_Pending_Transfers(25000);
 
@@ -427,7 +464,7 @@ void loop()
   /*------------------------> Despierta lector de inactividad <---------------------------*/
   if (Time_I - Time_P >= LongT)
   {
-
+    //Cumplimiento_Imprimir();
     // printOpenSockets();
 
     if (Variables_globales.Get_Variable_Global(Informacion_Rendimiento))
@@ -522,10 +559,9 @@ void loop()
 
   }
   DisplayTFT.Task_Handle_TFT_Display();
+  //Info_Cashless.Task_Token(Info_Cashless.Get_Token_Actual());
 
-  Info_Cashless.Simulador_Cashless_Automatico(Variables_globales.Get_Variable_Global(Flag_Simulador_Cashless));
-
-  
+  //Info_Cashless.Simulador_Cashless_Automatico(Variables_globales.Get_Variable_Global(Flag_Simulador_Cashless));
 }
 
 /* Verifica comunicacion maquina */
@@ -937,12 +973,12 @@ void TimeOut_Player_Tracking_Sesion(void)
 
       if (consistentCreditos)
       {
-        Serial.println();
-        Serial.print("Creditos: ");
-        Serial.println(Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)));
-        Serial.println("Cierra sesion por inactividad ");
-        Serial.print("Timeout: ");
-        Serial.println(currentTime - startTime);
+        // Serial.println();
+        // Serial.print("Creditos: ");
+        // Serial.println(Creditos = Convert_Char_To_Int10(contadores.Get_Contadores_Char(24)));
+        // Serial.println("Cierra sesion por inactividad ");
+        // Serial.print("Timeout: ");
+        // Serial.println(currentTime - startTime);
 
         /* Maquina  No Cashless */
         if (Configuracion.Get_Configuracion(Tipo_Maquina, 0) > 3 && Configuracion.Get_Configuracion(Tipo_Maquina, 0)!=17)
@@ -971,9 +1007,7 @@ void TimeOut_Player_Tracking_Sesion(void)
           if (Variables_globales.Get_Variable_Global(Enable_Cashless))
           {
 
-            //if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
-
-            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && (Configuracion.Get_Configuracion(Tipo_Maquina, 0) <= 3) || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+            if (Info_Cashless.Type_Sesion() == PLAYER_CASHLESS_SESION && Variables_globales.Get_Variable_Global(Flag_Sesion_RFID) && transaccionesPendientes.empty() && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && (Configuracion.Get_Configuracion(Tipo_Maquina, 0) <= 3) || Configuracion.Get_Configuracion(Tipo_Maquina, 0) == 17 && !Variables_globales.Get_Variable_Global(Status_Games_Machine) && contadores.Get_Client_ID_Transaccion_Int() > 0 && AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
             {
 
               //if(AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
@@ -1216,117 +1250,261 @@ void TimeOut_Marca_Operador(void)
 }
 
 /*Ejecuta Servidor FTP & Funciones de Memoria*/
+
+#define TIMER_FTP              10UL
+#define TIMER_QUEUE_SD         50UL
+#define TIMER_CREATE_FILES     5000UL
+#define TIMER_SD_STATUS        50000UL
+#define TIMER_TEMPERATURE      300000UL
+#define TIMER_CLEAN_SD         600000UL
+
+
+uint32_t Timer_FTP = 0;
+uint32_t Timer_Queue_SD = 0;
+uint32_t Timer_Create_Files = 0;
+uint32_t Timer_SD_Status = 0;
+uint32_t Timer_Temperature = 0;
+uint32_t Timer_Limpieza_SD = 0;
+
 void check_SD(void)
 {
 
   Timer_SD_CHECK = millis();
 
-  if (!Variables_globales.Get_Variable_Global(Updating_System))
+  if(Variables_globales.Get_Variable_Global(Updating_System))
+    return;
+
+  if(Variables_globales.Get_Variable_Global(Ftp_Mode))
+  {
+    Rum_FTP_Server();
+    return;
+  }
+
+  Evento_Formateo_SD();
+  Queue_SD();
+
+  if(AFT.GET_STATUS_TRANSFER() != TransaccionCashless::TRANS_IDLE||AFT.GET_STATUS_BA() != TransaccionCashless::BA_IDLE)
+    return;
+
+  // if ((Timer_SD_CHECK - Timer_Temperature) >= TIMER_TEMPERATURE)
+  // {
+
+  //   //Serial.println("Temperature");
+  //   Timer_Temperature = Timer_SD_CHECK;
+
+  //   if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+  //   {
+  //     uint8_t Temperatura_Procesador_GPU = temperatureRead();
+  //     Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
+  //   }
+  // }
+
+  if (Timer_SD_CHECK - Timer_Create_Files >= TIMER_CREATE_FILES)
   {
 
-    if (Variables_globales.Get_Variable_Global(Ftp_Mode))
+    //Serial.println("Creacion de files");
+    Timer_Create_Files=Timer_SD_CHECK;
+
+    if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
     {
-      Rum_FTP_Server();
-      Timer_SD_Previous = millis();
-    }
-    else
-    {
-
-      Queue_SD();
-
-      Evento_Formateo_SD();
-
-      //Task_Conexion_TFT(3000);
-
-      if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
+      if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
       {
 
-       // printOpenSockets();
-
-        //  Envio_Contadores.Transmite_Eventos_API(0x11);
-        FreeSpace_SD();
-        uint8_t Temperatura_Procesador_GPU = temperatureRead();
-        Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
-
-        if (Variables_globales.Get_Variable_Global(SD_INSERT))
-        {
-          Variables_globales.Set_Variable_Global(Enable_SD, true);
-          digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
-          Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
-          Variables_globales.Set_Variable_Global(SD_INSERT, true);
-          if (Contador_Escrituras > 0 && Variables_globales.Get_Variable_Global(Enable_Storage) == true)
-          {
-            Variables_globales.Set_Variable_Global(Estado_Escritura, true);
-          }
-          else
-          {
-            Variables_globales.Set_Variable_Global(Estado_Escritura, false);
-          }
-        }
-        /*-----------------------> Agregar  Variables_globales.Get_Variable_Global(Comunicacion_Maq) */
-        if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
+        if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
         {
 
-          if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
-          {
+          Info_Cashless.CreaLog(archivo, false, Dia_Guarda_Logs);
+          /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
+          String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
 
-            Info_Cashless.CreaLog(archivo, false, Dia_Guarda_Logs);
-            /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
-            String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+          VerificaArchivo(archivo, DataTime);
+          delay(10);
+          Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+          delay(10);
+          Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+          delay(10);
+          Create_ARCHIVE_Txt(Archivo_LOG);
+          delay(10);
+          Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
+          delay(10);
+          Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
+          Serial.println("📂 OK Archivos Listos.. ✅");
+          // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
+          Total_SD = SD.totalBytes() / (1024 * 1024);
+          Usado_SD = SD.usedBytes() / (1024 * 1024);
+          Libre_SD = Total_SD - Usado_SD;
+          Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
+          Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
+          Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
+          Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
 
-            VerificaArchivo(archivo, DataTime);
-            delay(10);
-            Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
-            delay(10);
-            Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
-            delay(10);
-            Create_ARCHIVE_Txt(Archivo_LOG);
-            delay(10);
-            Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
-            delay(10);
-            Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
-            Serial.println("📂 OK Archivos Listos.. ✅");
-            // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
-            Total_SD = SD.totalBytes() / (1024 * 1024);
-            Usado_SD = SD.usedBytes() / (1024 * 1024);
-            Libre_SD = Total_SD - Usado_SD;
-            Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
-            Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
-            Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
-            Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
-
-            xSemaphoreGive(sd_mutex);
-          }
-
-          /*--------------------------------------------------------------------------------------------*/
-        }
-        if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
-        {
-
-          if (Libera_Memoria(Total_SD, Usado_SD))
-          {
-            Total_SD = SD.totalBytes() / (1024 * 1024);
-            Usado_SD = SD.usedBytes() / (1024 * 1024);
-            Libre_SD = Total_SD - Usado_SD;
-            Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
-            Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
-            Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
-#ifdef Debug_Escritura
-            Serial.println("Buscando archivos...");
-            Serial.println("Alerta Memoria llena Borrando Datos...");
-#endif
-            /*Memoria llena*/
-            Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, true);
-          }
-          else
-          {
-            Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, false);
-          }
+          xSemaphoreGive(sd_mutex);
         }
 
-        AFT.checkAndCleanLogSAS();
-        Timer_SD_Previous = millis();
+        /*--------------------------------------------------------------------------------------------*/
       }
     }
   }
+
+  if (Timer_SD_CHECK - Timer_Limpieza_SD >= TIMER_CLEAN_SD)
+  {
+    //Serial.println("Clean archivos");
+    Timer_Limpieza_SD = Timer_SD_CHECK;
+
+    if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+    {
+      if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+      {
+
+        if (Libera_Memoria(Total_SD, Usado_SD))
+        {
+          Total_SD = SD.totalBytes() / (1024 * 1024);
+          Usado_SD = SD.usedBytes() / (1024 * 1024);
+          Libre_SD = Total_SD - Usado_SD;
+          Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
+          Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
+          Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
+#ifdef Debug_Escritura
+          Serial.println("Buscando archivos...");
+          Serial.println("Alerta Memoria llena Borrando Datos...");
+#endif
+          /*Memoria llena*/
+          Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, true);
+        }
+        else
+        {
+          Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, false);
+        }
+      }
+    }
+  }
+
+  if (Timer_SD_CHECK - Timer_SD_Status >= TIMER_SD_STATUS)
+  {
+    //Serial.println("Estado de escritura");
+    Timer_SD_Status = Timer_SD_CHECK;
+
+    if (AFT.GET_STATUS_TRANSFER() == TransaccionCashless::TRANS_IDLE)
+    {
+      if (Variables_globales.Get_Variable_Global(SD_INSERT))
+      {
+        Variables_globales.Set_Variable_Global(Enable_SD, true);
+        digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
+        Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
+        Variables_globales.Set_Variable_Global(SD_INSERT, true);
+        if (Contador_Escrituras > 0 && Variables_globales.Get_Variable_Global(Enable_Storage) == true)
+        {
+          Variables_globales.Set_Variable_Global(Estado_Escritura, true);
+        }
+        else
+        {
+          Variables_globales.Set_Variable_Global(Estado_Escritura, false);
+        }
+      }
+    }
+  }
+
+  
+
+
+//   if (Variables_globales.Get_Variable_Global(Ftp_Mode))
+//   {
+//     Rum_FTP_Server();
+//     Timer_SD_Previous = millis();
+//   }
+//   else
+//   {
+
+//     Evento_Formateo_SD();
+//     // Queue_SD();
+//     // Task_Conexion_TFT(3000);
+
+//     if ((Timer_SD_CHECK - Timer_SD_Previous) >= SD_CHECK_Timer)
+//     {
+//       // printOpenSockets();
+//       //  Envio_Contadores.Transmite_Eventos_API(0x11);
+//       FreeSpace_SD();
+//       uint8_t Temperatura_Procesador_GPU = temperatureRead();
+//       Variables_globales.Set_Variable_Global_String(Temperatura_procesador, String(Temperatura_Procesador_GPU));
+
+//       if (Variables_globales.Get_Variable_Global(SD_INSERT))
+//       {
+//         Variables_globales.Set_Variable_Global(Enable_SD, true);
+//         digitalWrite(SD_Status, HIGH); // Enciende Indicador LED SD Status.
+//         Enable_Status = true;          // Habilita  El Parpadeo de LED SD Status en Modo FTP Server
+//         Variables_globales.Set_Variable_Global(SD_INSERT, true);
+//         if (Contador_Escrituras > 0 && Variables_globales.Get_Variable_Global(Enable_Storage) == true)
+//         {
+//           Variables_globales.Set_Variable_Global(Estado_Escritura, true);
+//         }
+//         else
+//         {
+//           Variables_globales.Set_Variable_Global(Estado_Escritura, false);
+//         }
+//       }
+//       /*-----------------------> Agregar  Variables_globales.Get_Variable_Global(Comunicacion_Maq) */
+//       if (Variables_globales.Get_Variable_Global(Sincronizacion_RTC) && Variables_globales.Get_Variable_Global(Flag_Crea_Archivos) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(SD_INSERT))
+//       {
+
+//         if (xSemaphoreTake(sd_mutex, pdMS_TO_TICKS(200)))
+//         {
+
+//           Info_Cashless.CreaLog(archivo, false, Dia_Guarda_Logs);
+//           /*-----------------------> Crea Archivos fecha actual<----------------------------------------*/
+//           String DataTime = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
+//           VerificaArchivo(archivo, DataTime);
+//           delay(10);
+//           Create_ARCHIVE_Excel(Archivo_CSV_Contadores, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Generica));
+//           delay(10);
+//           Create_ARCHIVE_Excel_Eventos(Archivo_CSV_Eventos, Variables_globales.Get_Encabezado_Maquina(Encabezado_Maquina_Eventos));
+//           delay(10);
+//           Create_ARCHIVE_Txt(Archivo_LOG);
+//           delay(10);
+//           Create_ARCHIVE_Excel(Archivo_CSV_Sesiones, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Sesiones));
+//           delay(10);
+//           Create_ARCHIVE_Excel(Archivo_CSV_Premios, Variables_globales.Get_Encabezado_Maquina(Encabezado_Archivo_Premios));
+//           Serial.println("📂 OK Archivos Listos.. ✅");
+//           // Variables_globales.Set_Variable_Global(Flag_Archivos_OK, true);
+//           Total_SD = SD.totalBytes() / (1024 * 1024);
+//           Usado_SD = SD.usedBytes() / (1024 * 1024);
+//           Libre_SD = Total_SD - Usado_SD;
+//           Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
+//           Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
+//           Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
+//           Variables_globales.Set_Variable_Global(Flag_Crea_Archivos, false);
+
+//           xSemaphoreGive(sd_mutex);
+//         }
+
+//         /*--------------------------------------------------------------------------------------------*/
+//       }
+//       if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode) && Variables_globales.Get_Variable_Global(Sincronizacion_RTC))
+//       {
+
+//         if (Libera_Memoria(Total_SD, Usado_SD))
+//         {
+//           Total_SD = SD.totalBytes() / (1024 * 1024);
+//           Usado_SD = SD.usedBytes() / (1024 * 1024);
+//           Libre_SD = Total_SD - Usado_SD;
+//           Variables_globales.Set_Variable_Global_String(Espacio_Libre_SD, String(Libre_SD)); // Guarda  espacio libre de memoria
+//           Variables_globales.Set_Variable_Global_String(Espacio_Usado_SD, String(Usado_SD));
+//           Variables_globales.Set_Variable_Global_String(Size_SD, String(Total_SD));
+// #ifdef Debug_Escritura
+//             Serial.println("Buscando archivos...");
+//             Serial.println("Alerta Memoria llena Borrando Datos...");
+// #endif
+//             /*Memoria llena*/
+//             Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, true);
+//           }
+//           else
+//           {
+//             Variables_globales.Set_Variable_Global(Flag_Memoria_SD_Full, false);
+//           }
+//         }
+
+//         //AFT.checkAndCleanLogSAS();
+//         Timer_SD_Previous = millis();
+//       }
+//     }
 }

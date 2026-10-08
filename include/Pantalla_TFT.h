@@ -13,6 +13,8 @@
 
 #define UPDATE_OTA            30
 
+#define NOTIFICATION_TFT      40
+
 #ifndef PANTALLA_TFT_H
 #define PANTALLA_TFT_H
 
@@ -89,6 +91,29 @@ enum LoginTFT
 };
 
 
+
+enum LogoutTFT
+{
+    STATE_LOGOUT_IDLE = 0,
+    STATE_LOGOUT_IN_PROGRESS,
+    STATE_LOGOUT_OK,
+    STATE_LOGOUT_FAIL,
+    STATE_BLOCKED_LOGOUT
+};
+
+
+enum NotificationEvent_TFT
+{
+    EVENT_LEVEL_UP = 1,
+    EVENT_PLAYING_WITHOUT_SESSION = 2
+};
+enum NotificationValidation
+{
+    NOTIFICATION_VALID,
+    NOTIFICATION_INVALID_CONTEXT,
+    NOTIFICATION_UNKNOWN_EVENT
+};
+
 class Pantalla_TFT
 {
 private:
@@ -134,6 +159,10 @@ public:
 
         String Mensaje="";
         bool Ocultar=true;
+        bool Error_Info_Puntos=false;
+
+        String Captura_Error="";
+        bool Captura_Error_Api=false;
 
         bool Sesion_Server=false;
         String Version_Firmware_tft="";
@@ -152,6 +181,7 @@ public:
 
         String Usuario_Espnow="";
         String Contrasena_Espnow="";
+        int LogINOut_Espnow=0;
         
     };
 
@@ -243,7 +273,7 @@ public:
     bool Evento_Soporte(int Evento, String Message);
     bool Captura_Puntos_Sesion();
 
-    int Recibe_Info_Login(String Usuario, String Contrasena, bool IsSuccess);
+    int Recibe_Info_Login(String Usuario, String Contrasena, bool IsSuccess, int Tipo_Transaccion=0);
 
     bool Login_TFT(const String& Usuario,
                              const String& Contrasena,
@@ -252,6 +282,9 @@ public:
     bool SendLoginResponse(uint8_t *addr,
                        bool success,
                        int code,int HardCode);
+
+    void Teclado_Login(unsigned long Timeout);
+    NotificationValidation ValidarNotificacion(uint32_t Id);
 };
 
 bool Init_TFT_Display(bool EspNow=false, uint8_t MAC[6] = nullptr);
@@ -275,7 +308,7 @@ bool get_Flag_Borrar_TFT(void);
 bool get_Flag_Update_TFT(void);
 int get_Tipo_TFT(void);
 void Task_Conexion_TFT(int Timeout);
-void Init_Server(const char *ssid,const char *password);
+//void Init_Server(const char *ssid,const char *password);
 bool Reset_TFT(void);
 void RumUpdateTFT();
 void Check_TFT_Reconnect(unsigned long Timeout=10000);

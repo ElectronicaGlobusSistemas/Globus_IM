@@ -110,6 +110,11 @@ private:
     char Buffer_Key_Encriptado[258];
     char Buffer_Key_Final[258];
 
+
+    char Buffer_Key_API_Fide[258];
+    char Buffer_Key_Encriptado_Fide[258];
+    char Buffer_Key_Final_Fide[258];
+
     MetodoAES Metodo_AES;
     MetodoCRC Metodo_CRC;
 
@@ -140,9 +145,15 @@ public:
 
 
     bool Set_Key_API(String);
+    bool Set_Key_API_Fide(String);
     bool Set_buffer_Encriptado_Key(void);
     bool Set_buffer_CRC_Key(void);
     char *Get_Buffer_Key(void);
+
+
+    bool Set_buffer_Encriptado_Key_Fide(void);
+    bool Set_buffer_CRC_Key_Fide(void);
+    char *Get_Buffer_Key_Fide(void);
 
     /*Buffer de ACK +INFO*/
 

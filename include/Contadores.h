@@ -46,6 +46,7 @@ using namespace std;
 #define Billetes_20k 32
 #define Billetes_50k 33
 #define Premio_1B 34
+#define Serial_Maquina_SAS 35 /* 0x54: version SAS (3 ASCII) + serial de maquina (hasta 40 ASCII) */
 #define Serie_Trama 50
 #define Copia_Cancel_Credit 53
 #define Copia_Bill_Amount_2 55
@@ -95,6 +96,12 @@ private: // Variables Privadas Para contadores
   char Serie_Trama_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Informacion_Maquina_[20] = {'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
   char ROM_Signature_[2] = {'0', '0'};
+  /* 0x54: [0..2] version SAS ASCII, [3..42] serial de maquina ASCII (zero-padded), [43] '\0' */
+  char Serial_Maquina_SAS_[44] = {'0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0'};
   char Billetes_2k_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Billetes_5k_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
   char Billetes_10k_[9] = {'0', '0', '0', '0', '0', '0', '0', '0'};
@@ -179,6 +186,15 @@ public:
   void Set_Flag_Bill_In(bool Change_Status);
   bool Get_Status_Flag_Bill_In(void);
 
+  //  SOLO maquinas Gamma (tipo 19 - las llama GammaProLink junto a los
+  //  Change_Counters*): los contadores de 8 digitos envuelven cada 10^8 (la
+  //  salida en fase SPC da la vuelta cada ~$1M jugado) y las bases de
+  //  deteccion quedarian arriba del valor actual, dejando de detectar
+  //  cambios. Si el contador quedo por DEBAJO de su base, la re-siembra con
+  //  el valor actual: la proxima subida se detecta normal. Sin eventos
+  void Ajusta_Base_Vuelta_Counters(char Counter_Cancel_Credit[9]);
+  void Ajusta_Base_Vuelta_Bill_In(char Counter_Bill_In[9]);
+
   uint32_t IdTarjeta(byte Block[18]);
   int TipoTarjeta(byte Block[18]);
   bool Set_Operador_ID_Temp_New(uint32_t Id);
@@ -200,7 +216,7 @@ public:
   bool Set_Type_Legacy_Bonus(char res[]);
   int Init_Parameter_Update(char res[]);
 
-
+  int Get_Client_Recovery_Int(void);
   /*Recupera sesion Player Cashless*/
 
   bool Set_Current_Cliente_Recover(byte Client[],int Type_Sesion);

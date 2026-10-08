@@ -1,2 +1,2 @@
 
-void ScanWiFi(void);
+// void ScanWiFi(void);

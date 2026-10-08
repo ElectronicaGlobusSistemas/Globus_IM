@@ -1,6 +1,7 @@
 
 #include "ESP32Time.h"
 #include <string>
+
 /**
  * @brief Globus Sistemas SAS
  *  Archivo contiene funciones Control RFID
@@ -8,6 +9,9 @@
 
 #ifndef RFID_H
 #define RFID_H
+
+// Forward declarations
+class Contadores_SAS;
 
 #define Reset_Exitoso 0
 #define ERROR_RESET_HANDPAY 1
@@ -100,6 +104,9 @@
 #define ERROR_ 2
 #define WARN_  3
 #define FATAL_ 4
+
+
+#define MAX_LIMITE_INTENTOS_TRANSFER_BA 3
 /*----------------------------- Funciones Utilidades <-----------------------------------------*/
 void Init_RFID(void);
 void Lee_Tarjeta(void);
@@ -121,6 +128,10 @@ bool  Close_Sesion_Player_Tracking(void);
 void Timer_Close_Player_Tracking(unsigned long Tiempo_Transcurrido, int Inactividad);
 void Reset_Down_Mode(void);
 void check_Status_Reader_Polling(void);
+
+/* Funciones de Animación LED */
+void Animation_Free_Session(void);              /* Versión original con delays bloqueantes */
+void Animation_Free_Session_NonBlocking(void);  /* Versión mejorada sin bloqueos - RECOMENDADA */
 
 void Report_Http_Code(int Code_Http, String Msg="", bool Status=false);
 
@@ -154,7 +165,7 @@ private:
     bool Enable_Event_Pending_Transfer_Download=false;
     bool Enable_Event_Pendeing_Transfer_Load=false;
 
-
+    unsigned long Count_Trasfer_BA_Intent=0;
     bool Enable_Transfer_Load=false;
     bool Enable_Transfer_Download=false;
 
@@ -168,6 +179,13 @@ private:
     String Token_Cashless="";
     String Hash_Cashless="";
 
+    String Token_Accounting="";
+    String Hash_Accounting="";
+
+
+    String Token_Fide="";
+    String Hash_Fide="";
+
     String Token_Cashless_BA="";
     String Hash_Cashless_BA="";
 
@@ -178,6 +196,19 @@ private:
     unsigned long TimeOut_Token_Final;
     int TimeOut_Ejecuta=15000;
     bool Reset_Time=false;
+
+
+    unsigned long TimeOut_Token_Inicial_Fidelizacion;
+    unsigned long TimeOut_Token_Final_Fidelizacion;
+    int TimeOut_Ejecuta_Fidelizacion=15000;
+    bool Reset_Time_Fidelizacion=false;
+
+
+    unsigned long TimeOut_Token_Inicial_Accounting;
+    unsigned long TimeOut_Token_Final_Accounting;
+    int TimeOut_Ejecuta_Accounting=15000;
+    bool Reset_Time_Accounting=false;
+
     EstadoTransfer estado_transfer = TRANSFER_IDLE;  // Variable miembro
 
     unsigned long Timeout_Sesiones_Pendientes_Inicial=0;
@@ -221,7 +252,7 @@ public:
 
     bool Status_Transfer_Download_Especial(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client);
     
-    bool Ack_Transfer_Pending_Pendiente(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion,char Saldos[15]);
+    bool Ack_Transfer_Pending_Pendiente(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion,char Saldos[15],String Message="");
     bool Status_Transfer_Download_Pendiente_AFT(int Code, char Buffer_Transfer[], ESP32Time RTC,int Id_Client, char Saldos[15]);
     void Log(ESP32Time RTC,String Msg,String Data="",const char *Txt="/LogESP.txt",int Nivel_log=INFO_);
     void guardarTransacciones();
@@ -235,8 +266,54 @@ public:
     void Remove_Currrent_Player_Sesion(void);
 
     void Count_Player_Sesions(bool Billete_In=false, bool Flag_Premio=false);
-    
-    bool Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion);
+
+    /* ====================================================================================
+       NUEVAS FUNCIONES REFACTORIZADAS - Sesion Player Tracking v2.0
+       ==================================================================================== */
+
+    // Inicializa el nuevo sistema de sesiones
+    void SPT_Inicializar(unsigned long timeout_inactividad_ms = 90000UL);
+
+    // Procesa el ciclo completo de la máquina de estados (llamar en loop principal)
+    void SPT_Procesar(ESP32Time& rtc);
+
+    // Procesa eventos específicos
+    void SPT_EventoBilleteInsertado(ESP32Time& rtc);
+    void SPT_EventoMaquinaActiva(ESP32Time& rtc);
+    void SPT_EventoTarjetaInsertada(ESP32Time& rtc);
+    void SPT_EventoTarjetaRetirada(ESP32Time& rtc);
+    void SPT_EventoPremioPendiente(bool premio_pendiente);
+    void SPT_EventoPerdidaComunicacion(ESP32Time& rtc);
+
+    // Consultas de estado
+    bool SPT_IsSesionActiva(void);
+    bool SPT_IsCierrePendiente(void);
+    uint16_t SPT_GetSesionesAcumuladas(void);
+    String SPT_GetEstadoString(void);
+    unsigned long SPT_GetTiempoTranscurrido(void);
+    unsigned long SPT_GetTiempoInactividad(void);
+
+    // Control
+    void SPT_CerrarSesionManual(ESP32Time& rtc);
+    void SPT_ReiniciarContador(void);
+
+    // Configuración
+    void SPT_SetTimeoutInactividad(unsigned long timeout_ms);
+    void SPT_SetCallback(void (*callback)(uint8_t estado_anterior, uint8_t estado_nuevo, uint8_t causa));
+
+    /**
+     * @brief Registra el cierre de una sesión con tarjeta (activa ventana de seguridad)
+     * Debe llamarse después de Close_Player_Tracking_Sesion() para evitar que se abra
+     * inmediatamente una sesión sin tarjeta por coin-in
+     */
+    void SPT_RegistrarCierreSesionConTarjeta(void);
+
+    // Función wrapper para compatibilidad con código existente
+    void SPT_Count_Player_Sesions(bool Billete_In = false, bool Flag_Premio = false);
+
+    /* ==================================================================================== */
+
+    bool Ack_Transfer_Pending(int Code, char Buffer_Transfer[], ESP32Time RTC,String Type_Transaccion,String Message="");
     String Get_Current_Pending_Ack_Load(void);
     String Get_Current_Pending_Ack_Download(void);
 
@@ -276,15 +353,32 @@ public:
 
 
     void Solicitud_Token_Cashless(void);
+    void Solicitud_Token_Fidelizacion(void);
+
+
     char*  Key_Generator(void);
+    char* Key_Generator_Fide(void);
 
     String Get_Token_Valido(void);
     String Get_Hash_Valido(void);
     bool  Set_Token_Valido(String Token_Valido,String Hash_Valido);
 
-    void Genera_Token_Cashless(void);
 
+    String Get_Token_Valido_Fide(void);
+    String Get_Hash_Valido_Fide(void);
+    bool  Set_Token_Valido_Fide(String Token_Valido_Fide,String Hash_Valido_Fide);
+    bool Set_Token_Valido_Accounting(String Token_Valido,String Hash_Valido);
+    void Genera_Token_Cashless(void);
+    void Genera_Token_Fidelizacion(void);
+    void Genera_Token_Accounting(void);
     bool Set_Flag_Token(bool Status_Flag);
+    bool Set_Flag_Token_Fide(bool Status_Flag);
+
+    bool Set_Flag_Token_Accounting(bool Status_Flag);
+    void Token_Expiration_Accounting(uint64_t tiempoExpiracion_ms);
+    String Get_Token_Valido_Accounting(void);
+    String Get_Hash_Valido_Accounting(void);
+    void Solicitud_Token_Accounting(void);
     void Token_Expiration(uint64_t Expiracion_Time);
 
     void Init_Timer_Transfer_Pending(uint64_t Tiempo_ms);
@@ -313,7 +407,7 @@ public:
     String FormatearBytesComoHex(char* data, size_t length);
     void Parametros_iniciales_Sesion(char buffer[]);
     void Test_Counter(char* Contador,long&valor_test);
-
+    bool HayContadoresEnCero(Contadores_SAS &contadores);
 
     bool ExitsCahlessID(void);
     bool RemoveCashlessID();
@@ -334,6 +428,9 @@ public:
     bool Simular_Objeto_Status_Transfer_Dowmload();
     bool Simular_Objeto_Pendiente(int Code,ESP32Time RTC,String Type_Transaccion);
     bool Simular_Objeto_Status_Transfer_Dowmload(int Code,ESP32Time RTC);
+
+    int Get_Token_Actual(void);
+    void Task_Token(int Status_Token);
 
     bool Simular_Carga();
     bool Simular_Descarga();
@@ -365,6 +462,26 @@ public:
         Serial.print(EstadoSimuladorToStr(estadoSim));
         Serial.print(" -> ");
         Serial.println(EstadoSimuladorToStr(New));
+    }
+
+    void Increment_Count_Transfer_BA_Intent()
+    {
+        Count_Trasfer_BA_Intent++;
+        Serial.print("[TRANSFER BA] Intentos de transferencia: ");
+        Serial.println(Count_Trasfer_BA_Intent);
+    }
+
+    unsigned long Get_Count_Transfer_BA_Intent()
+    {
+        Serial.print("[TRANSFER BA] Contador de intentos de transferencia: ");
+        Serial.println(Count_Trasfer_BA_Intent);
+        return Count_Trasfer_BA_Intent;
+    }
+
+    void Reset_Count_Transfer_BA_Intent()
+    {
+        Count_Trasfer_BA_Intent = 0;
+        Serial.println("[TRANSFER BA] Contador de intentos de transferencia reiniciado a 0");
     }
 
     EstadoSimuladorCashless GetSimulador()
@@ -402,10 +519,46 @@ private:
     EstadoSesion Progresso = SESION_INDLE;
 public:
     bool SesionCliente(int IdClient,SESSION_CODE Code,String Message="");
-     void SetEstadoSesion(
-        EstadoSesion Estado);
-
+    void SetEstadoSesion(EstadoSesion Estado);
+    bool Actualiza_Modulo_Fidelizacion(int Id, SESSION_CODE Code, String Message);
+    String ObtenerTextoAntesAmpersand(const String &texto);
     EstadoSesion GetEstadoSesion();
+
+
+    // // 2. Estructura para recordar el estado anterior
+    struct EmotionState
+    {
+        volatile bool Transmission_Controlada=false;
+        volatile bool Transmision_Controlada_Cierre=false;
+        volatile bool Update_Progress=false;
+
+        
+    }prevEmotionState;
+    // {
+    //     bool active = false;
+
+    //     // Snapshot inicial
+    //     uint32_t start_credits = 0;
+    //     uint32_t start_coin_in = 0;
+
+    //     // Último update
+    //     uint32_t credits = 0;
+    //     uint32_t coin_in = 0;
+    //     uint32_t coin_out = 0;
+    //     uint32_t games = 0;
+    //     uint32_t jackpot = 0;
+    //     uint32_t handpay = 0;
+
+    //     // Nuevas métricas
+    //     uint32_t max_credits = 0;
+
+    //     uint16_t losing_updates = 0;
+    //     uint16_t idle_updates = 0;
+    //     uint16_t betting_streak = 0;
+
+    //     unsigned long session_start_ms = 0;
+    //     unsigned long last_play_ms = 0;
+    // } prevEmotionState;
 };
 
 
@@ -413,6 +566,7 @@ public:
 
 
 void New_Token(void*arg);
+void New_Token_Accounting(void*arg);
 void Resurrect_reader(void);
 void Break_Cashless_Pending(void*arg);
 

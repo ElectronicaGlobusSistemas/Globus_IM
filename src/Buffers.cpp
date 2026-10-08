@@ -3839,22 +3839,24 @@ char *Buffers::Get_Buffer_Key(void)
 }
 
 
+
 bool Buffers::Set_Key_API(String Key)
 {
     char req[258] = {};
-   
-    int pos=0;
-    for(int i=0; i<Key.length();i++)
-    {   pos++;
-        req[i]=Key[i];
-    }
-    req[pos]='|';
 
-    for(int i=pos+1; i<258; i++)
+    int pos = 0;
+    for (int i = 0; i < Key.length(); i++)
     {
-        req[i]='0';
+        pos++;
+        req[i] = Key[i];
     }
-    
+    req[pos] = '|';
+
+    for (int i = pos + 1; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+
     memcpy(Buffer_Key_API, req, 258);
     // for(int i=0; i<40;i++)
     // {
@@ -3873,7 +3875,55 @@ bool Buffers::Set_Key_API(String Key)
     return false;
 }
 
+bool Buffers::Set_buffer_Encriptado_Key_Fide(void)
+{
+    memcpy(Buffer_Key_Encriptado_Fide, Metodo_AES.Encripta_Mensaje_Servidor(Buffer_Key_API_Fide), 258);
+    return true;
+}
 
+bool Buffers::Set_buffer_CRC_Key_Fide(void)
+{
 
+    memcpy(Buffer_Key_Final_Fide, Metodo_CRC.Calcula_CRC_Wifi(Buffer_Key_Encriptado_Fide), 258);
+    return true;
+}
 
+char *Buffers::Get_Buffer_Key_Fide(void)
+{
+    return Buffer_Key_Final_Fide;
+}
 
+bool Buffers::Set_Key_API_Fide(String Key)
+{
+    char req[258] = {};
+
+    int pos = 0;
+    for (int i = 0; i < Key.length(); i++)
+    {
+        pos++;
+        req[i] = Key[i];
+    }
+    req[pos] = '|';
+
+    for (int i = pos + 1; i < 258; i++)
+    {
+        req[i] = '0';
+    }
+
+    memcpy(Buffer_Key_API_Fide, req, 258);
+    // for(int i=0; i<40;i++)
+    // {
+    //     Serial.print(Buffer_Key_API[i]);
+    // }
+    // Serial.println();
+
+    if (Set_buffer_Encriptado_Key_Fide())
+    {
+        if (Set_buffer_CRC_Key_Fide())
+        {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}

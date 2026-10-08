@@ -32,7 +32,7 @@ extern TaskHandle_t Ftp_SERVER;        //  Manejador de tareas
 extern TaskHandle_t Status_WIFI;       //  Manejador de  Tarea Wifi
 extern TaskHandle_t Status_SERVER_TCP; // M,anejador de Tarea Server TCP
 extern TaskHandle_t Modo_Bootloader;   // Manejador Bootloader
-extern WiFiClient client;              // Declara un objeto cliente para conectarse al servidor
+//extern WiFiClient client;              // Declara un objeto cliente para conectarse al servidor
 //------------------------------------------------------------------
 extern Pantalla_TFT DisplayTFT;
 
@@ -44,6 +44,8 @@ Event_Real_Time Eventos_Hardware;
 AutoUpdate UpdateOTA;
 Web_Config Task_Web_Config;
 Web_Config Web_Info_Config;
+
+extern void Init_API_Server(void);
 
 //----------------------> TaskHandle_t <----------------------------
 TaskHandle_t ManagerTask;
@@ -94,7 +96,7 @@ Build: Se puede usar para identificar compilaciones específicas o revisiones me
 */
 //uint8_t Version_Firmware_[]={0,0,0,0};
 
-uint8_t Version_Firmware_[]={2,1,9,9};
+uint8_t Version_Firmware_[]={2,2,0,0};
 
 
 uint8_t Address_Device_TFT_Display[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -160,13 +162,18 @@ void Init_Config(void)
 
     Modo_Mantenimiento(Variables_globales.Get_Variable_Global(Flag_Mode_Descarga)); // Verifica Modo Mantenimiento OTA
     
+
+
+    Init_API_Server(); 
+    Server_API.begin();
+    Cashless.Init_API_Bono();
     //------------------> Init Memoria SD <--------------------------
     Init_SD(); // Inicializa Memoria SD Inicializa Bus SPI.
     Init_RFID(); /* Inicializa Modulo RFID*/
     Inicializa_Display_TFT(); /* Inicializa Display TFT*/
     
-    Server_API.begin();
-    Cashless.Init_API_Bono();
+
+    
     
     //------------------> AutoUpdate <-------------------------------
   //  UpdateOTA.Init_AutoUpdate("","","",Version_Firmware_); /* Inicializa URL */
@@ -287,21 +294,41 @@ void PuntoAcceso_On(int Reset_Pin)
         lastButtonState = reading;
 }
 
-void  Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
+void Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
 {
 
     if (WiFi.status() == WL_CONNECTED)
     {
         if ((millis() - TimerPing) >= Timeout)
         {
+
+            if (AFT.GET_STATUS_TRANSFER() != TransaccionCashless::TRANS_IDLE)
+                return;
+
+            if (AFT.GET_STATUS_BA() != TransaccionCashless::BA_IDLE)
+                return;
+
+            if (Fideliza.GetEstadoSesion() == SESION_PROGRESS)
+                return;
+
+            if(WiFi.status()!=WL_CONNECTED)
+                return;
+
+            if(Fideliza.prevEmotionState.Update_Progress)
+                return;
+
             IPAddress gateway = WiFi.gatewayIP();
             // Serial.println(gateway);
             if (Ping.ping((gateway)))
             {
                 Ping_Counter = 0;
+                
             }
             else
+            {
                 Ping_Counter++;
+            }
+                
 
             // unsigned Intentos = MAX_PING_TEST_HIGH;
 
@@ -319,6 +346,7 @@ void  Ping_Test(unsigned long Timeout, bool Sesion_Act, bool Status_Maq)
                 WiFi.disconnect(true); /* Lanza tarea de reconexion WiFi */
             }
             TimerPing = millis();
+            Serial.println("PING: "+String(Ping_Counter));
         }
     }
     else
@@ -525,7 +553,7 @@ static void ManagerTasks(void *parameter)
         // Serial.print("Minimo espacio libre en stack RS232: ");
         // Serial.println(uxHighWaterMark2);
 
-        Ping_Test(20000, false, false);
+        //Ping_Test(30000, false, false);
         
         //FtpFast();
 
@@ -850,6 +878,7 @@ void Init_Configuracion_Inicial(void)
         // 16 = IRT No bloqueo  no bloqueo de juego
         // 17 = Aristocrat EFT
         // 18 = Encuensta 0F no bloqueo de juego
+        // 19 = Aristocrat encuestas gamma generica.
 
 
         uint16_t tipo_maq = 5;
@@ -1099,17 +1128,17 @@ void Init_Configuracion_Inicial(void)
             "Timeout_Ventana_Saldos" : 3000,
             "Timeout_Imagenes" : 30000,
             "Timeout_Carrucel_Mensajes" : 10000,
-            "Timeout_Mensajes" : 2500
+            "Timeout_Mensajes" : 10500
         }
         */
-        uint32_t Config_TFT[] = {3000,30000,10000,1500};
+        uint32_t Config_TFT[] = {3000,30000,10000,6000};
         NVS.putBytes("Config_TFT", Config_TFT, sizeof(Config_TFT));
     }
 
     if (!NVS.isKey("TimeBackup"))
     {
         uint32_t time = 15;
-        NVS.getULong("TimeBackup", time);
+        NVS.putULong("TimeBackup", time);
     }
 
     if(!NVS.isKey("Bill_EFT"))
@@ -1406,6 +1435,10 @@ void Init_Configuracion_Inicial(void)
 
     case 18:
         Serial.println("Encuesta 0F");
+    break;
+
+    case 19:
+        Serial.println("Gamma Generica");
     break;
 
     default:
@@ -1801,11 +1834,22 @@ void Init_Configuracion_Inicial(void)
             Serial.println("Flag Ignora registro ");
 
     }else{
-        Cashless.Set_Inicial_Trans_ID(0);
-        Variables_globales.Set_Variable_Global(Enable_Cashless, false);
-        Serial.println("Transacciones Cashless Inhabilitadas");
-        byte Current_Id_Recovery[8]={'0','0','0','0','0','0','0','0'};
-        contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, SESION_DEFAULT);
+        // Cashless.Set_Inicial_Trans_ID(0);
+        // Variables_globales.Set_Variable_Global(Enable_Cashless, false);
+        // Serial.println("Transacciones Cashless Inhabilitadas");
+        // byte Current_Id_Recovery[8]={'0','0','0','0','0','0','0','0'};
+        // contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, SESION_DEFAULT);
+
+
+        size_t Leng_id = NVS.getBytesLength("Id_Client");
+        byte Current_Id_Recovery[Leng_id];
+        NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
+        int Type_Sesion = NVS.getInt("Sesion_Type", SESION_DEFAULT);
+        contadores.Set_Current_Cliente_Recover(Current_Id_Recovery, Type_Sesion);
+
+
+
+
         // size_t Leng_id = NVS.getBytesLength("Id_Client");
         // byte Current_Id_Recovery[Leng_id];
         // NVS.getBytes("Id_Client", Current_Id_Recovery, Leng_id);
@@ -1916,7 +1960,7 @@ void Init_Configuracion_Inicial(void)
         DisplayTFT.configtft.timeoutImagenesCONFIG=ConfigPacketRead[1];
         DisplayTFT.configtft.timeoutCarrucel_MensajesCONFIG=ConfigPacketRead[2];
         DisplayTFT.configtft.timeoutMensajesCONFIG=ConfigPacketRead[3];
-        
+        DisplayTFT.configtft.timeoutMensajesCliente=ConfigPacketRead[3];
         Variables_globales.Set_Variable_Global(Status_Device_TFT_Display,true);
     }
 
@@ -2058,18 +2102,18 @@ void Config_Red_Serial(String Comando)
     // }
 
 
-    if (Comando[0] == 'J')
-    {
-       // Carga_Bonus_Maquina_Magic();
+    // if (Comando[0] == 'J')
+    // {
+    //    // Carga_Bonus_Maquina_Magic();
 
-        // char Trama[128] = "HOLA MUNDO";
+    //     // char Trama[128] = "HOLA MUNDO";
 
-        // Api_G.Guarda_Trama(Trama);
+    //     // Api_G.Guarda_Trama(Trama);
 
-        // Api_G.Procesa_Cola_Tramas_Pendientes();
-        //Info_Cashless.Solicitud_Token_Cashless_BA(1000);
-        WiFi.disconnect();
-    }
+    //     // Api_G.Procesa_Cola_Tramas_Pendientes();
+    //     //Info_Cashless.Solicitud_Token_Cashless_BA(1000);
+    //     WiFi.disconnect();
+    // }
 
     if(Comando[0]=='R'&&Comando[1]=='E'&&Comando[2]=='D'&&Comando[4]=='-')
     {

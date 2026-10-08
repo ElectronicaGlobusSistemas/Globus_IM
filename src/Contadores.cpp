@@ -9,6 +9,7 @@ using namespace std;
 #include <HTTPUpdate.h>
 
 #include "API_Accounting.h"
+#include "Cumplimiento.h"
 extern API_Accounting Accounting;
 
 
@@ -109,6 +110,9 @@ char *Contadores_SAS::Get_Contadores_Char(int Filtro_Contador)
     break;
   case 28:
     return ROM_Signature_;
+    break;
+  case 35:
+    return Serial_Maquina_SAS_; // 0x54: version SAS + serial de maquina
     break;
   case 29:
     return Billetes_2k_;
@@ -442,6 +446,7 @@ string Contadores_SAS::Get_Contadores_String(int Filtro_Contador)
 //---------------------------------------->Metodo Para Guardar Contadores<---------------------------------------------
 bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
 {
+  Marcar_Respuesta(Filtro_Contador); // Cumplimiento: llego respuesta del contador
   switch (Filtro_Contador) // Selecciona Contador Especifico.
   {
   case 1: // Bloque de instrucciones 1;
@@ -554,6 +559,10 @@ bool Contadores_SAS::Set_Contadores(int Filtro_Contador, char Data_Contador[])
     break;
   case 28: // Bloque de instrucciones 13;
     memcpy(ROM_Signature_, Data_Contador, sizeof(ROM_Signature_) / sizeof(ROM_Signature_[0]));
+    return true;
+    break;
+  case 35: // Bloque de instrucciones 13; 0x54: version SAS + serial de maquina
+    memcpy(Serial_Maquina_SAS_, Data_Contador, sizeof(Serial_Maquina_SAS_) / sizeof(Serial_Maquina_SAS_[0]));
     return true;
     break;
   case 29: // Bloque de instrucciones 13;
@@ -716,29 +725,24 @@ byte* Contadores_SAS::Get_Client_ID_Temp(void)
   return ID_Client_Temp;
 }
 
-bool  Contadores_SAS::Verify_Client(void)
+bool Contadores_SAS::Verify_Client(void)
 {
-  delay(50);
-  unsigned int Verify=0;
-  for (int i = 0; i < 8; i++)
-  {
-    if (ID_Client_Temp[i] == 48)
-    {
-      Verify++;
-    }
-  }
-  
-  /* Cliente 00000000*/
-  if(Verify>=8)
-  {
-    return false; /* Buffer de tarjeta vacio*/
-  }
+    unsigned int verify = 0;
 
-  /*00000001*/
-  else if(Verify<8)
-  {
-    return true; /* Buffer de tarjeta valido*/
-  }
+    for (int i = 0; i < 8; i++)
+    {
+        if (ID_Client_Temp[i] == '0')
+        {
+            verify++;
+        }
+    }
+
+    // Cliente 00000000 → inválido
+    if (verify == 8)
+        return false;
+
+    // cualquier otro caso → válido
+    return true;
 }
 
 /* Verifica si el  buffer temporal de datos de la Tarjeta ID contiene un usuario no valido 00000000*/
@@ -767,6 +771,9 @@ bool  Contadores_SAS::Verify_Client_ID(byte Buffer_Tarjeta[])
   {
     //Serial.println("Porque?");
     return true; /* Buffer de tarjeta valido*/
+  }else{
+    
+    return false;
   }
 }
 
@@ -1664,6 +1671,8 @@ String Token_Generator(String Url)
           Serial.print("deserializeJson() failed: ");
           Serial.println(error.c_str());
           #endif
+
+          https.end();
           return  Output; /* Vacio*/
         }
         else
@@ -1680,11 +1689,14 @@ String Token_Generator(String Url)
 
           if(IsSuccess)
           {
+            https.end();
             return Output=Token;
           }else{
+             https.end();
              return Output;
           }
         }
+        https.end();
         return Output;
       }
       else
@@ -1693,6 +1705,7 @@ String Token_Generator(String Url)
         Serial.print("error in downloading version file:");
         Serial.println(httpCode);
         #endif
+        https.end();
         return Output; /* Vacio*/
       }
       https.end();
@@ -1886,6 +1899,60 @@ void Contadores_SAS::Change_Counters_Bill_In(char Counter_Bill_In[9])
   }
 }
 
+/*7-ter - SOLO maquinas Gamma (tipo 19): las llama el despachador de GammaProLink.
+  Los contadores de 8 digitos envuelven cada 10^8 (la salida en fase SPC da la
+  vuelta cada ~$1M jugado): el valor actual queda por DEBAJO de la base de
+  deteccion y los Change_Counters* dejan de detectar hasta recuperarla. Estas
+  funciones re-siembran la base con el valor actual cuando eso pasa - la
+  proxima subida se detecta normal. No disparan eventos: solo re-siembran*/
+
+/*7-ter-a*/
+void Contadores_SAS::Ajusta_Base_Vuelta_Counters(char Counter_Cancel_Credit[9])
+{
+  int Current_Cancel_Credit;
+  if (contieneNumero(Counter_Cancel_Credit))
+  {
+    Current_Cancel_Credit = atoi(Counter_Cancel_Credit);
+
+    if (Current_Cancel_Credit < Last_Cancel_Credit)
+    {
+      Last_Cancel_Credit = Current_Cancel_Credit;
+    }else{
+      //Serial.println("Current_Cancel_Credit >= Last_Cancel_Credit, no se ajusta la base");
+    }
+  }else{
+    //Serial.println("Letra contador ");
+  }
+}
+
+/*7-ter-b*/
+void Contadores_SAS::Ajusta_Base_Vuelta_Bill_In(char Counter_Bill_In[9])
+{
+  int Current_Bill_In = 0;
+  int Valor_Prueba = 0;
+  if (contieneNumero(Counter_Bill_In))
+  {
+    /* Metodo de conversion 1 */
+    for (int i = 0; i < 8; i++)
+    {
+      Valor_Prueba = Valor_Prueba * 10 + (Counter_Bill_In[i] - '0');
+    }
+
+    /* Medoto de conversion 2 */
+    Current_Bill_In = atoi(Counter_Bill_In);
+
+    if (Current_Bill_In == Valor_Prueba)
+    {
+      if (Current_Bill_In < Last_Bill_In)
+      {
+        Last_Bill_In = Current_Bill_In;
+      }
+    }
+  }else{
+    //Serial.println("Letra contador ");
+  }
+}
+
 void Contadores_SAS::Set_Flag_Premio(bool Change_Status)
 {
   Flag_Premio_Pagado_Cashout=Change_Status;
@@ -1919,6 +1986,27 @@ bool Contadores_SAS::Set_Current_Cliente_Recover(byte Client[],int Type_Sesion)
   Type_Sesion_Recovery=Type_Sesion;
 
   return true;
+}
+
+int Contadores_SAS::Get_Client_Recovery_Int(void)
+{
+
+  char clientIDString[9]; // 8 caracteres + 1 para '\0'
+  byte Id_Recuperado[8];
+
+  for (int i = 0; i < 8; i++)
+  {
+    Id_Recuperado[i] = ID_Client_Recovery[i];
+  }
+
+  for (int i = 0; i < 8; i++)
+  {
+    clientIDString[i] = static_cast<char>(Id_Recuperado[i]); // Convertir byte a char
+  }
+  clientIDString[8] = '\0'; // Asegurar terminación nula
+
+  int Client_Id_Int = atoi(clientIDString);
+  return Client_Id_Int;
 }
 
 byte* Contadores_SAS::Get_Client_Recovery(void)

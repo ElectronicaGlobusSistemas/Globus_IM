@@ -49,10 +49,10 @@ extern bool Flag_Salidas_Tito_OK;
 extern TITO Tito;
 
 
-DynamicJsonDocument Objeto_Ticket_Out(800);
-DynamicJsonDocument Objeto_Ticket_In(800);
-DynamicJsonDocument Objeto_Ticket_In_Transfer(800);
-DynamicJsonDocument Objeto_Ticket_In_Response(800);
+StaticJsonDocument<350> Objeto_Ticket_Out;
+StaticJsonDocument<350> Objeto_Ticket_In;
+StaticJsonDocument<350> Objeto_Ticket_In_Transfer;
+StaticJsonDocument<350> Objeto_Ticket_In_Response;
 
 
 extern unsigned char decimalToBCD(unsigned char digit);

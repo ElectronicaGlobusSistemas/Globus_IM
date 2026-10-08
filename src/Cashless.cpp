@@ -1,17 +1,17 @@
-#include "Cashless.h"
-#include <Arduino.h>
-#include "ArduinoJson.h"
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <HTTPUpdate.h>
-#include "AutoUpdate.h"
-#include <esp_task_wdt.h>
-#include "API_Gmaster.h"
-#include "Contadores.h"
-#include "Configuracion.h"
-#include "ESP32Time.h"
-#include "time.h"
-#include "Clase_Variables_Globales.h"
+// #include "Cashless.h"
+// #include <Arduino.h>
+// #include "ArduinoJson.h"
+// #include <WiFi.h>
+// #include <HTTPClient.h>
+// #include <HTTPUpdate.h>
+// #include "AutoUpdate.h"
+// #include <esp_task_wdt.h>
+// #include "API_Gmaster.h"
+// #include "Contadores.h"
+// #include "Configuracion.h"
+// #include "ESP32Time.h"
+// #include "time.h"
+// #include "Clase_Variables_Globales.h"
 
 
 

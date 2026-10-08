@@ -168,6 +168,12 @@ using namespace std;
 #define Flag_Mode_Descarga                   140
 
 #define Flag_Debug_OnOff                     141
+#define BDA_AFT_BNS                          142
+
+
+#define Token_Fidelizacion_Solicitud         143
+#define Token_Accounting_Solicitud              144
+
 
 class Variables_Globales
 {
@@ -312,6 +318,9 @@ private:
     bool Flag_Contador_NON_Restricted_SAS_;
     bool Flag_Mode_Descarga_;
     bool Flag_Debug_OnOff_;
+    bool BDA_AFT_BNS_;
+    bool Token_Fidelizacion_Solicitud_;
+    bool Token_Accounting_Solicitud_;
    
     
 

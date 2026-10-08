@@ -46,6 +46,8 @@ unsigned long ultimo_progreso_ota = 0;
 
 
 extern AsyncWebServer Server_API;
+extern void Init_API_Server(void);
+
 
 void Setup_Bootloader(void)
 {
@@ -63,7 +65,7 @@ void Setup_Bootloader(void)
                        // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
                        Serial.println("Start updating " + type);
                        Variables_globales.Set_Variable_Global(Flag_Update_OTA, true);
-                       if (Variables_globales.Get_Variable_Global(SD_INSERT) && Variables_globales.Get_Variable_Global(Conexion_TFT_Display))
+                       if (Variables_globales.Get_Variable_Global(SD_INSERT) && Variables_globales.Get_Variable_Global(Status_Device_TFT_Display) /*&& Variables_globales.Get_Variable_Global(Conexion_TFT_Display)*/)
                        {
                          Variables_globales.Set_Variable_Global(SD_INSERT, false);
 
@@ -137,11 +139,12 @@ bool Modo_Mantenimiento(bool Modo_OTA)
 
 
 
-    Cashless.Init_API_Server(); 
+    Init_API_Server(); 
 
     Server_API.begin();
 
-    
+
+    Variables_globales.Set_Variable_Global(Bootloader_Mode,true);
 
     if (Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
     {

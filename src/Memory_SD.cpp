@@ -62,7 +62,7 @@ int Contador_Dias=0;
 
 #define SD_CS_PIN 5  // Cambia este pin según tu conexión
 #define SPI_CLOCK SD_SCK_MHZ(10)
-#define MAX_LOG_LEN      100
+#define MAX_LOG_LEN      512
 #define MAX_FILENAME_LEN 64
 
 
@@ -200,7 +200,7 @@ void Init_SD(void)
 
     
 
-    cola_logs = xQueueCreate(10, sizeof(MensajeLog));
+    cola_logs = xQueueCreate(5, sizeof(MensajeLog));
 
     // const char* criticalFiles[] = {
     //     "/Contadores-692025.csv"
@@ -279,23 +279,33 @@ bool New_Init_FTP_SERVER()
 //------------------------------------------------------------------------------------------------------
 //---------------------------------> Aquí Tarea Control Servidor FTP <----------------------------------
 /* Cola de eventos SD Controla Escritura de logs en orden de llegada de las peticiones */
+static String mensaje_completo;
+
+
+
 void Queue_SD(void)
 {
-
-  if (Variables_globales.Get_Variable_Global(SD_INSERT) && !Variables_globales.Get_Variable_Global(Ftp_Mode))
+  if (Variables_globales.Get_Variable_Global(SD_INSERT) &&
+      !Variables_globales.Get_Variable_Global(Ftp_Mode))
   {
     MensajeLog msg;
-    static String mensaje_completo = "";  // Variable para almacenar el mensaje completo
+
     if (xQueueReceive(cola_logs, &msg, 0) == pdTRUE)
     {
-      mensaje_completo += String(msg.mensaje);
-      // Serial.println(msg.mensaje);
-      // Serial.println("");
-      if(msg.es_ultimo)
+      if (mensaje_completo.length() == 0)
+      {
+        mensaje_completo.reserve(1024);
+      }
+
+      mensaje_completo += msg.mensaje;
+
+      if (msg.es_ultimo)
       {
         mensaje_completo.replace("/LogESP.txt", "");
-        Erro_Log_Write(mensaje_completo, String(msg.archivo)); // o tu versión interna que accede a la SD
-        mensaje_completo = "";
+
+        Erro_Log_Write(mensaje_completo, String(msg.archivo));
+        //Serial.println(mensaje_completo);
+        mensaje_completo.clear();
       }
     }
   }

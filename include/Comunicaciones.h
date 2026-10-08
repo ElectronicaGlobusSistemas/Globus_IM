@@ -114,6 +114,8 @@ extern bool Actualizacion_datos_Ok;
 
 extern Pantalla_TFT DisplayTFT;
 
+extern Fidelizacion Fideliza;
+
 #define Hopper_Enable 14
 void Task_Procesa_Comandos(void *parameter);
 void Task_Maneja_Transmision(void *parameter);
@@ -133,6 +135,7 @@ bool Calcula_First_Cancel_Credit(bool Calcula_Contador);
 void Actualiza_Contadores(void);
 void Procesa_Comandos_Socket2(void);
 
+void Transmite_Contadores_Accounting(bool IsSucess=false);
 
 bool Actualiza_Tarjeta_Mecanica(char res[]);
 
@@ -194,6 +197,10 @@ bool Enable_Timer_No_reset=false;
 extern bool Variable_Solicitud_Operador_Id;
 
 
+volatile unsigned long Timer_Juego_Iniciado = 0;
+
+#define TIMEOUT_JUEGO_EVENTO   (210UL * 1000UL)   // 3.5 minutos
+
 int  Convert_Char_To_Int2(char buffer[])
 {
     int resultado = ((buffer[0] - 48) * 10000000) + ((buffer[1] - 48) * 1000000) +
@@ -246,7 +253,7 @@ void init_Comunicaciones()
     xTaskCreatePinnedToCore(
         Task_Procesa_Comandos,
         "Procesa comandos server",
-        6144,
+        6544,
         NULL,
         configMAX_PRIORITIES - 3,
         &CommandProcess,
@@ -305,9 +312,10 @@ bool Transmite_A_Servidor(char buffer[], int len, int Channel = 1, bool Debug = 
             IPAddress serverIP(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
             uint16_t serverPort = Configuracion.Get_Configuracion(Puerto_Server, 0);
 
-            clientUDP.beginPacket(serverIP, serverPort);
-            length_ = clientUDP.write((const uint8_t *)buffer, len);
-            clientUDP.endPacket();
+            // clientUDP.beginPacket(serverIP, serverPort);
+            // length_ = clientUDP.write((const uint8_t *)buffer, len);
+            // clientUDP.endPacket();
+            size_t length_ = udp.writeTo((const uint8_t *)buffer, len, serverIP, serverPort);
             // if (Debug)
             //     Info_Cashless.Log(RTC, "BUFFER_UDP_CH1", "OK",archivo,DEBUG_);
 
@@ -1114,7 +1122,7 @@ void Trasmite_Contadores_Accounting_API_Gmaster(bool Selector)
     }
 }
 
-void Transmite_Contadores_Accounting()
+void Transmite_Contadores_Accounting(bool IsSuccess)
 {
     if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode)==API_MODE)
     {
@@ -1153,33 +1161,43 @@ void Transmite_Contadores_Accounting()
                 // else
                 //     Info_Cashless.Log(RTC,"AUMENTA_SERIE_TRAMA","False");
             }
-            char res[258] = {};
-            bzero(res, 258); // Pone el buffer en 0
-            memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
+
+            //if (IsSuccess)
+            //{
+
+                char res[258] = {};
+                bzero(res, 258); // Pone el buffer en 0
+                memcpy(res, Buffer.Get_buffer_contadores_ACC(), 258);
 #ifdef Debug_Mensajes_Server
-            Serial.println("Set buffer general OK");
+                Serial.println("Set buffer general OK");
 #endif
-            int len = sizeof(res);
-            int Channel=1;
+                int len = sizeof(res);
+                int Channel = 1;
 
-            if (Transmite_A_Servidor(res, len, Channel, true))
-            {
-
-                IPAddress Ip(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
-
-                // String Contadores_ = "";
-                // for (int i = 4; i < 258; i++)
-                // {
-                //     Contadores_ += Buffer.Get_buffer_contadores_ACC_No_encriptado()[i];
-                // }
-                if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                if (Transmite_A_Servidor(res, len, Channel, true))
                 {
-                    Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(),"OK",archivo,DEBUG_);
-                    // Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), "OK",archivo,DEBUG_);
+
+                    IPAddress Ip(IP_Server[0], IP_Server[1], IP_Server[2], IP_Server[3]);
+
+                    // String Contadores_ = "";
+                    // for (int i = 4; i < 258; i++)
+                    // {
+                    //     Contadores_ += Buffer.Get_buffer_contadores_ACC_No_encriptado()[i];
+                    // }
+                    if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
+                    {
+                        Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), "OK", archivo, DEBUG_);
+                        // Info_Cashless.Log(RTC, "ENVIA_CONTADORES " + Ip.toString(), "OK",archivo,DEBUG_);
+                    }
+                    else
+                        Info_Cashless.Log(RTC, "FALLA_ENVIANDO_TRAMA" + Ip.toString(), "NO_HAY_COMUNICACION_CON_LA_MET", archivo, ERROR_);
                 }
-                else
-                    Info_Cashless.Log(RTC, "FALLA_ENVIANDO_TRAMA" + Ip.toString(), "NO_HAY_COMUNICACION_CON_LA_MET",archivo,ERROR_);
-            }
+
+                //Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por parte de la API GMASTER");
+            //}
+
+            //Accounting.Transmite_Contadores_Api_Cola(ID_Contadores_Accounting,true,"Solicitud actualizar Modulo Accounting");
+
         }
         else
         {
@@ -1479,6 +1497,10 @@ bool Configura_Tipo_Maquina(char res[])
         {
             ID_Maq_Server=18;
         }
+        else if(res[4]-48==1 && res[5]-48==9)
+        {
+            ID_Maq_Server=19;
+        }
     }
     
     if (ID_Maq != ID_Maq_Server)
@@ -1622,7 +1644,12 @@ void Transmite_Eco_Broadcast(int Channel = 1)
 #ifdef Debug_Mensajes_Server
         Serial.println(clientUDP.remotePort());
 #endif
-        socket = std::to_string(clientUDP.remotePort());
+
+
+        //socket = std::to_string(clientUDP.remotePort());
+        socket = std::to_string(g_RemotePort);
+        // Serial.print("Socket UDP: ");
+        // Serial.println(socket.c_str());
     }
 
 // Mascara subred ESP32
@@ -1801,6 +1828,12 @@ void Transmite_Eco_Broadcast(int Channel = 1)
 #ifdef Debug_Mensajes_Server
     Serial.println("Set buffer general OK");
 #endif
+
+    // for(int i=0; i<93; i++)
+    // {
+    //     Serial.print(res[i]);
+    // }
+    // Serial.println();
 
     int len = sizeof(res);
     Transmite_A_Servidor(res, len);
@@ -2653,11 +2686,6 @@ void Reporte_FTP(bool FtpMode)
 void Mensajes_RFID(void)
 {
 
-
-    
-
-   
-    
     /* -------------------------> Contadores Inicio sesion RFID<-----------------------------------*/
     if(Variables_globales.Get_Variable_Global(Flag_Contadores_Sesion_ON))  
     {
@@ -3301,7 +3329,7 @@ void Task_Procesa_Comandos(void *parameter)
                                         Trasmite_Contadores_Accounting_API_Gmaster(false);
                                     }
                                     else
-                                        Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                                        Transmite_Contadores_Accounting(true); /* Envia Trama  Por Socket */
                                 }else
                                     Transmite_Confirmacion('A', '0');
                             }
@@ -3313,7 +3341,7 @@ void Task_Procesa_Comandos(void *parameter)
                                     Trasmite_Contadores_Accounting_API_Gmaster(false);
                                 }
                                 else
-                                    Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                                    Transmite_Contadores_Accounting(true); /* Envia Trama  Por Socket */
                             }
                         }
                         else
@@ -3336,7 +3364,7 @@ void Task_Procesa_Comandos(void *parameter)
                                 Trasmite_Contadores_Accounting_API_Gmaster(false);
                             }
                             else
-                                Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                                Transmite_Contadores_Accounting(true); /* Envia Trama  Por Socket */
                         }
                     }
                     if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 6 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 14 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 4 &&Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 16 && Configuracion.Get_Configuracion(Tipo_Maquina, 0) != 18)
@@ -3347,8 +3375,12 @@ void Task_Procesa_Comandos(void *parameter)
                             Trasmite_Contadores_Accounting_API_Gmaster(false);
                         }
                         else
-                            Transmite_Contadores_Accounting(); /* Envia Trama  Por Socket */
+                            Transmite_Contadores_Accounting(true); /* Envia Trama  Por Socket */
                     }
+
+                    // if(!Fideliza.prevEmotionState.Transmission_Controlada)
+                    //     Fideliza.prevEmotionState.Transmission_Controlada=true;
+                   // Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por solicitud de contadores SAS Gmaster");
                 }
                 else
                 {
@@ -3356,10 +3388,10 @@ void Task_Procesa_Comandos(void *parameter)
                     Info_Cashless.Log(RTC, "PERDIDA_DE_COMUNICACION_CON_LA_MET", "A0");
                 }
             break;
-            case 4:
+            case 4:  
                 #ifdef Debug_Mensajes_Server
                 Serial.println("Solicitud de billetes SAS");
-                #endif
+                #endif   
                 if (Variables_globales.Get_Variable_Global(Comunicacion_Maq))
                     Transmite_Billetes();
                 else
@@ -3447,7 +3479,7 @@ void Task_Procesa_Comandos(void *parameter)
                 #endif
                 Transmite_Confirmacion('A', 'F');
 
-                if(Variables_globales.Get_Variable_Global(Conexion_TFT_Display)&& Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
+                if(/*Variables_globales.Get_Variable_Global(Conexion_TFT_Display)&&*/ Variables_globales.Get_Variable_Global(Status_Device_TFT_Display))
                 {
 
                     DisplayTFT.Reset_Pantalla_TFT();
@@ -4368,8 +4400,8 @@ void Task_Procesa_Comandos(void *parameter)
                 Serial.println("Eco Broadcast");
                 #endif
 
-                IPAddress serverIP_Remote(clientUDP.remoteIP()[0], clientUDP.remoteIP()[1], clientUDP.remoteIP()[2], clientUDP.remoteIP()[3]);
-
+                //IPAddress serverIP_Remote(clientUDP.remoteIP()[0], clientUDP.remoteIP()[1], clientUDP.remoteIP()[2], clientUDP.remoteIP()[3]);
+                IPAddress serverIP_Remote(g_RemoteIP[0], g_RemoteIP[1], g_RemoteIP[2], g_RemoteIP[3]);
                 memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
 
                 if (serverIP_Remote[3] != IP_Server[3] && serverIP_Remote[2] == IP_Server[2]) /* Ip recepcion diferente a IP  en memoria  y estan en el mismo segmento de red */
@@ -4511,12 +4543,48 @@ void Task_Maneja_Transmision(void *parameter)
 {
     for (;;)
     {
-        if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego < Tiempo_Inactividad_Maquina) //50 //150  2minutos
+        if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego < Tiempo_Inactividad_Maquina) // 50 //150  2minutos
+        {
+            // Serial.print("Timeout maquina: ");
+            // Serial.print(Contador_Maquina_En_Juego);
+            // Serial.print("/");
+            // Serial.println(Tiempo_Inactividad_Maquina);
             Contador_Maquina_En_Juego++;
+        }
         else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && Contador_Maquina_En_Juego >= Tiempo_Inactividad_Maquina)
         {
-            Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
-            Contador_Maquina_En_Juego = 0;
+
+            //Serial.println("===== TIMEOUT MAQUINA =====");
+
+            if (Variables_globales.Get_Variable_Global(Flag_Maquina_Juego_Evento))
+            {
+                // Serial.println("Juego activo, no apagar maquina");
+                // Contador_Maquina_En_Juego = 0;
+
+                if (Timer_Juego_Iniciado != 0 &&
+                    (millis() - Timer_Juego_Iniciado) < TIMEOUT_JUEGO_EVENTO)
+                {
+                    //Serial.println("Juego activo, no apagar maquina");
+                    Contador_Maquina_En_Juego = 0;
+                }
+                else
+                {
+                    //Serial.println("Juego activo por demasiado tiempo. Posible evento pegado.");
+
+                    Variables_globales.Set_Variable_Global(Flag_Maquina_Juego_Evento, false);
+                    Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+
+                    Contador_Maquina_En_Juego = 0;
+                    Timer_Juego_Iniciado = 0;
+                }
+            }
+            else
+            {
+
+                //Serial.println("Maquina marcada como INACTIVA");
+                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
+                Contador_Maquina_En_Juego = 0;
+            }
         }
        // Transmite_Reenvio_Contadores.Forwarding_Contadores_Accounting();
         Actualiza_Contadores();
@@ -4564,8 +4632,26 @@ void Verifica_Cambio_Contadores(void)
 
         else if (Contador_Coin_In_Act > Contador_Coin_In_Ant)
         {
+
+            // Serial.println("========== NUEVO TIRO ==========");
+
+            // Serial.print("Coin In anterior: ");
+            // Serial.println(Contador_Coin_In_Ant);
+
+            // Serial.print("Coin In actual: ");
+            // Serial.println(Contador_Coin_In_Act);
+
+            // Serial.print("Contador inactividad antes reset: ");
+            // Serial.println(Contador_Maquina_En_Juego);
+
             Contador_Coin_In_Ant = Contador_Coin_In_Act;
+            Contador_Maquina_En_Juego=0;
+
+            // Serial.print("Contador inactividad despues reset: ");
+            // Serial.println(Contador_Maquina_En_Juego);
+
             Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, true);
+            // Serial.println("Flag_Maquina_En_Juego = TRUE");
             //            flag_maquina_en_juego = true;
             New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
             startTime = currentTime;
@@ -4877,7 +4963,14 @@ void Transmision_Controlada_Contadores(void)
                 // }
                 // Contador_Transmision_Contadores = 0;
                 // New_Timer_Final = New_Timmer_Inicial; /*RESET TIMEOUT*/
+
+                // vTaskDelay(pdMS_TO_TICKS(1));
+                // Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por maquina en juego");
+                // vTaskDelay(pdMS_TO_TICKS(1));
             }
+
+           
+
         }
         // Si la maquina SI esta en juego, transmite cada 30 segundos, si el valor es 30
         else if (Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego) && !flag_premio_pagado_cashout && !flag_billete_insertado && !contadores.Get_Status_Flag_Premio() && !Variable_Solicitud_Operador_Id)
@@ -4897,13 +4990,18 @@ void Transmision_Controlada_Contadores(void)
                     {
                         Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                         Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-                        delay(250);
+                        //delay(250);
+                        vTaskDelay(pdMS_TO_TICKS(250));
                     }
                     
                     //                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
                     //                flag_maquina_en_juego = false;
                     Transmite_Contadores_Accounting();
                     Contador_Transmision_Contadores = 0;
+
+                    //vTaskDelay(pdMS_TO_TICKS(1));
+                    //Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por maquina en juego");
+                    //vTaskDelay(pdMS_TO_TICKS(1));
                 }
                 else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==6 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable)!=true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)==true)
                 {
@@ -4915,12 +5013,16 @@ void Transmision_Controlada_Contadores(void)
                     {
                           Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                           Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-                          delay(250);
+                          //delay(250);
+                          vTaskDelay(pdMS_TO_TICKS(250));
                     }
                     Transmite_Contadores_Accounting();
                     //                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
                     //                flag_maquina_en_juego = false;
                     Contador_Transmision_Contadores = 0;
+                    //vTaskDelay(pdMS_TO_TICKS(1));
+                    //Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por maquina en juego");
+                    //vTaskDelay(pdMS_TO_TICKS(1));
                 }else if(Configuracion.Get_Configuracion(Tipo_Maquina, 0) ==14 && Variables_globales.Get_Variable_Global(Flag_Hopper_Enable)!=true && Variables_globales.Get_Variable_Global(Primer_Cancel_Credit)==true)
                 {
                     #ifdef Debug_Transmision
@@ -4931,12 +5033,16 @@ void Transmision_Controlada_Contadores(void)
                     {
                           Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
                           Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-                          delay(250);
+                          //delay(250);
+                          vTaskDelay(pdMS_TO_TICKS(250));
                     }
                     Transmite_Contadores_Accounting();
                     //                Variables_globales.Set_Variable_Global(Flag_Maquina_En_Juego, false);
                     //                flag_maquina_en_juego = false;
                     Contador_Transmision_Contadores = 0;
+                   //vTaskDelay(pdMS_TO_TICKS(1));
+                    //Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por maquina en juego");
+                   // vTaskDelay(pdMS_TO_TICKS(1));
                 }else{
                      Contador_Transmision_Contadores = 0;
                 }
@@ -5055,7 +5161,7 @@ void Transmision_Controlada_Contadores(void)
             if(!Variables_globales.Get_Variable_Global(Flag_Bill_Insert_Sesiones))
                 Variables_globales.Set_Variable_Global(Flag_Bill_Insert_Sesiones,true);
             
-            
+            //Fideliza.Actualiza_Modulo_Fidelizacion(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion billete insertado");
             flag_billete_insertado = false;
         }
        // Serial.println(contadores.Verify_ID_Op());
@@ -5899,7 +6005,8 @@ void Actualiza_Contadores(void)
             
             Variables_globales.Set_Variable_Global_Int(Flag_Type_excepcion, 0);
             Actualiza_Maquina_En_Juego(); /*Actualiza Billetero,Creditos,Coin in,Coin out*/
-            delay(350);
+            //delay(350);
+            vTaskDelay(pdMS_TO_TICKS(350));
             
 
             if (Variables_globales.Get_Variable_Global(Gmaster_API_Mode) == API_MODE)
@@ -5916,6 +6023,10 @@ void Actualiza_Contadores(void)
 
             if (Variables_globales.Get_Variable_Global(Flag_Sesiones_Acumuladas_Sin_Tarjeta))
                 Info_Cashless.Count_Player_Sesions(Variables_globales.Get_Variable_Global(Billete_Insert));
+
+            // vTaskDelay(pdMS_TO_TICKS(1));
+            // Fideliza.SesionCliente(contadores.Get_Client_ID_Int(),SESSION_UPDATE,"Solicitud de actualizacion modulo de fidelizacion por billete insertado");
+            // vTaskDelay(pdMS_TO_TICKS(1));
         }
     }else{
 

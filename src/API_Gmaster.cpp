@@ -151,8 +151,7 @@ void API_Gmaster::Transmite_Confirmacion_API(char Buffer[], String api, bool Tok
                    // Serial.println(payload);
                     /*--------------------------------> Crea Archivo json <---------------------------------*/
                     StaticJsonDocument<500>
-                        doc,
-                        filter;
+                        doc;
                     DeserializationError error = deserializeJson(doc, payload);
                     /*--------------------------------------------------------------------------------------*/
                     if (error)
@@ -248,8 +247,7 @@ bool API_Gmaster::Trasmite_Contadores_Gmaster_Api(char Buffer[], String Api, boo
 
                     String Response = https.getString();
                     StaticJsonDocument<200>
-                        doc,
-                        filter;
+                        doc;
                     DeserializationError error = deserializeJson(doc, Response);
 
                     if (error)
@@ -369,7 +367,7 @@ void API_Gmaster::Transmite_Eventos_Gmaster_Api(char Buffer[], String Api, bool 
 
                     String payload = https.getString();
 
-                    StaticJsonDocument<500> doc, filter;
+                    StaticJsonDocument<500> doc;
                     DeserializationError error = deserializeJson(doc, payload);
 
                     if (error)
@@ -457,7 +455,7 @@ void API_Gmaster::Sincroniza_Reloj_RTC_API(String Api)
 
                 /* Hora -> Dia-> Mes-> Ano */
 
-                StaticJsonDocument<1024> doc, filter;
+                StaticJsonDocument<1024> doc;
                 DeserializationError error = deserializeJson(doc, payload);
 
                 // Verificar errores de deserialización
@@ -586,7 +584,7 @@ void API_Gmaster::Sincroniza_Reloj_RTC_API(String Api)
 
                 /* Hora -> Dia-> Mes-> Ano */
 
-                StaticJsonDocument<1024> doc, filter;
+                StaticJsonDocument<1024> doc;
                 DeserializationError error = deserializeJson(doc, payload);
 
                 // Verificar errores de deserialización
@@ -849,8 +847,7 @@ String API_Gmaster::Token_Generator_Gmaster(String Api)
 #endif
 
                 StaticJsonDocument<1024>
-                    doc,
-                    filter;
+                    doc;
                 DeserializationError error = deserializeJson(doc, payload);
 
                 if (error)

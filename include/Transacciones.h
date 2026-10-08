@@ -21,6 +21,10 @@
 #define Tipo_UP 0x00
 #define Tipo_DWN 0x01
 
+#define TRANSACCION_AFT_BNS true
+#define TRANSACCION_BNS     false
+
+
 enum EstadoAFTMAQUINA
   {
     AFT_OK = 0,
@@ -100,6 +104,13 @@ public:
 
   };
 
+
+  enum LinkerAFT {
+    LINKER_IDLE = 0,          // En espera: sin transacción activa
+    LINKER_PENDIENTE = 1,    // Pendiente de consultada estado
+    LINKER_FINALIZADA = 2    // Finalizada
+  };
+
   
 
   typedef struct 
@@ -120,6 +131,9 @@ public:
     char assets[9];
     int count;
     int ID;
+
+    
+
     String GUID;
 
     float Deno_Contabilidad_BUDA;
@@ -144,6 +158,7 @@ public:
 
   SolicitudBA solicitudBA;
   EstadoBA Status=BA_IDLE;  // <-- variable que guarda el estado actual
+  LinkerAFT EstadoLinkerAFT=LINKER_IDLE;
 
   bool Set_Evento_Controller_Machine_Load(bool Enable);
   bool Set_Evento_Controller_Machine_Download(bool Enable);
@@ -157,6 +172,9 @@ public:
   void Envia_Transaccion_AFT_Load();
   bool Await_Transaccion_AFT_Load(unsigned long timeout);
   void Estatus_Transaccion_AFT_Load();
+
+
+  void Estatus_Transaccion_BDA_Win(void);
   void Envia_Comando_AFT_Stutus();
   void Error_Transaccion_AFT_Load(int Code);
   void Task_Transaccion_AFT_Load(bool Transfer_In_Progress);
@@ -385,7 +403,7 @@ void Task_Transaccion_AFT_Download_Especial(bool Transfer_In_Progress);
     return Guid;
   }
 
-  void UPDOWNBA(int Code, String Msg, char Buffer[],ESP32Time RTC,int TYPE);
+  void UPDOWNBA(int Code, String Msg, char Buffer[],ESP32Time RTC,int TYPE,bool Type_Transfer=TRANSACCION_BNS);
 
   void BackupBA();
 
@@ -419,8 +437,15 @@ void Task_Transaccion_AFT_Download_Especial(bool Transfer_In_Progress);
   void Init_Transaccion_Parameter_BA(void);
   void Envia_Transaccion_BA();
 
-
+  void Envia_Win_BDA(void);
   bool Security_Key_Validation(unsigned long timeout);
+
+
+  void LogSAS_Plus(const char *direccion,
+                                const char *evento,
+                                uint8_t *buffer,
+                                size_t length,
+                                bool Debug);
 
   void Mantiene_Comunicacion(void);
   bool IsReadyForNewTransfer(void)

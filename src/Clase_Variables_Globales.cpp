@@ -473,7 +473,23 @@ bool Variables_Globales::Get_Variable_Global(int Filtro)
     case Flag_Mode_Descarga:
         return Flag_Mode_Descarga_;
         break;
+
+
+    case BDA_AFT_BNS:
+        return BDA_AFT_BNS_;
+        break;
+
+    case Token_Fidelizacion_Solicitud:
+        return Token_Fidelizacion_Solicitud_;
+        break;
+
+
+    case Token_Accounting_Solicitud:
+        return Token_Accounting_Solicitud_;
+        break;
     }
+
+    
 
     
 
@@ -945,10 +961,21 @@ void Variables_Globales::Set_Variable_Global(int Filtro, bool Change_estado)
     case Flag_Mode_Descarga:
         Flag_Mode_Descarga_=Change_estado;
         break;
+
+
+    case BDA_AFT_BNS:
+        BDA_AFT_BNS_=Change_estado;
+        break;
+
+    case Token_Fidelizacion_Solicitud:
+        Token_Fidelizacion_Solicitud_=Change_estado;
+        break;
+
+    case Token_Accounting_Solicitud:
+        Token_Accounting_Solicitud_=Change_estado;
+        break;
     }
 
-
-   
 }
 
 
@@ -1100,6 +1127,11 @@ void Variables_Globales::Init_Variables_Globales() // Constructor explicito
     Flag_Contador_Restricted_SAS_=false;
     Flag_Contador_NON_Restricted_SAS_=false;
     Flag_Mode_Descarga_=false;
+    BDA_AFT_BNS_=false;
+    Token_Fidelizacion_Solicitud_=false;
+
+    Token_Accounting_Solicitud_=false;
+
     
 }
 

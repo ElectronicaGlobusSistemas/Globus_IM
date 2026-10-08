@@ -231,7 +231,7 @@ class Transsaccion_Cashless
     char* Get_ACK_Bonus(void);
     bool Delete_ACK_Bonus(void);
 
-    bool Init_API_Server(void);
+    void Init_API_Server(void);
     bool Init_API_Bono(void);
     uint32_t Get_Credit_Number(int Type);
     uint32_t BCDtoUint32(char Credit_To_Load[], int Select);

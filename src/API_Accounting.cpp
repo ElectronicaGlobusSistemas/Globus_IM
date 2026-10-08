@@ -8,6 +8,7 @@
 #include "RFID.h"
 #include <esp_task_wdt.h>
 #include "Clase_Variables_Globales.h"
+#include "Cumplimiento.h"
 
 std::vector<String> Premios_SAS_Pendientes;
 const char* PremisoFile = "/Premios_SAS.txt";
@@ -19,7 +20,7 @@ extern Cashless_API Info_Cashless;
 extern Variables_Globales Variables_globales; // Objeto contiene Variables Globales
 
 //#define Debug_Premios_SAS
-
+QueueHandle_t QueueAccounting = NULL;
 
 std::string IP_toString_Acc(char IP_Char[])
 {
@@ -38,7 +39,6 @@ std::string IP_toString_Acc(char IP_Char[])
 
     return ipString;
 }
-
 
 unsigned long API_Accounting::Convert_Counter(char buffer_Data_Met[])
 {
@@ -64,6 +64,274 @@ unsigned long API_Accounting::Convert_Counter_4digit(char buffer_Data_Met[])
                               ((buffer_Data_Met[2] - 48) * 10) +
                               ((buffer_Data_Met[3] - 48) * 1);
     return Resultado;
+}
+
+bool API_Accounting::Init_Cola_Accounting(void)
+{
+    if (QueueAccounting == NULL)
+    {
+        QueueAccounting = xQueueCreate(3, sizeof(AccountingRequest_t));
+        if (QueueAccounting == NULL)
+        {
+            //Serial.println("Error al crear la cola de Accounting");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool API_Accounting::Transmite_Contadores_Api_Cola(int Comando, bool IsOk, String Messages)
+{
+    // Serial.println("Solicitud ingreso cola");
+
+    if (QueueAccounting == NULL)
+    {
+        // Serial.println("La cola de Accounting no ha sido inicializada");
+        return false;
+    }
+
+    AccountingRequest_t request;
+
+    if (xQueueSend(QueueAccounting, &request, 0) != pdPASS)
+    {
+        // Serial.println("Error al enviar la solicitud a la cola de Accounting");
+        // Serial.println("Cola de Accounting llena, no se pudo enviar la solicitud");
+        // Serial.println("Eventos restantes en cola: " + String(uxQueueMessagesWaiting(QueueAccounting)));
+        return false;
+    }
+    return true;
+}
+
+void API_Accounting::Task_Accounting()
+{
+
+    if (QueueAccounting != NULL)
+    {
+        AccountingRequest_t Request;
+
+        if (xQueueReceive(QueueAccounting, &Request, 0) == pdTRUE)
+        {
+
+            // Serial.println(
+            //     "Eventos restantes en cola: " +
+            //     String(uxQueueMessagesWaiting(QueueAccounting)));
+            Actualiza_Modulo_Accounting(
+                3,
+                contadores,
+                RTC,
+                Variables_globales,
+                true,
+                "Solicitud actualizar Modulo Accounting");
+        }
+    }
+}
+
+
+
+bool API_Accounting::Actualiza_Modulo_Accounting(int Com, Contadores_SAS contadores, ESP32Time RTC, Variables_Globales Variables_globales, bool IsSuccess, String Message)
+{
+    bool Status = false;
+
+    WiFiClient client;
+    HTTPClient https;
+    int httpCode;
+    char IP_Server[4];
+    char Current_IP[4];
+    memcpy(IP_Server, Configuracion.Get_Configuracion(Direccion_IP_Server, 'x'), sizeof(IP_Server) / sizeof(IP_Server[0]));
+    memcpy(Current_IP, Configuracion.Get_Configuracion(Direccion_IP, 'x'), sizeof(Current_IP) / sizeof(Current_IP[0]));
+    std::string Ip = IP_toString_Acc(IP_Server);
+    String Ip_Server = String(Ip.c_str());
+    String Puerto = "9090";
+
+    // String fwurl = Configuracion.Get_Configuracion_ES(Controlador_P,"Controlador_Principal") + Configuracion.Get_Configuracion_ES(Metodo_Conta,"Metodo_Contadores");
+    String fwurl = "http://" + Ip_Server + ":" + Puerto + "/api/Tarjeta/ProcesarContadoresApi";
+    //Serial.println(fwurl);
+    https.setReuse(false);
+    https.setTimeout(10000); // Establece el tiempo de espera en 20 segundos (20000 ms)}}
+
+    StaticJsonDocument<2460> jsonDocument;
+    jsonDocument.clear();
+
+    jsonDocument["IsSuccess"] = IsSuccess;
+    jsonDocument["Message"] = Message;
+    jsonDocument["Comando"] = Com;
+
+    //-----------------------------
+    // MAQUINA
+    //-----------------------------
+    JsonObject maquina = jsonDocument.createNestedObject("Maquina");
+
+    maquina["Id_Machine"] = Configuracion.Get_Configuracion(Id_Maquina, "Id_Maquina");
+    maquina["Ip"] = IP_toString_(Current_IP);
+    maquina["Mac"] = WiFi.macAddress();
+    char firma[2];
+    memcpy(firma, contadores.Get_Contadores_Char(ROM_Signature), 2);
+
+    char firmaHex[5];
+    sprintf(firmaHex, "%02X%02X",
+            (uint8_t)firma[0],
+            (uint8_t)firma[1]);
+
+    maquina["ROM_Signature"] = firmaHex;
+    maquina["Serie_Trama"] = contadores.Get_Contadores_Int(Serie_Trama);
+
+    
+    maquina["Maquina_En_Juego"] =
+        Variables_globales.Get_Variable_Global(Flag_Maquina_En_Juego);
+
+    maquina["Evento_Maquina_En_Juego"] =
+        Variables_globales.Get_Variable_Global(Flag_Maquina_Juego_Evento);
+
+    maquina["Version_SAS"] = Informacion_Protocolo_SAS(SAS_VERSION);
+    maquina["Serial_Maquina"] = Informacion_Protocolo_SAS(SAS_SERIAL);
+
+    //-----------------------------
+    // CONTADORES SAS
+    //-----------------------------
+    JsonObject cont = jsonDocument.createNestedObject("Contadores");
+
+    cont["Total_Cancel_Credit"] =
+        contadores.Get_Contadores_Int(Total_Cancel_Credit);
+
+    cont["Coin_In"] =
+        contadores.Get_Contadores_Int(Coin_In);
+
+    cont["Coin_Out"] =
+        contadores.Get_Contadores_Int(Coin_Out);
+
+    cont["Total_Drop"] =
+        contadores.Get_Contadores_Int(Total_Drop);
+
+    cont["Jackpot"] =
+        contadores.Get_Contadores_Int(Jackpot);
+
+    cont["Physical_Coin_In"] =
+        contadores.Get_Contadores_Int(Physical_Coin_In);
+
+    cont["Physical_Coin_Out"] =
+        contadores.Get_Contadores_Int(Physical_Coin_Out);
+
+    cont["Total_Coin_Drop"] =
+        contadores.Get_Contadores_Int(Total_Coin_Drop);
+
+    cont["Machine_Paid_Progresive"] =
+        contadores.Get_Contadores_Int(Machine_Paid_Progresive_Payout);
+
+    cont["Machine_Paid_External_Bonus"] =
+        contadores.Get_Contadores_Int(Machine_Paid_External_Bonus_Payout);
+
+    cont["Attendant_Paid_Progresive"] =
+        contadores.Get_Contadores_Int(Attendant_Paid_Progresive_Payout);
+
+    cont["Attendant_Paid_External_Bonus"] =
+        contadores.Get_Contadores_Int(Attendant_Paid_External_Bonus_Payout);
+
+    cont["Ticket_In"] =
+        contadores.Get_Contadores_Int(Ticket_In);
+
+    cont["Ticket_Out"] =
+        contadores.Get_Contadores_Int(Ticket_Out);
+
+    int tipoMaquina = Configuracion.Get_Configuracion(Tipo_Maquina, 0);
+
+    cont["Cancel_Credit_Handpay"] =
+        (tipoMaquina == 4 || tipoMaquina == 10)
+            ? contadores.Get_Contadores_Int(Total_Cancel_Credit)
+            : contadores.Get_Contadores_Int(Cancel_Credit_Hand_Pay);
+
+    cont["Bill_Amount"] =
+        contadores.Get_Contadores_Int(Bill_Amount);
+
+    cont["Games_Since_Last_Power_Up"] =
+        contadores.Get_Contadores_Int(Games_Since_Last_Power_Up);
+
+    cont["Games_Played"] =
+        contadores.Get_Contadores_Int(Games_Played);
+
+    cont["Open_Door"] =
+        contadores.Get_Contadores_Int(Door_Open);
+
+    cont["Current_Credit"] =
+        contadores.Get_Contadores_Int(Current_Credits);
+
+    //-----------------------------
+    // JUGADOR
+    //-----------------------------
+    JsonObject jugador = jsonDocument.createNestedObject("Jugador");
+
+    jugador["ID_Jugador"] =
+        contadores.Get_Client_ID_Int();
+
+    jugador["Id_Operador"] =
+        contadores.Get_Operador_ID_Int_Op();
+
+    //-----------------------------
+    // FECHA
+    //-----------------------------
+    jsonDocument["Fecha_Hora"] = String(RTC.getYear()) + "-" + String(RTC.getMonth() + 1) + "-" + String(RTC.getDay()) + " " + String(RTC.getHour(true)) + ":" + String(RTC.getMinute()) + ":" + String(RTC.getSecond());
+
+    String json;
+
+    serializeJson(jsonDocument, json);
+
+    //Serial.println(json);
+
+    if (https.begin(client, fwurl))
+    {
+
+        https.addHeader("Content-Type", "application/json");
+        https.addHeader("hash", Info_Cashless.Get_Hash_Valido_Accounting());
+        https.addHeader("gmsec", "GMaster");
+        https.addHeader("Authorization", "Bearer " + Info_Cashless.Get_Token_Valido_Accounting());
+
+        httpCode = https.POST(json);
+
+#ifdef Debug_Premios_SAS
+        Serial.println();
+        Serial.print("Estado de solicitud HTTP: ");
+        Serial.println(httpCode);
+#endif
+
+        if (httpCode == HTTP_CODE_OK)
+        {
+
+            jsonDocument.clear();
+
+            String Response = https.getString();
+            DeserializationError error = deserializeJson(jsonDocument, Response);
+
+#ifdef Debug_Premios_SAS
+            Serial.println(Response);
+#endif
+
+            if (error)
+            {
+#ifdef Debug_HTTPS
+                Serial.println("Error Json Contadores ");
+#endif
+                Status = false;
+            }
+            else
+            {
+                bool IsSuccess = jsonDocument["IsSuccess"];
+
+                if (IsSuccess)
+                {
+                    Status = true;
+                    // contadores.Close_ID_Operador();
+                }
+                else
+                    Status = false;
+            }
+        }
+        else
+        {
+            Status = false;
+        }
+        https.end();
+    }
+
+    return Status;
 }
 
 /* Agrega premio SAS a lista de premios pendientes por transmitir */
@@ -142,7 +410,6 @@ void API_Accounting::Save_Handpay_Informations(char Buffer_MET[128], char Contad
     }
 }
 
-
 /* Metodo Web para reporte de premios SAS */
 bool API_Accounting::Send_Handpay_Informatios(ESP32Time RTC,String Data)
 {
@@ -158,6 +425,7 @@ bool API_Accounting::Send_Handpay_Informatios(ESP32Time RTC,String Data)
     String Ip_Server=String(Ip.c_str());
     String Puerto="9595";
     String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/ProcesaPremioSAS";
+    https.setReuse(false);
     https.setTimeout(20000); // Establece el tiempo de espera en 20 segundos (20000 ms)
 
     if (https.begin(client, fwurl))
@@ -276,8 +544,6 @@ void API_Accounting:: Report_Handpay_Informations_SAS(bool Token_Cashless)
 {
     if (Token_Cashless)
     {
-
-        
         Timer_Start_Premios = millis();
 
         if ((Timer_Start_Premios - Timer_End_Premios_SAS) >= TimeOut_Premios_SAS||!Firts_SAS)
@@ -370,7 +636,6 @@ void API_Accounting::Load_Premios_SAS(void)
 }
 
 
-
 void API_Accounting::Change_Flag_Handler_Cancel_Credit(bool Status_Flag)
 {
     Send_Handler_Cancel_Credit=Status_Flag;
@@ -409,7 +674,7 @@ bool API_Accounting::Send_Counter_App(void)
     String Puerto="9595";
     String fwurl = "http://"+Ip_Server+":"+Puerto+"/api/Cashless/ProcesaPremio";
     https.setTimeout(10000); // Establece el tiempo de espera en 20 segundos (20000 ms)
-
+    https.setReuse(false);
 
     if(!Variables_globales.Get_Variable_Global(Comunicacion_Maq))
       jsonDocument["IsSuccess"] = false;

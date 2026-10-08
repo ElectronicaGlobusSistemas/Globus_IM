@@ -1,11 +1,11 @@
-ESP Async WebServer
-xreef/PCF8574 library@^2.3.5
+luisllamasbinaburo/I2CScanner@^1.0.1
 bblanchon/ArduinoJson@^6.19.4
-adafruit/Adafruit NeoPixel@^1.11.0
-ESP32Ping
-knolleary/PubSubClient
+greiman/SdFat@^2.3.0
+ESP32Async/AsyncTCP @ 3.3.2
+henrikste/ESP32FTPServer@^0.0.2
 fbiego/ESP32Time@^1.1.0
 miguelbalboa/MFRC522@1.4.2
-greiman/SdFat@^2.3.0
-henrikste/ESP32FTPServer@^0.0.2
-luisllamasbinaburo/I2CScanner@^1.0.1
+adafruit/Adafruit NeoPixel@^1.11.0
+ESP32Async/ESPAsyncWebServer @ 3.6.0
+ESP32Ping
+xreef/PCF8574 library@^2.3.5
